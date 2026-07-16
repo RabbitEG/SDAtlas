@@ -31,9 +31,9 @@
 .paper-summary__layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 24px;
+  gap: 22px;
   align-items: start;
-  padding: 28px 32px;
+  padding: 25px 30px;
 }
 
 .paper-summary__content {
@@ -41,34 +41,93 @@
   min-width: 0;
 }
 
+.paper-summary__topline {
+  display: grid;
+  grid-template-columns:
+    minmax(120px, 0.7fr)
+    minmax(105px, 0.55fr)
+    minmax(90px, 0.42fr)
+    minmax(260px, 2.2fr);
+  gap: 18px;
+  align-items: center;
+  min-width: 0;
+}
+
 .paper-summary__title {
   display: block;
-  max-width: 1000px;
-  margin-top: 10px;
+  min-width: 0;
   color: var(--ink);
-  font-size: clamp(20px, 2.1vw, 27px);
-  font-weight: 660;
-  letter-spacing: -0.025em;
+  font-size: clamp(20px, 1.8vw, 26px);
+  font-weight: 720;
+  letter-spacing: -0.035em;
+  line-height: 1.2;
+}
+
+.paper-summary__datum {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  color: var(--ink-2);
+  font-style: normal;
+}
+
+.paper-summary__datum small {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.11em;
+}
+
+.paper-summary__datum strong {
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  font-weight: 680;
   line-height: 1.35;
 }
 
 .paper-context-summary {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
-  gap: 10px;
-  align-items: baseline;
-  margin-top: 15px;
+  gap: 9px;
+  align-items: center;
+  min-width: 0;
   color: var(--ink-2);
-  font-size: 15px;
-  line-height: 1.65;
+  font-size: 13px;
+  line-height: 1.55;
 }
 
 .paper-context-summary strong {
   color: var(--brand);
-  font-size: 12px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+.paper-context-summary > span {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.paper-summary__institutions {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 12px;
+  align-items: baseline;
+  margin-top: 14px;
+  padding-top: 12px;
+  color: var(--ink-2);
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.paper-summary__institutions strong {
+  color: var(--brand);
+  font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.08em;
-  text-transform: uppercase;
 }
 
 .paper-summary__toggle {
@@ -129,13 +188,22 @@
   display: block;
 }
 
-.paper-card__details .paper-taxonomy {
-  padding-left: 128px;
-  border-top: 0;
-}
-
 .paper-card__details .paper-field--row-end,
 .paper-list--explorer .paper-card__details .paper-field--wide {
+  border-right: 0;
+}
+
+.paper-overview-grid,
+.paper-list--explorer .paper-overview-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.paper-list--explorer .paper-overview-grid .paper-field {
+  border-right: 1px solid var(--line);
+}
+
+.paper-list--explorer .paper-overview-grid .paper-field--row-end,
+.paper-list--explorer .paper-overview-grid .paper-field--full {
   border-right: 0;
 }
 
@@ -234,11 +302,23 @@
 .paper-list--explorer .paper-summary__layout {
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 20px;
-  padding: 25px 27px;
+  padding: 24px 27px;
 }
 
-.paper-list--explorer .paper-card__details .paper-taxonomy {
-  padding-left: 105px;
+@media (max-width: 1180px) {
+  .paper-summary__topline {
+    grid-template-columns:
+      minmax(105px, 0.7fr)
+      minmax(90px, 0.52fr)
+      minmax(82px, 0.4fr)
+      minmax(190px, 1.7fr);
+    gap: 12px;
+  }
+
+  .paper-context-summary {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
 }
 
 @media (max-width: 760px) {
@@ -254,6 +334,32 @@
 
   .paper-summary__content {
     display: block;
+  }
+
+  .paper-summary__topline {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px 16px;
+    align-items: start;
+  }
+
+  .paper-summary__title {
+    grid-column: 1 / -1;
+  }
+
+  .paper-summary__date {
+    justify-self: start;
+    text-align: left;
+  }
+
+  .paper-context-summary {
+    grid-column: 1 / -1;
+    grid-template-columns: 1fr;
+    gap: 3px;
+  }
+
+  .paper-summary__institutions {
+    grid-template-columns: 1fr;
+    gap: 3px;
   }
 
   .paper-summary__toggle {
@@ -280,14 +386,13 @@
     content: "−";
   }
 
-  .paper-context-summary {
+  .paper-overview-grid,
+  .paper-list--explorer .paper-overview-grid {
     grid-template-columns: 1fr;
-    gap: 3px;
   }
 
-  .paper-card__details .paper-taxonomy,
-  .paper-list--explorer .paper-card__details .paper-taxonomy {
-    padding-left: 20px;
+  .paper-list--explorer .paper-overview-grid .paper-field {
+    border-right: 0;
   }
 
   .institution-arrow {

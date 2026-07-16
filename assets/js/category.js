@@ -53,7 +53,7 @@
         : item.name + " · " + item.zhName;
     }
     var description = kind === "major" ? item.description : item.description + "。";
-    var source = kind === "major" ? "大类别 · EXCEL E 列" : "小标签 · TAG.TXT";
+    var source = kind === "major" ? "大类别" : "研究标签";
     var explorer = kind === "major"
       ? ui.explorerHref({ major: [item.code], mode: "intersection" })
       : ui.explorerHref({ tags: [item.code], mode: "intersection" });
@@ -75,7 +75,7 @@
         "\">在组合筛选中打开</a><a class=\"text-link\" href=\"index.html\">返回总览</a></div></div>",
       "<aside class=\"detail-summary\"><div class=\"detail-count\"><strong>" + papers.length +
         "</strong><span>篇相关论文</span></div><div class=\"related-sets\"><span>同时涉及的" +
-        (kind === "major" ? "小标签" : "大类别") + "</span>" + relatedLinks() + "</div></aside>",
+        (kind === "major" ? "研究标签" : "大类别") + "</span>" + relatedLinks() + "</div></aside>",
       "</div></div>"
     ].join("");
   }
@@ -92,7 +92,7 @@
     }
     resultLine.textContent = query
       ? "搜索“" + query + "” · 显示 " + result.length + " / " + papers.length + " 篇"
-      : "按源表顺序显示 " + result.length + " 篇论文；卡片默认折叠，展开后可查看 Excel 的 9 个字段与详细贡献。";
+      : "显示 " + result.length + " 篇论文；折叠状态便于横向比较，展开后可查看完整论文信息与详细贡献。";
     list.innerHTML = result.length
       ? result.map(function (paper) { return ui.paperCard(paper, { kind: kind, id: item.code }); }).join("")
       : ui.emptyState("当前搜索没有结果", "换一个标题、简称、单位或标签关键词试试。",

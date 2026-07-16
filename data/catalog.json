@@ -421,11 +421,11 @@
       "url": "https://proceedings.neurips.cc/paper_files/paper/2025/hash/c7b5a35ea98b62512a869c19ea7b03cb-Abstract-Conference.html",
       "localPdf": "../Reference/EAGLE3.pdf",
       "categoryContributions": {
-        "A": "改为直接预测 Token，融合目标模型浅、中、深层特征，并用 Training-Time Test 缩小训练与多步推理的差异。"
+        "A": "针对 EAGLE 的特征回归约束限制模型表达能力与数据扩展收益的问题，EAGLE-3 去掉特征预测损失，让单层 Transformer Drafter 直接预测 Token，并将 Target 低、中、高层隐状态拼接后经全连接层融合为输入。训练时再回灌 Drafter 自身输出、用特制注意力掩码模拟多步 Rollout，使这一特征融合结构能适应真实的自回归 Draft。"
       },
       "tagContributions": {
-        "Q": "融合 Target 多层特征并直接预测 Token，增强自回归 Drafter 的候选质量。",
-        "R": "用 Training-Time Test 模拟推理时的多步 Rollout，缓解训练—推理错位。"
+        "Q": "摆脱必须拟合 Target 顶层特征的约束后，Drafter 可直接为 Token 预测优化；同时融合低、中、高层语义，避免只用偏向下一 Token Logit 的顶层特征来预测更远位置。更高且随 Rollout 步数基本稳定的接受率还允许把动态 Draft Tree 深度由 6 提至 8。",
+        "R": "Training-Time Test 在训练中把每轮 Drafter 输出作为下一轮输入，并用树状依赖注意力掩码一次模拟 5 步推理，以训练数据 Token 监督各步预测。该目标移除特征回归损失后可从扩大的 ShareGPT、UltraChat 等数据持续获益，论文使用约为 EAGLE 8 倍的数据观察到此前架构没有的数据扩展规律。"
       }
     },
     {
@@ -463,12 +463,12 @@
       "url": "https://arxiv.org/abs/2505.24544",
       "localPdf": "../Reference/BEAGLE.pdf",
       "categoryContributions": {
-        "A": "用简洁的 Cross-Attention Drafter 取代紧耦合自注意力与融合层，并以两阶段 Block-Attention 训练稳定收敛和显存。"
+        "A": "Beagle 用单层 Cross-Attention 加 MLP 构造 Drafter：当前 Token Embedding 形成 Query，Target 顶层隐状态或 Drafter 自回归产生的状态形成 Key/Value，并以遮蔽对角线及未来位置的因果掩码生成候选。Query 与 Key/Value 分处低、高层表示空间，因此无需 EAGLE 式池化、特征复制与拼接；推理时追加缓存的 Key/Value，并沿用 EAGLE-2 的动态 Draft Tree。"
       },
       "tagContributions": {
-        "Q": "Cross-Attention 让 Drafter 直接读取 Target 上下文特征以维持 Draft 质量。",
-        "R": "两阶段 Block-Attention 训练改善稳定性并降低训练显存。",
-        "D": "简化 EAGLE 式紧耦合结构，减少 Drafter 结构与训练成本。"
+        "Q": "早期训练用逆 Block-Attention 同时预测多个未来 Token，把更远位置的信息压入 Drafter 状态；后期则回灌自预测 Key/Value，按真实自回归路径优化即时下一 Token。两阶段分别改善后续位置与中段 Token 的接受率，使简化后的 Cross-Attention Drafter 在相同 ShareGPT 数据规模上达到与 EAGLE-v2 相当的接受长度。",
+        "R": "前 10 个 Epoch 以局部未来 Key 全遮蔽的 Block-Attention 并行优化多 Token 目标，后 10 个 Epoch 原位更新自预测 Key 并按接受长度对逐步损失加权；两阶段还保留隐状态蒸馏正则以稳定收敛。Cross-Attention 模拟无需随步数展开新的 Query，因而保持近似常量训练显存，3 步模拟可在单张 24 GiB GPU 上训练 7B Target 的 Drafter。",
+        "D": "去掉自注意力子层、辅助池化/融合层以及高层状态的反复复制拼接，既减少注意力参数与训练开销，也改善推理时的内存局部性。Drafter 只需缓存并追加 Cross-Attention 的 Key/Value，在每轮投机解码结束后恢复为 Target 的真实状态。"
       }
     },
     {
@@ -511,12 +511,12 @@
       "url": "https://openreview.net/forum?id=XbOyv7iVGL",
       "localPdf": "../Reference/PARD.pdf",
       "categoryContributions": {
-        "A": "以单次前向并行预测多个未来 Token，并通过低成本适配，使一个 Drafter 可跨同系列 Target 复用。"
+        "A": "PARD 从同系列中能力较强的小型自回归模型出发，用 Mask Token 代替块内的未来依赖，使各位置只条件于已知前缀和占位符，从而在一次 Drafter 前向中并行提出多个未来 Token。它不读取 Target 特征，只需低成本适配系列中最小模型，一个 Drafter 即可复用于同系列不同规模的 Target；COD 训练又通过保留完整前缀 KV 状态把适配成本从 O(NK) 降至 O(N)。"
       },
       "tagContributions": {
-        "D": "把现成 AR 小模型改造成一次预测多个 Mask 位置的并行 Drafter。",
-        "R": "以低成本适配训练缩短改造周期，并支持同系列 Target 复用。",
-        "Q": "继承预训练 AR 小模型能力，在低成本改造下保持多位置候选质量。"
+        "D": "以共享 Mask Token 占据未来位置后，各候选之间不再互相依赖，K 个 Token 可由一次并行前向提出，将 Drafter 开销从 K 次前向的 K·T_D 降为 T_D。该设计的 Draft 显存带宽开销不随 K 增长，并可直接接入 vLLM 的链式投机解码。",
+        "R": "Mask 训练原本要把长度 N 的样本展开为 K 个预测子任务；COD 对第 i 个子任务按 max(r^(i−1), r_min) 保留位置，且只保留拥有完整前缀 Key/Value 的 Token，将训练量压到小于 N/(1−r)。论文采用 K=8、r=0.7、r_min=0.2，在不降低最终推理速度的前提下较完整 Mask 训练提速约 3 倍，并省去为每个 Target 分别训练 Drafter 的成本。",
+        "Q": "PARD 继承同系列预训练小模型的语言能力，而非从头训练轻量预测头；COD 优先保留更关键的近端预测并确保每个样本的前缀 KV 上下文完整，以在稀疏训练下维持多位置候选质量。所有位置共享同一 Mask Token 还比位置专属 ID 提高预测一致性，并支持推理时使用大于训练值的 Draft 长度。"
       }
     },
     {
@@ -564,13 +564,13 @@
       "url": "https://aclanthology.org/2026.findings-acl.1048/",
       "localPdf": "../Reference/DiffuSpec.pdf",
       "categoryContributions": {
-        "A": "复用预训练扩散语言模型，在单次前向中生成多位置 Token Lattice，消除自回归 Draft 的逐步开销。",
-        "C": "以因果一致路径搜索提取可供 Verify 的序列，并根据在线接受反馈动态调节 Draft 长度。"
+        "A": "DiffuSpec 直接复用预训练扩散语言模型作为 Drafter，在前缀后追加 k 个 Mask，并以一次默认的去噪精炼前向同时产生各位置的候选分布与 Token Lattice，避免自回归 Drafter 为每个 Token 单独前向。为接入标准投机采样，它通过遮蔽块内其余位置构造逐位置的左到右条件概率，Target 架构无需修改。",
+        "C": "系统按“扩散 Draft—CPS 路径搜索—Target 并行 Verify—ADL 更新长度”四阶段运行：CPS 对 Token Lattice 做累计概率质量剪枝，再用兼顾扩散置信度与因果语言分数的束搜索选出左到右路径。ADL 根据首个 EOS 前的生成长度和实际接受前缀的在线反馈调整下一轮 Verify 块长，使路径质量提升能转化为端到端收益。"
       },
       "tagContributions": {
-        "D": "直接复用预训练 Diffusion LM，一次前向并行生成 Token Lattice。",
-        "Q": "用因果一致路径搜索从并行 Lattice 中选择与 AR Target 兼容的序列。",
-        "V": "根据在线接受反馈自适应 Proposal Length，避免固定长度造成浪费。"
+        "D": "Dream-7B 等扩散 Drafter 可在一次去噪精炼前向中并行填充整个 Mask 块，无需按 Token 串行调用；现成 DLM 可作为插件替换标准接口中的自回归 Drafter。论文固定单步精炼，因为增加精炼步数虽能提高接受长度，却会以额外前向显著侵蚀实际吞吐。",
+        "Q": "CPS 从每个位置的 Top-M 候选出发，按累计概率质量自适应剪枝、始终保留 EOS，并在首个 EOS 处停止扩展；随后以 DLM Log 概率和 3-gram 因果分数的加权和进行左到右束搜索。它不把各位置边际 Top-1 生硬拼接，而是选择因果连贯路径，将 Drafter 与 AR Verifier 的首次失配推向更后位置。",
+        "V": "ADL 分别对原始扩散候选首个 EOS 前的生成长度 L_gen 和 Verify 后的连续接受长度 L_acc 做指数滑动平均；当接受进度跟上生成进度时小幅扩长，否则按 L_gen 回缩，并把下一轮长度限制在预设上下界。这样可避开固定长 Draft 过短限制进度、过长产生漂移并增加无效 Verify 的两端浪费。"
       }
     },
     {

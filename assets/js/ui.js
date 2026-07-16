@@ -115,12 +115,6 @@
     }).join("");
   }
 
-  function workbookTagChips(paper) {
-    return paper.workbookTags.map(function (value) {
-      return "<span class=\"source-chip\">" + escapeHtml(value) + "</span>";
-    }).join("");
-  }
-
   /*
    * Institution records are maintained as ordered, independently explainable
    * entries in data/catalog.json. Reusing the site's delegated tooltip keeps
@@ -246,17 +240,17 @@
   }
 
   /*
-   * A paper card is a native, keyboard-operable disclosure. Its closed summary
-   * contains the fields needed to scan a result set; opening it reveals every
-   * workbook column. tag.txt labels stay in a separate block so the two source
-   * taxonomies can never be confused.
+   * A paper card is a native, keyboard-operable disclosure. The closed summary
+   * is optimized for comparison: short name, venue, date and contextual
+   * contribution stay on the first row, while institutions occupy the second.
+   * Source-management fields remain in the catalog for validation and search,
+   * but are deliberately absent from the reader-facing expanded view.
    */
   function paperCard(paper, options) {
     options = options || {};
     var major = options.kind === "major" ? options.id : null;
     var tagCode = options.kind === "tag" ? options.id : null;
     var summary = paperContextSummary(paper, options);
-    var year = String(paper.date || "").slice(0, 4);
     var localLink = paper.localPdf
       ? "<a class=\"button button-secondary\" href=\"" + escapeHtml(paper.localPdf) +
         "\" target=\"_blank\" rel=\"noopener\">本地 PDF <span aria-hidden=\"true\">↗</span></a>"
@@ -269,35 +263,32 @@
     return [
       "<details class=\"paper-card\" data-paper-id=\"" + escapeHtml(paper.id) + "\">",
       "<summary class=\"paper-card__summary\"><span class=\"paper-summary__layout\">",
-      "<span class=\"paper-summary__content\"><span class=\"paper-kicker\"><span>" +
-        escapeHtml(paper.venue) + "</span><time datetime=\"" + escapeHtml(paper.date) +
-        "\">" + escapeHtml(year) + "</time></span>",
+      "<span class=\"paper-summary__content\"><span class=\"paper-summary__topline\">",
       "<span class=\"paper-summary__title\" role=\"heading\" aria-level=\"2\">" +
-        escapeHtml(paper.title) + "</span>",
+        escapeHtml(paper.shortName) + "</span>",
+      "<span class=\"paper-summary__datum paper-summary__venue\"><small>会议</small><strong>" +
+        escapeHtml(paper.venue) + "</strong></span>",
+      "<time class=\"paper-summary__datum paper-summary__date\" datetime=\"" +
+        escapeHtml(paper.date) + "\"><small>时间</small><strong>" +
+        escapeHtml(paper.date) + "</strong></time>",
       "<span class=\"paper-context-summary\"><strong>" + escapeHtml(summary.label) +
         "</strong><span>" + escapeHtml(summary.text) + "</span></span></span>",
+      "<span class=\"paper-summary__institutions\"><strong>相关单位</strong><span>" +
+        escapeHtml(paper.institutions) + "</span></span></span>",
       "<span class=\"paper-summary__toggle\" aria-hidden=\"true\"><span class=\"when-closed\">展开全部信息</span>" +
         "<span class=\"when-open\">收起详细信息</span><i></i></span>",
       "</span></summary><div class=\"paper-card__details\">",
-      "<div class=\"paper-taxonomy\"><div><span class=\"field-label\">tag.txt 小标签 · 悬停看贡献</span>",
-      "<div class=\"chip-row\">" + researchTagLinks(paper, tagCode) + "</div></div></div>",
-      "<section class=\"paper-data-grid\" aria-label=\"Excel 表格条目\">",
-      "<div class=\"paper-field\"><span class=\"field-label\">序号</span><p>" +
-        escapeHtml(paper.index) + "</p></div>",
-      "<div class=\"paper-field\"><span class=\"field-label\">简称</span><p>" +
-        escapeHtml(paper.shortName) + "</p></div>",
-      "<div class=\"paper-field paper-field--wide paper-field--row-end paper-field--institutions\"><span class=\"field-label\">研究单位 · 按贡献重要性排序 · 悬停看说明</span>" +
-        institutionList(paper) + "<small class=\"raw-value\">原 Excel D 列：" +
-        escapeHtml(paper.workbookInstitutions) + "</small></div>",
+      "<section class=\"paper-data-grid paper-overview-grid\" aria-label=\"论文信息\">",
       "<div class=\"paper-field paper-field--full paper-field--row-end\"><span class=\"field-label\">论文完整标题</span><p>" +
         escapeHtml(paper.title) + "</p></div>",
-      "<div class=\"paper-field paper-field--wide\"><span class=\"field-label\">大类别 · Excel E 列</span><div class=\"chip-row\">" +
-        categoryBadges(paper) + "</div><small class=\"raw-value\">原值：" +
-        escapeHtml(paper.categoryCodes.join("+")) + "</small></div>",
-      "<div class=\"paper-field paper-field--wide paper-field--row-end\"><span class=\"field-label\">原始描述 · Excel F 列</span>",
-      "<div class=\"chip-row\">" + workbookTagChips(paper) + "</div><small class=\"raw-value\">仅展示，不参与小标签筛选</small></div>",
-      "<div class=\"paper-field paper-field--wide\"><span class=\"field-label\">会议 / 版本</span><p>" + escapeHtml(paper.venue) + "</p></div>",
-      "<div class=\"paper-field paper-field--wide paper-field--row-end\"><span class=\"field-label\">时间（YYYY-MM）</span><p>" + escapeHtml(paper.date) + "</p></div>",
+      "<div class=\"paper-field\"><span class=\"field-label\">论文分类</span><div class=\"chip-row\">" +
+        categoryBadges(paper) + "</div></div>",
+      "<div class=\"paper-field paper-field--row-end\"><span class=\"field-label\">研究标签 · 悬停看贡献</span>" +
+        "<div class=\"chip-row\">" + researchTagLinks(paper, tagCode) + "</div></div>",
+      "<div class=\"paper-field paper-field--full paper-field--row-end paper-field--institutions\"><span class=\"field-label\">相关单位 · 按贡献重要性排序 · 悬停看说明</span>" +
+        institutionList(paper) + "</div>",
+      "<div class=\"paper-field\"><span class=\"field-label\">会议 / 版本</span><p>" + escapeHtml(paper.venue) + "</p></div>",
+      "<div class=\"paper-field paper-field--row-end\"><span class=\"field-label\">发表时间</span><p>" + escapeHtml(paper.date) + "</p></div>",
       "<div class=\"paper-field paper-field--full paper-field--row-end paper-field--link\"><span class=\"field-label\">论文链接</span><a href=\"" +
         escapeHtml(paper.url) + "\" target=\"_blank\" rel=\"noopener\">" + escapeHtml(paper.url) + "</a></div>",
       "</section>",
@@ -367,7 +358,7 @@
       "<div class=\"footer-grid\"><a class=\"brand brand--footer\" href=\"index.html\">",
       "<span class=\"brand-mark\" aria-hidden=\"true\"><i></i><i></i><i></i></span>",
       "<span><strong>SDAtlas</strong><small>RESEARCH NAVIGATOR</small></span></a>",
-      "<p>合并目录对齐 Excel 原始条目、tag.txt 小标签与分层单位信息；Excel D / F 列原值保留用于追溯。</p>",
+      "<p>按研究分类、方法标签与贡献说明浏览投机解码论文，并支持多条件组合筛选。</p>",
       "<p class=\"footer-meta\">DATASET · " + escapeHtml(data.meta.updated) + "<br>SCHEMA · v" +
         escapeHtml(data.schemaVersion) + "</p></div>"
     ].join("");

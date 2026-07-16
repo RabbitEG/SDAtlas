@@ -6,8 +6,8 @@
 - 来自 `tag.txt` 的 D / Q / T / V / R / S / H 小标签导航；
 - 查询参数驱动的大类别与小标签详情页；
 - 大类别、小标签混合多选的并集 / 交集筛选；
-- 默认折叠的论文摘要卡片：先展示标题、会议、年份和当前分类创新，展开后再显示详情；
-- Excel 九列、区域贡献、逐标签贡献以及本地 PDF 链接的完整展示；
+- 默认折叠的论文摘要卡片：首行横向展示简称、会议、时间和当前分类创新，第二行展示相关单位；
+- 展开后展示完整标题、分类、研究标签、单位说明、详细贡献以及论文 / 本地 PDF 链接；
 - 按作者角色近似排序的研究单位；每个单位可悬停或聚焦查看排序依据与说明。
 
 ## 打开方式
@@ -34,7 +34,7 @@ python3 -m http.server 8000 --directory SDAtlas
 - [`data/catalog.json`](data/catalog.json) 是 Excel 与 `tag.txt` 对齐后的唯一维护源；页面使用的 `assets/js/data.js` 由它确定性生成。
 - 大类别只读取 Excel E 列的 A / B / C。
 - 小标签只读取 `tag.txt` 中定义的 D / Q / T / V / R / S / H。
-- Excel F 列保存在 `workbookTags`，仅作为源表原始条目展示，不参与小标签导航或筛选。
+- Excel F 列保存在 `workbookTags`，供后台校验与既有文本搜索使用，不在论文卡片中展示，也不参与小标签导航或分类筛选。
 - Excel D 列原值保存在 `workbookInstitutions`；校正后的单位摘要、逐单位顺位、说明和论文来源分别保存在 `institutions`、`institutionDetails` 与 `institutionSource`。
 - 单位默认按“共同一作 / 一作单位 → 通讯或资深作者单位 → 其他作者单位”排序。论文通常不披露机构贡献比例，因此同层级先后只表示近似顺序。
 - `Reference/` 内 PDF 通过相对路径直接链接。`Reference/EAGLE.pdf` 实际是 Fused3S，并非 EAGLE，所以站点明确提示而不提供错误链接。
