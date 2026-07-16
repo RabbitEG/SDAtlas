@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "canonicalTerms": [
+    {
+      "concept": "speculative decoding",
+      "preferred": "投机解码",
+      "english": "Speculative Decoding",
+      "note": "中文正文统一写作“投机解码”；论文原标题中的英文保持原样。"
+    },
+    {
+      "concept": "draft",
+      "preferred": "Draft",
+      "role": "Drafter",
+      "derived": "Drafting",
+      "note": "投机解码流程中的提案及其生成阶段不翻译为“草稿”。"
+    },
+    {
+      "concept": "verify",
+      "preferred": "Verify",
+      "role": "Verifier",
+      "derived": "Verification",
+      "note": "投机解码流程中的校验阶段不翻译为“验证”；一般意义的数据验证、脚本验证不受此规则约束。"
+    }
+  ],
+  "globalReplacements": [
+    {"find": "推测解码", "replace": "投机解码"},
+    {"find": "推测式解码", "replace": "投机解码"},
+    {"find": "预测解码", "replace": "投机解码"},
+    {"find": "草稿生成", "replace": "Draft 生成"},
+    {"find": "草稿质量", "replace": "Draft 质量"},
+    {"find": "草稿效率", "replace": "Draft 效率"},
+    {"find": "草稿器", "replace": "Drafter"},
+    {"find": "验证效率", "replace": "Verify 效率"},
+    {"find": "验证调度", "replace": "Verify 调度"},
+    {"find": "验证预算", "replace": "Verify 预算"},
+    {"find": "验证节点", "replace": "Verify 节点"},
+    {"find": "验证成本", "replace": "Verify 成本"},
+    {"find": "验证规模", "replace": "Verify 规模"},
+    {"find": "验证流水线", "replace": "Verify 流水线"},
+    {"find": "并行验证", "replace": "并行 Verify"},
+    {"find": "无效验证", "replace": "无效 Verify"}
+  ],
+  "uiForbiddenFragments": [
+    "推测解码",
+    "推测式解码",
+    "预测解码",
+    "草稿",
+    "验证",
+    "验多少",
+    "验多长",
+    "验得",
+    "多验",
+    "少验"
+  ],
+  "englishCase": {
+    "draft": "Draft",
+    "drafter": "Drafter",
+    "drafting": "Drafting",
+    "verify": "Verify",
+    "verifier": "Verifier",
+    "verification": "Verification"
+  },
+  "sourceExceptions": [
+    "papers[].title：论文原始英文标题",
+    "papers[].workbookTags：Excel F 列原始条目",
+    "tag.txt 中单独成行的 draft / verify：延迟公式下标",
+    "HTML 公式中的 T_draft / T_verify：数学变量",
+    "代码标识符和 URL 查询值（例如 id=draft、id=verify）"
+  ]
+}

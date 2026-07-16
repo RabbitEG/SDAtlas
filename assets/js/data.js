@@ -10,7 +10,7 @@ window.SD_ATLAS_DATA = {
   "meta": {
     "title": "Speculative Decoding Atlas",
     "shortTitle": "SDAtlas",
-    "subtitle": "推测解码研究方法图谱",
+    "subtitle": "投机解码研究方法图谱",
     "updated": "2026-07",
     "sourceWorkbook": "speculative_decoding_papers_2026-07.xlsx",
     "sourceTagFile": "tag.txt",
@@ -31,10 +31,10 @@ window.SD_ATLAS_DATA = {
     {
       "code": "A",
       "id": "draft-generation",
-      "name": "草稿生成与建模",
-      "shortName": "草稿生成",
+      "name": "Draft 生成与建模",
+      "shortName": "Draft 生成",
       "question": "怎样更快、更准地产生候选 Token？",
-      "description": "关注 Drafter 的结构、训练、特征注入与并行生成方式，核心权衡是草稿质量与生成开销。",
+      "description": "关注 Drafter 的结构、训练、特征注入与并行生成方式，核心权衡是 Draft 质量与生成开销。",
       "color": "#d95f45",
       "softColor": "#f8ddd4"
     },
@@ -44,17 +44,17 @@ window.SD_ATLAS_DATA = {
       "name": "候选组织与树搜索",
       "shortName": "候选组织",
       "question": "怎样把有限预算放到更可能命中的路径上？",
-      "description": "关注候选序列、Token Tree、路径搜索、扩树与剪枝，让一次验证覆盖更多高价值分支。",
+      "description": "关注候选序列、Token Tree、路径搜索、扩树与剪枝，让一次 Verify 覆盖更多高价值分支。",
       "color": "#238077",
       "softColor": "#d6ece8"
     },
     {
       "code": "C",
       "id": "verification-systems",
-      "name": "验证调度与系统协同",
-      "shortName": "验证与系统",
+      "name": "Verify 调度与系统协同",
+      "shortName": "Verify 与系统",
       "question": "怎样把接受收益转化成真实的端到端加速？",
-      "description": "关注并行验证、动态长度、节点预算、硬件成本与 Serving 负载，使算法收益适配运行时。",
+      "description": "关注并行 Verify、动态长度、节点预算、硬件成本与 Serving 负载，使算法收益适配运行时。",
       "color": "#3c5fa5",
       "softColor": "#dce4f5"
     }
@@ -64,8 +64,8 @@ window.SD_ATLAS_DATA = {
       "code": "D",
       "id": "draft",
       "name": "Draft",
-      "zhName": "草稿效率",
-      "description": "降低草稿生成成本",
+      "zhName": "Draft 效率",
+      "description": "降低 Draft 生成成本",
       "color": "#d95f45",
       "softColor": "#f8ddd4"
     },
@@ -73,8 +73,8 @@ window.SD_ATLAS_DATA = {
       "code": "Q",
       "id": "quality",
       "name": "Quality",
-      "zhName": "草稿质量",
-      "description": "提高草稿质量和接受长度 τ",
+      "zhName": "Draft 质量",
+      "description": "提高 Draft 质量和接受长度 τ",
       "color": "#a86b18",
       "softColor": "#f4e5c7"
     },
@@ -91,8 +91,8 @@ window.SD_ATLAS_DATA = {
       "code": "V",
       "id": "verify",
       "name": "Verify",
-      "zhName": "验证效率",
-      "description": "减少无效验证、动态决定验多少",
+      "zhName": "Verify 效率",
+      "description": "减少无效 Verify、动态决定 Verify 长度",
       "color": "#3c5fa5",
       "softColor": "#dce4f5"
     },
@@ -140,10 +140,10 @@ window.SD_ATLAS_DATA = {
       "localPdf": "../Reference/Medusa.pdf",
       "categoryContributions": {
         "A": "在目标模型骨干上增加多个并行解码头，一次预测多个未来位置，并以两级微调方案改善 Draft 质量。",
-        "B": "把多头候选组织为树，并用 Tree Attention 在一次目标模型前向中同时验证多条延续。"
+        "B": "把多头候选组织为树，并用 Tree Attention 在一次目标模型前向中对多条延续执行并行 Verify。"
       },
       "tagContributions": {
-        "D": "多个预测头一次提出多个未来 Token，降低逐位置草稿生成开销。",
+        "D": "多个预测头一次提出多个未来 Token，降低逐位置 Draft 生成开销。",
         "Q": "用专门的未来位置预测头提升候选命中率与可接受长度。",
         "T": "将不同位置、不同候选组合为预构造候选树。",
         "R": "采用冻结骨干训练 Heads 与联合微调两类训练方案。"
@@ -168,7 +168,7 @@ window.SD_ATLAS_DATA = {
       "tagContributions": {
         "D": "共享一次主干计算并行预测多个未来位置，减少逐 Token 提案成本。",
         "Q": "多 Token 辅助目标让模型显式学习未来位置，提高并行候选质量。",
-        "T": "多位置预测结果可组成供一次验证使用的结构化候选。",
+        "T": "多位置预测结果可组成供一次 Verify 使用的结构化候选。",
         "R": "将多 Token 预测加入预训练目标，改善模型表征与训练信号。"
       }
     },
@@ -187,7 +187,7 @@ window.SD_ATLAS_DATA = {
       "localPdf": null,
       "localPdfNote": "Reference/EAGLE.pdf 实际是 Fused3S 论文，与本条标题不一致，因此不提供错误的本地链接。",
       "categoryContributions": {
-        "A": "把草稿自回归从 Token 空间转到目标模型特征空间，并显式利用目标特征以提高候选命中率。"
+        "A": "把自回归 Draft 从 Token 空间转到目标模型特征空间，并显式利用目标特征以提高候选命中率。"
       },
       "tagContributions": {
         "Q": "在目标模型特征空间预测未来 Feature，比普通小模型更贴近 Target 分布。",
@@ -214,7 +214,7 @@ window.SD_ATLAS_DATA = {
       "tagContributions": {
         "Q": "用特征级 Drafter 的置信度评估候选质量，保留更可能命中的分支。",
         "T": "把固定树改为逐轮按概率动态扩展的 Draft Tree。",
-        "V": "在固定验证节点预算内重排树容量，减少低收益节点进入验证。"
+        "V": "在固定 Verify 节点预算内重排树容量，减少低收益节点进入 Verify。"
       }
     },
     {
@@ -255,7 +255,7 @@ window.SD_ATLAS_DATA = {
         "A": "用简洁的 Cross-Attention Drafter 取代紧耦合自注意力与融合层，并以两阶段 Block-Attention 训练稳定收敛和显存。"
       },
       "tagContributions": {
-        "Q": "Cross-Attention 让 Drafter 直接读取 Target 上下文特征以维持草稿质量。",
+        "Q": "Cross-Attention 让 Drafter 直接读取 Target 上下文特征以维持 Draft 质量。",
         "R": "两阶段 Block-Attention 训练改善稳定性并降低训练显存。",
         "D": "简化 EAGLE 式紧耦合结构，减少 Drafter 结构与训练成本。"
       }
@@ -297,7 +297,7 @@ window.SD_ATLAS_DATA = {
       "localPdf": "../Reference/DiffuSpec.pdf",
       "categoryContributions": {
         "A": "复用预训练扩散语言模型，在单次前向中生成多位置 Token Lattice，消除自回归 Draft 的逐步开销。",
-        "C": "以因果一致路径搜索提取可验证序列，并根据在线接受反馈动态调节 Draft 长度。"
+        "C": "以因果一致路径搜索提取可供 Verify 的序列，并根据在线接受反馈动态调节 Draft 长度。"
       },
       "tagContributions": {
         "D": "直接复用预训练 Diffusion LM，一次前向并行生成 Token Lattice。",
@@ -341,7 +341,7 @@ window.SD_ATLAS_DATA = {
       "url": "https://arxiv.org/abs/2602.06036",
       "localPdf": "../Reference/DFlash.pdf",
       "categoryContributions": {
-        "A": "用轻量 Block Diffusion 一次生成整段草稿，并通过目标模型多层特征、KV Injection 与位置加权训练提升接受率。"
+        "A": "用轻量 Block Diffusion 一次生成整段 Draft，并通过目标模型多层特征、KV Injection 与位置加权训练提升接受率。"
       },
       "tagContributions": {
         "D": "轻量 Block-Diffusion Drafter 用一次并行前向替代多次串行 Draft。",
@@ -385,7 +385,7 @@ window.SD_ATLAS_DATA = {
       "url": "https://arxiv.org/abs/2605.29707",
       "localPdf": "../Reference/Domino.pdf",
       "categoryContributions": {
-        "A": "先由并行 Backbone 产生整块分布，再用轻量 Causal Head 注入 Prefix 依赖；课程训练缓解并行草稿的 Suffix Decay。"
+        "A": "先由并行 Backbone 产生整块分布，再用轻量 Causal Head 注入 Prefix 依赖；课程训练缓解并行 Draft 的 Suffix Decay。"
       },
       "tagContributions": {
         "D": "把昂贵的块级 Backbone 并行化，只让轻量 Causal Head 顺序修正。",
@@ -414,7 +414,7 @@ window.SD_ATLAS_DATA = {
         "D": "DFlash 式并行 Backbone 配合便宜的 Markov/RNN 顺序头，形成半自回归 Draft。",
         "Q": "顺序头利用已选 Prefix 缓解块后部的 Suffix Decay。",
         "V": "Confidence Head 预测逐位置条件接受率，按请求动态决定 Verify Length。",
-        "S": "结合实时 SPS 曲线和当前 Batch 负载分配验证预算。",
+        "S": "结合实时 SPS 曲线和当前 Batch 负载分配 Verify 预算。",
         "R": "联合训练并行 Backbone、顺序头与置信度头以支持生成和调度。"
       }
     },
@@ -434,12 +434,12 @@ window.SD_ATLAS_DATA = {
       "localPdfNote": "Reference 目录中没有与 SpecInfer 对应的本地 PDF。",
       "categoryContributions": {
         "B": "把一个或多个 Draft 模型提出的候选合并成 Token Tree，减少重复前缀并扩大候选覆盖。",
-        "C": "以树形注意力和并行验证在一次 Target 前向中处理整棵候选树，面向 Serving 场景降低延迟。"
+        "C": "以树形注意力在一次 Target 前向中对整棵候选树执行并行 Verify，面向 Serving 场景降低延迟。"
       },
       "tagContributions": {
         "T": "将多个小模型或候选序列合并、扩展成共享前缀的 Token Tree。",
-        "V": "用 Tree Attention 在一次 Target 前向中并行验证整棵树。",
-        "S": "围绕大模型 Serving 组织多模型推测、树构建与验证流水线。"
+        "V": "用 Tree Attention 在一次 Target 前向中对整棵树执行并行 Verify。",
+        "S": "围绕大模型 Serving 组织多模型投机推理、树构建与 Verify 流水线。"
       }
     },
     {
@@ -457,11 +457,11 @@ window.SD_ATLAS_DATA = {
       "localPdf": "../Reference/OPTTree.pdf",
       "categoryContributions": {
         "B": "基于自回归 Drafter 的概率搜索可扩展树结构，目标是直接最大化期望接受长度。",
-        "C": "在每个解码步内按当前概率重新分配节点预算，使验证规模随上下文自适应。"
+        "C": "在每个解码步内按当前概率重新分配节点预算，使 Verify 规模随上下文自适应。"
       },
       "tagContributions": {
         "T": "在固定节点预算下搜索最大化期望接受长度的自适应树结构。",
-        "V": "按上下文概率配置有限验证节点，避免固定树对所有样本一刀切。"
+        "V": "按上下文概率配置有限 Verify 节点，避免固定树对所有样本一刀切。"
       }
     },
     {
@@ -502,11 +502,11 @@ window.SD_ATLAS_DATA = {
       "localPdf": "../Reference/DDTree.pdf",
       "categoryContributions": {
         "B": "从 Block Diffusion 的逐位置分布出发，在固定节点预算下用 Best-First Search 选择最可能匹配的延续。",
-        "C": "用仅祖先可见的 Tree Attention Mask，在一次 Target 前向中高效验证整棵 Diffusion Draft Tree。"
+        "C": "用仅祖先可见的 Tree Attention Mask，在一次 Target 前向中对整棵 Diffusion Draft Tree 执行高效 Verify。"
       },
       "tagContributions": {
         "T": "用 Best-First Heap 按逐位置边缘概率，在固定预算内选择概率质量最高的前缀节点。",
-        "V": "通过 Tree Attention 一次验证整棵树，并用节点预算限制验证成本。"
+        "V": "通过 Tree Attention 一次完成整棵树的 Verify，并用节点预算限制 Verify 成本。"
       }
     },
     {
@@ -524,11 +524,11 @@ window.SD_ATLAS_DATA = {
       "localPdf": "../Reference/TAPS.pdf",
       "categoryContributions": {
         "B": "把扩散边缘概率转换为路径条件的 Prefix Survival 估计，并选择紧凑、前缀闭合的子树。",
-        "C": "用 Target-Aware Scorer 在固定验证预算下权衡接受收益与成本，避免验证不可达后代。"
+        "C": "用 Target-Aware Scorer 在固定 Verify 预算下权衡接受收益与成本，避免把不可达后代送入 Verify。"
       },
       "tagContributions": {
         "T": "按 Prefix-Conditioned Acceptance 选择前缀闭合的紧凑子树。",
-        "V": "避免为前缀已经失败的后代分配验证节点，减少无效验证。",
+        "V": "避免为前缀已经失败的后代分配 Verify 节点，减少无效 Verify。",
         "Q": "Target-Aware Scorer 估计真实路径存活率，而非只看逐位置边缘概率。"
       }
     },
@@ -551,9 +551,9 @@ window.SD_ATLAS_DATA = {
       },
       "tagContributions": {
         "T": "以边际接受收益和扩树成本决定是否添加下一节点。",
-        "V": "不盲目最大化接受长度，只验证预计能够带来端到端收益的节点。",
+        "V": "不盲目最大化接受长度，仅对预计能够带来端到端收益的节点执行 Verify。",
         "S": "随 Batch 状态和运行时负载调整树规模，面向真实 Serving 吞吐。",
-        "H": "显式建模硬件验证成本与计算饱和，避免理论收益转化为负加速。"
+        "H": "显式建模硬件 Verify 成本与计算饱和，避免理论收益转化为负加速。"
       }
     },
     {
@@ -575,7 +575,7 @@ window.SD_ATLAS_DATA = {
       "tagContributions": {
         "D": "不附加独立 Drafter，由 Target 自身在一次前向中产生结构化候选。",
         "T": "渐进构造多条路径，在单次并行探索中保持分支多样性。",
-        "V": "边构造边剪枝，避免把低价值路径带入后续验证。"
+        "V": "边构造边剪枝，避免把低价值路径带入后续 Verify。"
       }
     }
   ]

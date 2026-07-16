@@ -114,7 +114,15 @@
     }));
     document.getElementById("result-count").textContent = matched.length;
     document.getElementById("explorer-results").innerHTML = matched.length
-      ? matched.map(function (paper) { return ui.paperCard(paper); }).join("")
+      ? matched.map(function (paper) {
+        return ui.paperCard(paper, {
+          filters: {
+            majorCodes: Array.from(state.major),
+            tagCodes: Array.from(state.tags),
+            mode: state.mode
+          }
+        });
+      }).join("")
       : ui.emptyState("没有论文同时满足这些条件", state.mode === "intersection"
         ? "交集条件可能过严；可以移除一个条件或改用并集。"
         : "请修改筛选条件或清除搜索关键词。",

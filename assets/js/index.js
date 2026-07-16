@@ -146,7 +146,6 @@
           ui.escapeHtml(ui.categoryContribution(paper, category.code)) + "\"><span aria-hidden=\"true\"></span><b class=\"sr-only\">属于" +
           ui.escapeHtml(category.name) + "</b></a></td>";
       }).join("");
-      var region = ui.exactRegion(paper);
       return [
         "<tr><td class=\"matrix-paper\"><span class=\"row-index\">" + String(paper.index).padStart(2, "0") + "</span>",
         "<a href=\"" + ui.escapeHtml(paper.url) + "\" target=\"_blank\" rel=\"noopener\" data-tooltip=\"" +
@@ -154,14 +153,13 @@
           "</strong><small>" + ui.escapeHtml(paper.title) + "</small></a></td>",
         "<td class=\"matrix-meta\"><strong>" + ui.escapeHtml(paper.venue) + "</strong><small>" + ui.escapeHtml(paper.date) + "</small></td>",
         cells,
-        "<td><a class=\"region-code\" href=\"" + regionHref(region.split("")) + "\">" +
-          ui.escapeHtml(ui.regionLabel(region)) + "</a></td></tr>"
+        "</tr>"
       ].join("");
     }).join("");
     document.getElementById("table-view").innerHTML = [
       "<div class=\"matrix-wrap\"><table class=\"category-matrix\"><thead><tr>",
       "<th scope=\"col\">论文</th><th scope=\"col\">版本 / 时间</th>", categoryHeads,
-      "<th scope=\"col\">精确区域</th></tr></thead><tbody>", rows, "</tbody></table></div>"
+      "</tr></thead><tbody>", rows, "</tbody></table></div>"
     ].join("");
   }
 

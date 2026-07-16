@@ -44,9 +44,14 @@
       return;
     }
 
-    var title = kind === "major"
-      ? item.name
-      : item.name + " · " + item.zhName;
+    /* Draft / Verify are intentionally kept in English. Avoid repeating the
+       term when the localized label already starts with the canonical name. */
+    var title = item.name;
+    if (kind === "tag") {
+      title = item.zhName.indexOf(item.name) === 0
+        ? item.zhName
+        : item.name + " · " + item.zhName;
+    }
     var description = kind === "major" ? item.description : item.description + "。";
     var source = kind === "major" ? "大类别 · EXCEL E 列" : "小标签 · TAG.TXT";
     var explorer = kind === "major"
@@ -87,7 +92,7 @@
     }
     resultLine.textContent = query
       ? "搜索“" + query + "” · 显示 " + result.length + " / " + papers.length + " 篇"
-      : "按源表顺序显示 " + result.length + " 篇论文；每张卡片完整保留 Excel 的 9 个字段。";
+      : "按源表顺序显示 " + result.length + " 篇论文；卡片默认折叠，展开后可查看 Excel 的 9 个字段与详细贡献。";
     list.innerHTML = result.length
       ? result.map(function (paper) { return ui.paperCard(paper, { kind: kind, id: item.code }); }).join("")
       : ui.emptyState("当前搜索没有结果", "换一个标题、简称、单位或标签关键词试试。",

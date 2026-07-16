@@ -1,11 +1,12 @@
 # SDAtlas
 
-一个零依赖、可直接静态部署的推测解码论文导航站。它提供：
+一个零依赖、可直接静态部署的投机解码论文导航站。它提供：
 
 - 大类别的韦恩图 / 论文矩阵切换；
 - 来自 `tag.txt` 的 D / Q / T / V / R / S / H 小标签导航；
 - 查询参数驱动的大类别与小标签详情页；
 - 大类别、小标签混合多选的并集 / 交集筛选；
+- 默认折叠的论文摘要卡片：先展示标题、会议、年份和当前分类创新，展开后再显示详情；
 - Excel 九列、区域贡献、逐标签贡献以及本地 PDF 链接的完整展示。
 
 ## 打开方式
@@ -38,9 +39,12 @@ python3 -m http.server 8000 --directory SDAtlas
 
 ```bash
 python3 SDAtlas/scripts/validate_catalog.py
+python3 SDAtlas/scripts/check_terminology.py
 ```
 
-检查脚本只使用 Python 标准库，会验证所有主键、分类引用、逐项贡献、本地 PDF，并把目录中的九个字段逐条与 Excel 比对。
+两个检查脚本都只使用 Python 标准库。目录检查会验证所有主键、分类引用、逐项贡献、本地 PDF，并把目录中的九个字段逐条与 Excel 比对；术语检查会读取可维护词表，检查站点自有文案中是否混入禁用译法或错误大小写。论文原标题、Excel F 列原始条目和公式变量不在自动替换范围内。
+
+站点术语统一使用“投机解码”、`Draft` / `Drafter` 与 `Verify` / `Verifier`。规范、替换表和例外范围见 [`docs/TERMINOLOGY.md`](docs/TERMINOLOGY.md)，机器可读词表位于 [`scripts/terminology.json`](scripts/terminology.json)。
 
 ## 扩展数据
 

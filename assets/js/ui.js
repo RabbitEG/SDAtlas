@@ -150,13 +150,76 @@
   }
 
   /*
-   * A paper card includes every workbook column. tag.txt labels are rendered in
-   * a separate block so the two source taxonomies can never be confused.
+   * Keep the closed-card description genuinely contextual without duplicating
+   * another summary field in data.js. The first clause of a maintained
+   * contribution note is its high-level method; the complete note remains in
+   * the expanded contribution panels below.
+   */
+  function conciseContribution(value) {
+    var text = String(value == null ? "" : value).replace(/\s+/g, " ").trim();
+    var firstClause = text.split(/[，,；;。]/)[0] || text;
+    return firstClause.length > 52 ? firstClause.slice(0, 51) + "…" : firstClause;
+  }
+
+  function paperContextSummary(paper, options) {
+    options = options || {};
+    var parts = [];
+    var label = "总体创新";
+
+    function addMajor(code) {
+      if (paper.categoryCodes.indexOf(code) === -1) return;
+      var category = getCategory(code);
+      if (!category) return;
+      parts.push(category.shortName + "：" + conciseContribution(categoryContribution(paper, code)));
+    }
+
+    function addTag(code) {
+      if (paper.tagCodes.indexOf(code) === -1) return;
+      var tag = getTag(code);
+      if (!tag) return;
+      parts.push(tag.name + "：" + conciseContribution(tagContribution(paper, code)));
+    }
+
+    if (options.kind === "major") {
+      label = "当前大类别创新";
+      addMajor(options.id);
+    } else if (options.kind === "tag") {
+      label = "当前小标签创新";
+      addTag(options.id);
+    } else if (options.filters) {
+      var majorCodes = options.filters.majorCodes || [];
+      var tagCodes = options.filters.tagCodes || [];
+      if (majorCodes.length || tagCodes.length) {
+        label = options.filters.mode === "intersection" ? "当前交集创新" : "当前并集创新";
+        majorCodes.forEach(addMajor);
+        tagCodes.forEach(addTag);
+      }
+    }
+
+    /* No active explorer filters (or a stale unmatched option): summarize the
+       paper through its maintained major-category notes. */
+    if (!parts.length) paper.categoryCodes.forEach(addMajor);
+
+    var visibleParts = parts.slice(0, 3);
+    var overflow = parts.length - visibleParts.length;
+    return {
+      label: label,
+      text: visibleParts.join("；") + (overflow > 0 ? "；另涉及 " + overflow + " 个方向" : "")
+    };
+  }
+
+  /*
+   * A paper card is a native, keyboard-operable disclosure. Its closed summary
+   * contains the fields needed to scan a result set; opening it reveals every
+   * workbook column. tag.txt labels stay in a separate block so the two source
+   * taxonomies can never be confused.
    */
   function paperCard(paper, options) {
     options = options || {};
     var major = options.kind === "major" ? options.id : null;
     var tagCode = options.kind === "tag" ? options.id : null;
+    var summary = paperContextSummary(paper, options);
+    var year = String(paper.date || "").slice(0, 4);
     var localLink = paper.localPdf
       ? "<a class=\"button button-secondary\" href=\"" + escapeHtml(paper.localPdf) +
         "\" target=\"_blank\" rel=\"noopener\">本地 PDF <span aria-hidden=\"true\">↗</span></a>"
@@ -167,28 +230,37 @@
       : "";
 
     return [
-      "<article class=\"paper-card\" data-paper-id=\"" + escapeHtml(paper.id) + "\">",
-      "<header class=\"paper-card__header\">",
-      "<div class=\"paper-number\"><span>NO.</span>" + String(paper.index).padStart(2, "0") + "</div>",
-      "<div class=\"paper-heading\"><div class=\"paper-kicker\"><strong>" + escapeHtml(paper.shortName) +
-        "</strong><span>" + escapeHtml(paper.venue) + "</span><time datetime=\"" + escapeHtml(paper.date) +
-        "\">" + escapeHtml(paper.date) + "</time></div>",
-      "<h2><a href=\"" + escapeHtml(paper.url) + "\" target=\"_blank\" rel=\"noopener\">" +
-        escapeHtml(paper.title) + "</a></h2></div>",
-      "</header>",
+      "<details class=\"paper-card\" data-paper-id=\"" + escapeHtml(paper.id) + "\">",
+      "<summary class=\"paper-card__summary\"><span class=\"paper-summary__layout\">",
+      "<span class=\"paper-summary__content\"><span class=\"paper-kicker\"><span>" +
+        escapeHtml(paper.venue) + "</span><time datetime=\"" + escapeHtml(paper.date) +
+        "\">" + escapeHtml(year) + "</time></span>",
+      "<span class=\"paper-summary__title\" role=\"heading\" aria-level=\"2\">" +
+        escapeHtml(paper.title) + "</span>",
+      "<span class=\"paper-context-summary\"><strong>" + escapeHtml(summary.label) +
+        "</strong><span>" + escapeHtml(summary.text) + "</span></span></span>",
+      "<span class=\"paper-summary__toggle\" aria-hidden=\"true\"><span class=\"when-closed\">展开全部信息</span>" +
+        "<span class=\"when-open\">收起详细信息</span><i></i></span>",
+      "</span></summary><div class=\"paper-card__details\">",
       "<div class=\"paper-taxonomy\"><div><span class=\"field-label\">tag.txt 小标签 · 悬停看贡献</span>",
       "<div class=\"chip-row\">" + researchTagLinks(paper, tagCode) + "</div></div></div>",
       "<section class=\"paper-data-grid\" aria-label=\"Excel 表格条目\">",
-      "<div class=\"paper-field paper-field--wide\"><span class=\"field-label\">相关单位</span><p>" +
+      "<div class=\"paper-field\"><span class=\"field-label\">序号</span><p>" +
+        escapeHtml(paper.index) + "</p></div>",
+      "<div class=\"paper-field\"><span class=\"field-label\">简称</span><p>" +
+        escapeHtml(paper.shortName) + "</p></div>",
+      "<div class=\"paper-field paper-field--wide paper-field--row-end\"><span class=\"field-label\">相关单位</span><p>" +
         escapeHtml(paper.institutions) + "</p></div>",
-      "<div class=\"paper-field\"><span class=\"field-label\">大类别 · Excel E 列</span><div class=\"chip-row\">" +
+      "<div class=\"paper-field paper-field--full paper-field--row-end\"><span class=\"field-label\">论文完整标题</span><p>" +
+        escapeHtml(paper.title) + "</p></div>",
+      "<div class=\"paper-field paper-field--wide\"><span class=\"field-label\">大类别 · Excel E 列</span><div class=\"chip-row\">" +
         categoryBadges(paper) + "</div><small class=\"raw-value\">原值：" +
         escapeHtml(paper.categoryCodes.join("+")) + "</small></div>",
-      "<div class=\"paper-field paper-field--wide\"><span class=\"field-label\">原始描述 · Excel F 列</span>",
+      "<div class=\"paper-field paper-field--wide paper-field--row-end\"><span class=\"field-label\">原始描述 · Excel F 列</span>",
       "<div class=\"chip-row\">" + workbookTagChips(paper) + "</div><small class=\"raw-value\">仅展示，不参与小标签筛选</small></div>",
-      "<div class=\"paper-field\"><span class=\"field-label\">会议 / 版本</span><p>" + escapeHtml(paper.venue) + "</p></div>",
-      "<div class=\"paper-field\"><span class=\"field-label\">时间（YYYY-MM）</span><p>" + escapeHtml(paper.date) + "</p></div>",
-      "<div class=\"paper-field paper-field--full paper-field--link\"><span class=\"field-label\">论文链接</span><a href=\"" +
+      "<div class=\"paper-field paper-field--wide\"><span class=\"field-label\">会议 / 版本</span><p>" + escapeHtml(paper.venue) + "</p></div>",
+      "<div class=\"paper-field paper-field--wide paper-field--row-end\"><span class=\"field-label\">时间（YYYY-MM）</span><p>" + escapeHtml(paper.date) + "</p></div>",
+      "<div class=\"paper-field paper-field--full paper-field--row-end paper-field--link\"><span class=\"field-label\">论文链接</span><a href=\"" +
         escapeHtml(paper.url) + "\" target=\"_blank\" rel=\"noopener\">" + escapeHtml(paper.url) + "</a></div>",
       "</section>",
       "<section class=\"paper-contributions\" aria-label=\"贡献说明\">",
@@ -200,7 +272,7 @@
       "<footer class=\"paper-card__footer\"><a class=\"button button-primary\" href=\"" + escapeHtml(paper.url) +
         "\" target=\"_blank\" rel=\"noopener\">论文页面 <span aria-hidden=\"true\">↗</span></a>" +
         localLink + localNote + "</footer>",
-      "</article>"
+      "</div></details>"
     ].join("");
   }
 
@@ -347,6 +419,7 @@
     combinedCategoryContribution: combinedCategoryContribution,
     categoryBadges: categoryBadges,
     researchTagLinks: researchTagLinks,
+    paperContextSummary: paperContextSummary,
     paperCard: paperCard,
     paperMatchesText: paperMatchesText,
     emptyState: emptyState,

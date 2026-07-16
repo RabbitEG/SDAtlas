@@ -1,0 +1,214 @@
+/*
+ * Collapsible paper result cards shared by category.html and explorer.html.
+ * Keeping these overrides separate lets the atlas overview evolve without
+ * coupling its layout to the denser result-card interaction.
+ */
+
+.paper-card__summary {
+  display: block;
+  padding: 0;
+  cursor: pointer;
+  list-style: none;
+}
+
+.paper-card__summary::-webkit-details-marker {
+  display: none;
+}
+
+.paper-card__summary::marker {
+  content: "";
+}
+
+.paper-card__summary:hover {
+  background: #fbfaf6;
+}
+
+.paper-card__summary:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--brand) 52%, white);
+  outline-offset: 3px;
+}
+
+.paper-summary__layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 24px;
+  align-items: start;
+  padding: 28px 32px;
+}
+
+.paper-summary__content {
+  display: block;
+  min-width: 0;
+}
+
+.paper-summary__title {
+  display: block;
+  max-width: 1000px;
+  margin-top: 10px;
+  color: var(--ink);
+  font-size: clamp(20px, 2.1vw, 27px);
+  font-weight: 660;
+  letter-spacing: -0.025em;
+  line-height: 1.35;
+}
+
+.paper-context-summary {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 10px;
+  align-items: baseline;
+  margin-top: 15px;
+  color: var(--ink-2);
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+.paper-context-summary strong {
+  color: var(--brand);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.paper-summary__toggle {
+  display: inline-flex;
+  gap: 10px;
+  align-items: center;
+  justify-self: end;
+  min-width: max-content;
+  padding-top: 2px;
+  color: var(--brand);
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.paper-summary__toggle i {
+  position: relative;
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+}
+
+.paper-summary__toggle i::before,
+.paper-summary__toggle i::after {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 8px;
+  height: 1px;
+  background: currentColor;
+  content: "";
+  transition: transform 160ms ease;
+  transform: translate(-50%, -50%);
+}
+
+.paper-summary__toggle i::after {
+  transform: translate(-50%, -50%) rotate(90deg);
+}
+
+.paper-card[open] .paper-summary__toggle i::after {
+  transform: translate(-50%, -50%) rotate(0deg);
+}
+
+.paper-summary__toggle .when-open,
+.paper-card[open] .paper-summary__toggle .when-closed {
+  display: none;
+}
+
+.paper-card[open] .paper-summary__toggle .when-open {
+  display: inline;
+}
+
+.paper-card[open] .paper-card__summary {
+  border-bottom: 1px solid var(--line);
+}
+
+.paper-card__details {
+  display: block;
+}
+
+.paper-card__details .paper-taxonomy {
+  padding-left: 128px;
+  border-top: 0;
+}
+
+.paper-card__details .paper-field--row-end,
+.paper-list--explorer .paper-card__details .paper-field--wide {
+  border-right: 0;
+}
+
+.paper-list--explorer .paper-summary__layout {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 20px;
+  padding: 25px 27px;
+}
+
+.paper-list--explorer .paper-card__details .paper-taxonomy {
+  padding-left: 105px;
+}
+
+@media (max-width: 760px) {
+  .paper-card__summary {
+    position: relative;
+  }
+
+  .paper-summary__layout,
+  .paper-list--explorer .paper-summary__layout {
+    display: block;
+    padding: 23px 62px 23px 20px;
+  }
+
+  .paper-summary__content {
+    display: block;
+  }
+
+  .paper-summary__toggle {
+    display: none !important;
+  }
+
+  .paper-card__summary::after {
+    position: absolute;
+    top: 21px;
+    right: 20px;
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    color: var(--brand);
+    border: 1px solid var(--line);
+    border-radius: 50%;
+    content: "+";
+    font-size: 16px;
+    line-height: 1;
+  }
+
+  .paper-card[open] > .paper-card__summary::after {
+    content: "−";
+  }
+
+  .paper-context-summary {
+    grid-template-columns: 1fr;
+    gap: 3px;
+  }
+
+  .paper-card__details .paper-taxonomy,
+  .paper-list--explorer .paper-card__details .paper-taxonomy {
+    padding-left: 20px;
+  }
+}
+
+@media print {
+  .paper-card__summary {
+    cursor: default;
+  }
+
+  .paper-summary__toggle {
+    display: none;
+  }
+
+  .paper-card:not([open]) > .paper-card__details {
+    display: block !important;
+  }
+}

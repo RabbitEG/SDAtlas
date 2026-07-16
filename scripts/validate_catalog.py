@@ -8,13 +8,12 @@ the SDAtlas directory:
     python3 scripts/validate_catalog.py
 """
 
-from __future__ import annotations
-
 import json
 import re
 import sys
 import zipfile
 from pathlib import Path
+from typing import List
 from xml.etree import ElementTree as ET
 
 
@@ -27,8 +26,8 @@ XML_NS = {"x": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
 
 class Validation:
     def __init__(self) -> None:
-        self.errors: list[str] = []
-        self.warnings: list[str] = []
+        self.errors = []  # type: List[str]
+        self.warnings = []  # type: List[str]
 
     def check(self, condition: bool, message: str) -> None:
         if not condition:
@@ -64,10 +63,10 @@ def column_index(reference: str) -> int:
     return result - 1
 
 
-def read_workbook_rows() -> list[list[str]]:
+def read_workbook_rows() -> List[List[str]]:
     with zipfile.ZipFile(WORKBOOK_PATH) as archive:
         root = ET.fromstring(archive.read("xl/worksheets/sheet1.xml"))
-    rows: list[list[str]] = []
+    rows = []  # type: List[List[str]]
     for row in root.findall(".//x:sheetData/x:row", XML_NS):
         values = [""] * 9
         for cell in row.findall("x:c", XML_NS):
@@ -78,11 +77,11 @@ def read_workbook_rows() -> list[list[str]]:
     return rows
 
 
-def normalize_tag_list(value: str) -> list[str]:
+def normalize_tag_list(value: str) -> List[str]:
     return [part.strip() for part in value.split("；") if part.strip()]
 
 
-def validate_catalog(catalog: dict, rows: list[list[str]]) -> Validation:
+def validate_catalog(catalog: dict, rows: List[List[str]]) -> Validation:
     result = Validation()
     categories = catalog.get("categories", [])
     tags = catalog.get("tags", [])
