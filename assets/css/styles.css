@@ -418,6 +418,18 @@ svg {
   font-weight: 500;
 }
 
+/* t and token are separate flex children in the static formula markup. Cancel
+   the inter-item gap and lower only this direct subscript onto t's baseline. */
+.formula > i:first-child {
+  margin-right: -13px;
+}
+
+.formula > sub:first-of-type {
+  position: relative;
+  top: 0.5em;
+  margin-right: 2px;
+}
+
 .fraction {
   display: inline-grid;
   grid-template-rows: auto auto;
@@ -630,7 +642,7 @@ svg {
 /* Venn */
 .venn-stage {
   position: relative;
-  height: 820px;
+  height: 870px;
   overflow: hidden;
   background:
     linear-gradient(rgba(23, 38, 36, 0.035) 1px, transparent 1px),
@@ -654,17 +666,17 @@ svg {
 /* Keep the three equal circle centres on an equilateral-triangle-like grid.
    Percentage centres let the diagram retain that geometry on narrower laptops. */
 .venn-circle--1 {
-  top: 34%;
+  top: 37%;
   left: 38%;
 }
 
 .venn-circle--2 {
-  top: 34%;
+  top: 37%;
   left: 62%;
 }
 
 .venn-circle--3 {
-  top: 65%;
+  top: 66%;
   left: 50%;
 }
 
@@ -2201,7 +2213,7 @@ svg {
   }
 
   .venn-stage {
-    height: 740px;
+    height: 800px;
   }
 
   .paper-data-grid {

@@ -77,11 +77,11 @@
   }
 
   function categoryContribution(paper, code) {
-    return paper.categoryContributions[code] || "该论文没有此大类别的贡献说明。";
+    return paper.categoryContributions[code] || "该论文没有此宏观类别的贡献说明。";
   }
 
   function tagContribution(paper, code) {
-    return paper.tagContributions[code] || "该论文没有此标签的贡献说明。";
+    return paper.tagContributions[code] || "该论文没有此子问题的贡献说明。";
   }
 
   function combinedCategoryContribution(paper) {
@@ -143,12 +143,9 @@
       ? "<a class=\"institution-source\" href=\"" + escapeHtml(paper.institutionSource) +
         "\" target=\"_blank\" rel=\"noopener\">单位依据 <span aria-hidden=\"true\">↗</span></a>"
       : "";
-    var ordering = data.meta.institutionOrdering || {};
-
     return [
-      "<div class=\"institution-list\" aria-label=\"按贡献重要性排序的研究单位\">" + chips + "</div>",
-      "<div class=\"institution-meta\"><small>" + escapeHtml(ordering.note || "顺位仅表示近似排序。") +
-        "</small>" + sourceLink + "</div>"
+      "<div class=\"institution-list\" aria-label=\"论文相关单位\">" + chips + "</div>",
+      sourceLink ? "<div class=\"institution-meta\">" + sourceLink + "</div>" : ""
     ].join("");
   }
 
@@ -195,7 +192,7 @@
   function paperContextSummary(paper, options) {
     options = options || {};
     var parts = [];
-    var label = "总体创新";
+    var label = "贡献";
 
     function addMajor(code) {
       if (paper.categoryCodes.indexOf(code) === -1) return;
@@ -212,16 +209,13 @@
     }
 
     if (options.kind === "major") {
-      label = "当前大类别创新";
       addMajor(options.id);
     } else if (options.kind === "tag") {
-      label = "当前小标签创新";
       addTag(options.id);
     } else if (options.filters) {
       var majorCodes = options.filters.majorCodes || [];
       var tagCodes = options.filters.tagCodes || [];
       if (majorCodes.length || tagCodes.length) {
-        label = options.filters.mode === "intersection" ? "当前交集创新" : "当前并集创新";
         majorCodes.forEach(addMajor);
         tagCodes.forEach(addTag);
       }
@@ -279,13 +273,13 @@
         "<span class=\"when-open\">收起详细信息</span><i></i></span>",
       "</span></summary><div class=\"paper-card__details\">",
       "<section class=\"paper-data-grid paper-overview-grid\" aria-label=\"论文信息\">",
-      "<div class=\"paper-field paper-field--full paper-field--row-end\"><span class=\"field-label\">论文完整标题</span><p>" +
+      "<div class=\"paper-field paper-field--full paper-field--row-end\"><span class=\"field-label\">标题</span><p>" +
         escapeHtml(paper.title) + "</p></div>",
-      "<div class=\"paper-field\"><span class=\"field-label\">论文分类</span><div class=\"chip-row\">" +
+      "<div class=\"paper-field\"><span class=\"field-label\">宏观类别</span><div class=\"chip-row\">" +
         categoryBadges(paper) + "</div></div>",
-      "<div class=\"paper-field paper-field--row-end\"><span class=\"field-label\">研究标签 · 悬停看贡献</span>" +
+      "<div class=\"paper-field paper-field--row-end\"><span class=\"field-label\">子问题</span>" +
         "<div class=\"chip-row\">" + researchTagLinks(paper, tagCode) + "</div></div>",
-      "<div class=\"paper-field paper-field--full paper-field--row-end paper-field--institutions\"><span class=\"field-label\">相关单位 · 按贡献重要性排序 · 悬停看说明</span>" +
+      "<div class=\"paper-field paper-field--full paper-field--row-end paper-field--institutions\"><span class=\"field-label\">相关单位</span>" +
         institutionList(paper) + "</div>",
       "<div class=\"paper-field\"><span class=\"field-label\">会议 / 版本</span><p>" + escapeHtml(paper.venue) + "</p></div>",
       "<div class=\"paper-field paper-field--row-end\"><span class=\"field-label\">发表时间</span><p>" + escapeHtml(paper.date) + "</p></div>",
@@ -293,9 +287,9 @@
         escapeHtml(paper.url) + "\" target=\"_blank\" rel=\"noopener\">" + escapeHtml(paper.url) + "</a></div>",
       "</section>",
       "<section class=\"paper-contributions\" aria-label=\"贡献说明\">",
-      "<div class=\"section-mini-title\"><span>MAJOR REGIONS</span><strong>大类别区域贡献</strong></div>",
+      "<div class=\"section-mini-title\"><span>MACRO PERSPECTIVES</span><strong>宏观视角</strong></div>",
       "<div class=\"contribution-grid\">" + categoryContributionPanels(paper, major) + "</div>",
-      "<div class=\"section-mini-title section-mini-title--tags\"><span>TAG NOTES</span><strong>小标签对应贡献</strong></div>",
+      "<div class=\"section-mini-title section-mini-title--tags\"><span>SUBPROBLEMS</span><strong>子问题解析</strong></div>",
       "<div class=\"tag-contribution-grid\">" + tagContributionPanels(paper, tagCode) + "</div>",
       "</section>",
       "<footer class=\"paper-card__footer\"><a class=\"button button-primary\" href=\"" + escapeHtml(paper.url) +
@@ -346,7 +340,7 @@
       "<span class=\"brand-mark\" aria-hidden=\"true\"><i></i><i></i><i></i></span>",
       "<span><strong>SDAtlas</strong><small>SPECULATIVE DECODING</small></span></a>",
       "<nav class=\"site-nav\" aria-label=\"主导航\">",
-      navLink("index.html", "atlas", "分类图谱"),
+      navLink("index.html", "atlas", "论文索引"),
       navLink("explorer.html", "explorer", "组合筛选"),
       "<a href=\"" + escapeHtml(data.meta.catalogFile) + "\" download>合并数据</a>",
       "</nav></div>"
@@ -358,7 +352,7 @@
       "<div class=\"footer-grid\"><a class=\"brand brand--footer\" href=\"index.html\">",
       "<span class=\"brand-mark\" aria-hidden=\"true\"><i></i><i></i><i></i></span>",
       "<span><strong>SDAtlas</strong><small>RESEARCH NAVIGATOR</small></span></a>",
-      "<p>按研究分类、方法标签与贡献说明浏览投机解码论文，并支持多条件组合筛选。</p>",
+      "<p>投机解码论文的宏观类别、子问题与贡献索引。</p>",
       "<p class=\"footer-meta\">DATASET · " + escapeHtml(data.meta.updated) + "<br>SCHEMA · v" +
         escapeHtml(data.schemaVersion) + "</p></div>"
     ].join("");

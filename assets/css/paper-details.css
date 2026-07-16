@@ -198,6 +198,51 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+/* The expanded overview is content-sized: labels stay quiet while the actual
+   paper metadata occupies the visual center of each cell. This removes the
+   old stack of identical 94px rows without turning the grid into a dense data
+   table. */
+.paper-overview-grid .paper-field {
+  min-height: 0;
+  padding: 14px 18px 15px;
+}
+
+.paper-overview-grid .field-label {
+  margin-bottom: 7px;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+}
+
+.paper-overview-grid .paper-field p {
+  font-size: 15px;
+  font-weight: 590;
+  line-height: 1.45;
+}
+
+.paper-card[open] .paper-overview-grid > .paper-field:first-child {
+  padding-block: 18px 19px;
+}
+
+.paper-card[open] .paper-overview-grid > .paper-field:first-child p {
+  max-width: 1120px;
+  color: var(--ink);
+  font-size: clamp(24px, 2.25vw, 32px);
+  font-weight: 730;
+  letter-spacing: -0.025em;
+  line-height: 1.2;
+}
+
+.paper-overview-grid .paper-field--link a {
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.paper-overview-grid .research-tag,
+.paper-overview-grid .category-badge {
+  min-height: 30px;
+  font-size: 12px;
+}
+
 .paper-list--explorer .paper-overview-grid .paper-field {
   border-right: 1px solid var(--line);
 }
@@ -211,7 +256,7 @@
    numbered disk makes the approximate priority visible without implying a
    numeric contribution ratio. */
 .paper-field--institutions {
-  min-height: 132px;
+  min-height: 0;
 }
 
 .institution-list {
@@ -231,7 +276,7 @@
   background: #f3f0e8;
   border: 1px solid var(--line-dark);
   cursor: help;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 680;
   line-height: 1.3;
 }
@@ -389,6 +434,20 @@
   .paper-overview-grid,
   .paper-list--explorer .paper-overview-grid {
     grid-template-columns: 1fr;
+  }
+
+  .paper-overview-grid .paper-field,
+  .paper-card[open] .paper-overview-grid > .paper-field:first-child {
+    padding: 13px 15px 14px;
+  }
+
+  .paper-card[open] .paper-overview-grid > .paper-field:first-child p {
+    font-size: clamp(21px, 6.4vw, 25px);
+    line-height: 1.25;
+  }
+
+  .paper-overview-grid .paper-field p {
+    font-size: 14px;
   }
 
   .paper-list--explorer .paper-overview-grid .paper-field {
