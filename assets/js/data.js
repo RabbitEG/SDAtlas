@@ -201,14 +201,14 @@ window.SD_ATLAS_DATA = {
       "url": "https://proceedings.mlr.press/v235/cai24b.html",
       "localPdf": "../Reference/Medusa.pdf",
       "categoryContributions": {
-        "A": "在目标模型骨干上增加多个并行解码头，一次预测多个未来位置，并以两级微调方案改善 Draft 质量。",
-        "B": "把多头候选组织为树，并用 Tree Attention 在一次目标模型前向中对多条延续执行并行 Verify。"
+        "A": "在 Target 最后一层隐藏状态上挂接 K 个带 SiLU 与残差连接的单层 Head，第 k 个 Head 直接预测第 t+k+1 个 Token；它们复用同一份 Target 表征，与原 LM Head 一起并行提出 K+1 个位置，无需维护独立 Drafter。Medusa-1 冻结 Target 只训练 Heads，Medusa-2 则以专门的联合微调配方进一步提高远期预测准确率。",
+        "B": "每个 Head 保留 top-s_k 预测，并按未来位置的笛卡尔积自顶向下组成共享前缀的 Token Tree；Tree Attention 只允许节点关注其祖先并相应重设位置编码，使 Target 一次前向即可并行 Verify 多条候选路径。论文还用校准集估计不同 Head、不同预测名次的准确率，在节点预算内构造非均匀稀疏树，以提高期望接受长度。"
       },
       "tagContributions": {
-        "D": "多个预测头一次提出多个未来 Token，降低逐位置 Draft 生成开销。",
-        "Q": "用专门的未来位置预测头提升候选命中率与可接受长度。",
-        "T": "将不同位置、不同候选组合为预构造候选树。",
-        "R": "采用冻结骨干训练 Heads 与联合微调两类训练方案。"
+        "D": "K 个轻量 Head 直接读取同一个 Target 隐藏状态，并行给出多个远期 Token 分布，以一次共享主干计算替代独立 Drafter 的逐 Token 前向。Target 处理候选树所得的隐藏状态又可直接供下一轮 Heads 生成候选，避免重复提取主干特征。",
+        "Q": "各未来位置不只保留单个预测，而是让多个高概率候选竞争最长可接受前缀；可采用严格 rejection sampling 保持 Target 分布，也可用 Target 条件概率与熵共同设阈值的 typical acceptance 接纳合理 Token，在允许近似采样时换取更长的接受序列。",
+        "T": "先在校准集上统计第 k 个 Head 的第 i 名预测的单项准确率，再把一条路径的准确率近似为沿途节点准确率之积。构树时从根开始反复加入与当前树相连且估计准确率最高的节点，从而在相同节点预算内得到偏向高命中路径的稀疏树。",
+        "R": "Medusa-1 冻结 Target，对各未来偏移的交叉熵按 λ_k（实践中取 0.8^k）加权；Medusa-2 再加入原始 next-token 损失，并以差分学习率和先 Heads、后联合的 warmup 防止破坏 Target 能力。缺少原训练数据时，可让 Target 自生成响应训练 Heads，并用原模型分布到当前主干分布的 KL 项进行自蒸馏。"
       }
     },
     {
@@ -255,13 +255,13 @@ window.SD_ATLAS_DATA = {
       "url": "https://proceedings.mlr.press/v235/gloeckle24a.html",
       "localPdf": "../Reference/MTP.pdf",
       "categoryContributions": {
-        "A": "在共享主干上配置多个独立输出头，把多 Token 预测作为辅助目标训练，使未来 Token 可被并行提出。"
+        "A": "以共享 Transformer 主干、n 个独立 Transformer 层预测 Head 和共享 unembedding 矩阵组成多 Token 预测器，每个 Head 从同一上下文表征预测第 i 个未来 Token。训练时把这些未来位置纳入预训练目标；推理时既可丢弃附加 Heads 按普通 next-token 模式运行，也可保留它们执行 greedy 自投机解码。"
       },
       "tagContributions": {
-        "D": "共享一次主干计算并行预测多个未来位置，减少逐 Token 提案成本。",
-        "Q": "多 Token 辅助目标让模型显式学习未来位置，提高并行候选质量。",
-        "T": "多位置预测结果可组成供一次 Verify 使用的结构化候选。",
-        "R": "将多 Token 预测加入预训练目标，改善模型表征与训练信号。"
+        "D": "一次主干前向产生共享上下文表征，n 个独立 Head 随后并行提出连续未来位置，无需额外 Drafter；主 next-token Head 再并行 Verify 这段块候选。该自投机路径在保留完整 Target 能力的同时，把原本串行的多步生成合并为更少的模型前向。",
+        "Q": "附加 Heads 不是在既有 next-token 模型上事后拟合，而是在预训练阶段与主干共同学习全部未来目标，因此远期 Head 的候选准确率更高。多 Token 目标还强化对长程依赖和关键 choice point 的建模，在大模型及代码生成中尤其改善候选质量。",
+        "T": "各 Head 的 top-1 预测可组成长度为 n 的块候选，供论文实际采用的 greedy blockwise 自投机解码一次并行 Verify。论文也明确这些 Heads 可将各位置的 top-k 输出接入 Medusa 式 Tree Attention，但候选树算法本身并非该工作的新增机制。",
+        "R": "在每个语料位置，对 n 个未来 Token 的独立条件分布求交叉熵之和，并让所有目标共同反向更新共享主干，使训练信号不再只偏向局部 next-token 模式。训练实现依次执行各 Head 的前向与反向、累计主干梯度并及时释放词表 logits，把峰值显存从 O(nV+d) 降至 O(V+d)，且不增加训练时长。"
       }
     },
     {
@@ -313,11 +313,11 @@ window.SD_ATLAS_DATA = {
       "localPdf": null,
       "localPdfNote": "Reference/EAGLE.pdf 实际是 Fused3S 论文，与本条标题不一致，因此不提供错误的本地链接。",
       "categoryContributions": {
-        "A": "把自回归 Draft 从 Token 空间转到目标模型特征空间，并显式利用目标特征以提高候选命中率。"
+        "A": "冻结整个 Target，复用其 Embedding 与 LM Head；将 LM Head 前的 Feature 和向前错一位的已采样 Token embedding 拼接，经 FC 降维与单个 Transformer decoder layer 自回归预测下一 Feature，再由 Target LM Head 采样 Draft Token。预测 Feature 与实际采样 Token 会回灌下一步，使这个轻量 Drafter 能连续外推 Target 的内部状态，同时显式消除采样结果带来的 Feature 分支歧义。"
       },
       "tagContributions": {
-        "Q": "在目标模型特征空间预测未来 Feature，比普通小模型更贴近 Target 分布。",
-        "R": "围绕特征不确定性设计训练目标，让 Feature Drafter 学习目标模型的未来状态。"
+        "Q": "Feature 序列比离散 Token 序列更规则，但下一 Feature 取决于上一步究竟采样了哪个 Token；把提前一步的真实采样结果作为条件后，同一 Feature 上下文的多分支不确定性被转化为更确定的回归问题。预测 Feature 再复用 Target LM Head 生成候选分布，显著提高 Draft 接受率。",
+        "R": "只训练轻量 Autoregression Head：以 Smooth L1 回归 Target 的下一 Feature，并用 0.1 权重的交叉熵对齐真实与预测 Feature 经 Target LM Head 得到的 Token 分布。训练时向 Target Feature 注入 U(-0.1, 0.1) 均匀噪声以模拟多步 Draft 的误差累积；使用固定 ShareGPT 数据即可训练，无需为每个 Target 另行生成蒸馏答案。"
       }
     },
     {
@@ -370,13 +370,13 @@ window.SD_ATLAS_DATA = {
       "url": "https://aclanthology.org/2024.emnlp-main.422/",
       "localPdf": "../Reference/EAGLE2.pdf",
       "categoryContributions": {
-        "A": "延续 EAGLE 的特征级 Drafter，并利用其较可靠的置信度估计候选接受概率。",
-        "B": "依据上下文置信度动态扩展 Draft Tree，在固定节点预算下把容量分配给更可能被接受的分支。"
+        "A": "保持 EAGLE 的特征级 Drafter、训练和推理方式不变，利用其校准良好的 Token 置信度作为接受率的低成本代理。EAGLE-2 将节点自身与所有祖先的置信度连乘为 path value，近似该 Token 连同全部前缀最终被接受的概率，因此无需额外树策略模型或再训练即可进行上下文感知的 Draft 选择。",
+        "B": "扩树阶段每轮通过 Tree Attention 并行展开当前层 path value 最高的 top-k 节点，让树形随上下文难度而变化；多轮扩展后，再对全树节点按 path value 全局重排并保留 top-m，避免深层已扩节点挤掉更有价值的浅层节点。由于子节点 value 不超过父节点，所选节点天然保持连通，随后可展平并用祖先可见掩码交给 Target 一次 Verify。"
       },
       "tagContributions": {
-        "Q": "用特征级 Drafter 的置信度评估候选质量，保留更可能命中的分支。",
-        "T": "把固定树改为逐轮按概率动态扩展的 Draft Tree。",
-        "V": "在固定 Verify 节点预算内重排树容量，减少低收益节点进入 Verify。"
+        "Q": "EAGLE Drafter 的局部置信度与实际接受率高度校准，但单节点置信度没有计入前缀被拒后整条后缀失效的风险。EAGLE-2 因而用沿根路径的置信度乘积评估全局接受概率，优先保留每一级前缀都更可能命中的分支。",
+        "T": "把固定 Draft Tree 改成“按层扩展、全树重排”的两阶段动态树：先按 path value 选择当前层 top-k 节点继续生长，再从所有深度选出全局 top-m 节点；value 相同则优先浅节点。该规则在固定树节点数下随上下文重新分配分支宽度和深度，并保证最终候选仍是一棵连通树。",
+        "V": "全局重排只让 path value 最高的 m 个连通节点进入 Verify，低收益分支不会占用 Target 的节点预算；展平后构造 Tree Attention 掩码，使每个 Token 仅能看到祖先并由 Target 一次并行处理。接受阶段仍沿用标准投机解码的 rejection sampling 规则且不放宽条件，因此动态选树不改变 Target 的输出分布。"
       }
     },
     {
@@ -427,11 +427,11 @@ window.SD_ATLAS_DATA = {
       "url": "https://proceedings.neurips.cc/paper_files/paper/2025/hash/c7b5a35ea98b62512a869c19ea7b03cb-Abstract-Conference.html",
       "localPdf": "../Reference/EAGLE3.pdf",
       "categoryContributions": {
-        "A": "改为直接预测 Token，融合目标模型浅、中、深层特征，并用 Training-Time Test 缩小训练与多步推理的差异。"
+        "A": "针对 EAGLE 的特征回归约束限制模型表达能力与数据扩展收益的问题，EAGLE-3 去掉特征预测损失，让单层 Transformer Drafter 直接预测 Token，并将 Target 低、中、高层隐状态拼接后经全连接层融合为输入。训练时再回灌 Drafter 自身输出、用特制注意力掩码模拟多步 Rollout，使这一特征融合结构能适应真实的自回归 Draft。"
       },
       "tagContributions": {
-        "Q": "融合 Target 多层特征并直接预测 Token，增强自回归 Drafter 的候选质量。",
-        "R": "用 Training-Time Test 模拟推理时的多步 Rollout，缓解训练—推理错位。"
+        "Q": "摆脱必须拟合 Target 顶层特征的约束后，Drafter 可直接为 Token 预测优化；同时融合低、中、高层语义，避免只用偏向下一 Token Logit 的顶层特征来预测更远位置。更高且随 Rollout 步数基本稳定的接受率还允许把动态 Draft Tree 深度由 6 提至 8。",
+        "R": "Training-Time Test 在训练中把每轮 Drafter 输出作为下一轮输入，并用树状依赖注意力掩码一次模拟 5 步推理，以训练数据 Token 监督各步预测。该目标移除特征回归损失后可从扩大的 ShareGPT、UltraChat 等数据持续获益，论文使用约为 EAGLE 8 倍的数据观察到此前架构没有的数据扩展规律。"
       }
     },
     {
@@ -469,12 +469,12 @@ window.SD_ATLAS_DATA = {
       "url": "https://arxiv.org/abs/2505.24544",
       "localPdf": "../Reference/BEAGLE.pdf",
       "categoryContributions": {
-        "A": "用简洁的 Cross-Attention Drafter 取代紧耦合自注意力与融合层，并以两阶段 Block-Attention 训练稳定收敛和显存。"
+        "A": "Beagle 用单层 Cross-Attention 加 MLP 构造 Drafter：当前 Token Embedding 形成 Query，Target 顶层隐状态或 Drafter 自回归产生的状态形成 Key/Value，并以遮蔽对角线及未来位置的因果掩码生成候选。Query 与 Key/Value 分处低、高层表示空间，因此无需 EAGLE 式池化、特征复制与拼接；推理时追加缓存的 Key/Value，并沿用 EAGLE-2 的动态 Draft Tree。"
       },
       "tagContributions": {
-        "Q": "Cross-Attention 让 Drafter 直接读取 Target 上下文特征以维持 Draft 质量。",
-        "R": "两阶段 Block-Attention 训练改善稳定性并降低训练显存。",
-        "D": "简化 EAGLE 式紧耦合结构，减少 Drafter 结构与训练成本。"
+        "Q": "早期训练用逆 Block-Attention 同时预测多个未来 Token，把更远位置的信息压入 Drafter 状态；后期则回灌自预测 Key/Value，按真实自回归路径优化即时下一 Token。两阶段分别改善后续位置与中段 Token 的接受率，使简化后的 Cross-Attention Drafter 在相同 ShareGPT 数据规模上达到与 EAGLE-v2 相当的接受长度。",
+        "R": "前 10 个 Epoch 以局部未来 Key 全遮蔽的 Block-Attention 并行优化多 Token 目标，后 10 个 Epoch 原位更新自预测 Key 并按接受长度对逐步损失加权；两阶段还保留隐状态蒸馏正则以稳定收敛。Cross-Attention 模拟无需随步数展开新的 Query，因而保持近似常量训练显存，3 步模拟可在单张 24 GiB GPU 上训练 7B Target 的 Drafter。",
+        "D": "去掉自注意力子层、辅助池化/融合层以及高层状态的反复复制拼接，既减少注意力参数与训练开销，也改善推理时的内存局部性。Drafter 只需缓存并追加 Cross-Attention 的 Key/Value，在每轮投机解码结束后恢复为 Target 的真实状态。"
       }
     },
     {
@@ -517,12 +517,12 @@ window.SD_ATLAS_DATA = {
       "url": "https://openreview.net/forum?id=XbOyv7iVGL",
       "localPdf": "../Reference/PARD.pdf",
       "categoryContributions": {
-        "A": "以单次前向并行预测多个未来 Token，并通过低成本适配，使一个 Drafter 可跨同系列 Target 复用。"
+        "A": "PARD 从同系列中能力较强的小型自回归模型出发，用 Mask Token 代替块内的未来依赖，使各位置只条件于已知前缀和占位符，从而在一次 Drafter 前向中并行提出多个未来 Token。它不读取 Target 特征，只需低成本适配系列中最小模型，一个 Drafter 即可复用于同系列不同规模的 Target；COD 训练又通过保留完整前缀 KV 状态把适配成本从 O(NK) 降至 O(N)。"
       },
       "tagContributions": {
-        "D": "把现成 AR 小模型改造成一次预测多个 Mask 位置的并行 Drafter。",
-        "R": "以低成本适配训练缩短改造周期，并支持同系列 Target 复用。",
-        "Q": "继承预训练 AR 小模型能力，在低成本改造下保持多位置候选质量。"
+        "D": "以共享 Mask Token 占据未来位置后，各候选之间不再互相依赖，K 个 Token 可由一次并行前向提出，将 Drafter 开销从 K 次前向的 K·T_D 降为 T_D。该设计的 Draft 显存带宽开销不随 K 增长，并可直接接入 vLLM 的链式投机解码。",
+        "R": "Mask 训练原本要把长度 N 的样本展开为 K 个预测子任务；COD 对第 i 个子任务按 max(r^(i−1), r_min) 保留位置，且只保留拥有完整前缀 Key/Value 的 Token，将训练量压到小于 N/(1−r)。论文采用 K=8、r=0.7、r_min=0.2，在不降低最终推理速度的前提下较完整 Mask 训练提速约 3 倍，并省去为每个 Target 分别训练 Drafter 的成本。",
+        "Q": "PARD 继承同系列预训练小模型的语言能力，而非从头训练轻量预测头；COD 优先保留更关键的近端预测并确保每个样本的前缀 KV 上下文完整，以在稀疏训练下维持多位置候选质量。所有位置共享同一 Mask Token 还比位置专属 ID 提高预测一致性，并支持推理时使用大于训练值的 Draft 长度。"
       }
     },
     {
@@ -570,13 +570,13 @@ window.SD_ATLAS_DATA = {
       "url": "https://aclanthology.org/2026.findings-acl.1048/",
       "localPdf": "../Reference/DiffuSpec.pdf",
       "categoryContributions": {
-        "A": "复用预训练扩散语言模型，在单次前向中生成多位置 Token Lattice，消除自回归 Draft 的逐步开销。",
-        "C": "以因果一致路径搜索提取可供 Verify 的序列，并根据在线接受反馈动态调节 Draft 长度。"
+        "A": "DiffuSpec 直接复用预训练扩散语言模型作为 Drafter，在前缀后追加 k 个 Mask，并以一次默认的去噪精炼前向同时产生各位置的候选分布与 Token Lattice，避免自回归 Drafter 为每个 Token 单独前向。为接入标准投机采样，它通过遮蔽块内其余位置构造逐位置的左到右条件概率，Target 架构无需修改。",
+        "C": "系统按“扩散 Draft—CPS 路径搜索—Target 并行 Verify—ADL 更新长度”四阶段运行：CPS 对 Token Lattice 做累计概率质量剪枝，再用兼顾扩散置信度与因果语言分数的束搜索选出左到右路径。ADL 根据首个 EOS 前的生成长度和实际接受前缀的在线反馈调整下一轮 Verify 块长，使路径质量提升能转化为端到端收益。"
       },
       "tagContributions": {
-        "D": "直接复用预训练 Diffusion LM，一次前向并行生成 Token Lattice。",
-        "Q": "用因果一致路径搜索从并行 Lattice 中选择与 AR Target 兼容的序列。",
-        "V": "根据在线接受反馈自适应 Proposal Length，避免固定长度造成浪费。"
+        "D": "Dream-7B 等扩散 Drafter 可在一次去噪精炼前向中并行填充整个 Mask 块，无需按 Token 串行调用；现成 DLM 可作为插件替换标准接口中的自回归 Drafter。论文固定单步精炼，因为增加精炼步数虽能提高接受长度，却会以额外前向显著侵蚀实际吞吐。",
+        "Q": "CPS 从每个位置的 Top-M 候选出发，按累计概率质量自适应剪枝、始终保留 EOS，并在首个 EOS 处停止扩展；随后以 DLM Log 概率和 3-gram 因果分数的加权和进行左到右束搜索。它不把各位置边际 Top-1 生硬拼接，而是选择因果连贯路径，将 Drafter 与 AR Verifier 的首次失配推向更后位置。",
+        "V": "ADL 分别对原始扩散候选首个 EOS 前的生成长度 L_gen 和 Verify 后的连续接受长度 L_acc 做指数滑动平均；当接受进度跟上生成进度时小幅扩长，否则按 L_gen 回缩，并把下一轮长度限制在预设上下界。这样可避开固定长 Draft 过短限制进度、过长产生漂移并增加无效 Verify 的两端浪费。"
       }
     },
     {
@@ -613,12 +613,12 @@ window.SD_ATLAS_DATA = {
       "url": "https://arxiv.org/abs/2511.00606",
       "localPdf": "../Reference/SpecDiff2.pdf",
       "categoryContributions": {
-        "A": "采用离散扩散进行非自回归并行 Draft，并通过训练与测试校准缓解扩散 Drafter 和自回归 Verifier 的分布错位。"
+        "A": "以预训练掩码离散扩散模型为 Drafter，在论文配置的一次去噪前向中并行输出 γ 个位置的边缘分布，使 Draft 时延主要取决于去噪步数而非候选长度。Streak-Distillation 用冻结 AR Verifier 的续写对整段可接受 Prefix 做训练对齐；推理时 Self-Selection 从同一组边缘分布采样 K 条候选，并按 Verifier 估计的期望接受 Token 数选择最佳路径。"
       },
       "tagContributions": {
-        "D": "离散扩散模型非自回归地产生整段候选，利用位置并行性降低 Draft 成本。",
-        "Q": "专门对齐 Diffusion Drafter 与 AR Verifier 的分布以提高接受率。",
-        "R": "通过训练和测试校准解决两类模型的分布错位。"
+        "D": "预训练掩码扩散 Drafter 对整段 Mask 窗口只做一次去噪前向，所有位置同时得到 Token 边缘分布；同一组分布还能近乎不增加神经网络前向成本地独立采样 K 条候选，消除自回归逐 Token Draft。",
+        "Q": "Self-Selection 从扩散边缘分布廉价采样 K 条候选，以 Tree-Style Attention 并行取得 Verifier 的逐 Prefix 概率，并按期望可接受 Token 数选择最佳路径后再执行无损 Verify，把额外 Verifier 计算直接换成更长的接受序列。",
+        "R": "冻结 Verifier，仅微调预训练扩散 Drafter；Streak-Distillation 在 Verifier 生成的教师续写上最大化各 Prefix 的 Draft 概率乘积之和，使目标直接对应期望连续接受 Token 数，而非逐位置平均对齐。Qwen 对齐语料由 Verifier 在 GSM8K、Alpaca 与 LiveCodeBench 提示上采样的续写混合而成。"
       }
     },
     {
@@ -656,12 +656,12 @@ window.SD_ATLAS_DATA = {
       "url": "https://arxiv.org/abs/2602.06036",
       "localPdf": "../Reference/DFlash.pdf",
       "categoryContributions": {
-        "A": "用轻量 Block Diffusion 一次生成整段 Draft，并通过目标模型多层特征、KV Injection 与位置加权训练提升接受率。"
+        "A": "以 Target 每轮产生的 Decode Token 为干净锚点，轻量 Block-Diffusion Drafter 在一次双向块注意力前向中并行补全其后的 B−1 个 Mask Token；论文主要配置为 5 层、块长 16。Target 前向时从浅到深均匀选取 5 层 Hidden State，经拼接投影后作为持久上下文注入每个 Drafter 层的 K/V，配合 Target 重生成响应、随机锚块和位置加权损失提高接受长度。"
       },
       "tagContributions": {
-        "D": "轻量 Block-Diffusion Drafter 用一次并行前向替代多次串行 Draft。",
-        "Q": "融合 Target 多层 Hidden State，并通过 KV Injection 补偿小 Drafter 容量。",
-        "R": "采用多层特征融合与位置加权损失，强化较难的后缀位置。"
+        "D": "每轮把上一轮 Target 产生的 Bonus Token 作为干净锚点，将其后 B−1 个位置全部置为 Mask，并由 Block-Diffusion Drafter 一次前向并行补全；Draft 成本不再随候选 Token 数线性增加，可在较深的 5 层 Drafter 上使用块长 16。",
+        "Q": "从 Target 浅层到深层均匀选取 5 层 Hidden State，拼接压缩成上下文特征，并作为持久 K/V 注入每个 Drafter 层；相比只在输入端融合，这能避免 Target 信息随深度稀释，使轻量 Drafter 的接受长度随层数有效增长。",
+        "R": "用 Nemotron Post-Training Dataset V2 与 CodeAlpaca 的约 80 万条提示，由各 Target 重新生成训练响应；每个序列随机采样锚点并遮蔽后续 B−1 个位置，以块间隔离、块内双向的 Sparse Attention 一次训练多个块。冻结共享的 Target Embedding 与 LM Head，仅更新 Drafter Transformer，并用随位置指数衰减的交叉熵强调会门控整段接受 Prefix 的前部 Token。"
       }
     },
     {
@@ -704,12 +704,12 @@ window.SD_ATLAS_DATA = {
       "url": "https://arxiv.org/abs/2606.02091",
       "localPdf": "../Reference/DFlare.pdf",
       "categoryContributions": {
-        "A": "让每个 Draft 层融合不同的目标多层特征，并以异构 KV Projection 打开条件瓶颈，从而稳定扩展 Drafter 深度与容量。"
+        "A": "沿用 DFlash 的单次 Block-Diffusion Draft，但以 Adaptive Layer Fusion 为每个 Drafter 层学习一组 Softmax 标量权重，分别融合更广的 Target 层（Qwen 配置为 9 层），再用异构 K/V Projection 分离 Target 上下文与 Drafter 状态的表示空间。层特异条件使 Qwen Drafter 可稳定扩展到 7 层；约 240 万条 Target 重生成训练样本和渐进位置损失进一步释放扩容后的能力。"
       },
       "tagContributions": {
-        "Q": "逐 Draft 层学习不同 Target 层融合权重，解除共享特征造成的容量瓶颈。",
-        "R": "扩充训练数据并采用渐进式位置加权损失，稳定训练更深 Drafter。",
-        "D": "保留 DFlash 的单次 Block-Diffusion 并行流程，同时提升可用模型容量。"
+        "Q": "每个 Drafter 层对所选 Target Hidden State 学习独立的 Softmax 加权和并做 RMSNorm，同时为 Target 上下文和演化中的 Drafter 状态设置两套 K/V Projection；不同层因而能专门吸收不同深度的知识，避免 DFlash 共享 FC 特征造成的深度饱和。",
+        "R": "将 Nemotron V2、CodeAlpaca 与 Step-3.5-Flash-SFT 扩展为约 240 万条提示，并用对应 Target 在温度 0.6 下重生成响应，训练规模是 DFlash 的 3 倍。Qwen 训练从 γ₀=4.5 逐步增大指数位置权重的衰减参数，先聚焦决定接受链的前部 Token，再逐渐提高困难后缀的训练权重。",
+        "D": "保留锚 Token 后 B−1 个 Mask 位置一次前向补全的 Block-Diffusion 流程；Adaptive Layer Fusion 仅新增 D×T 个标量权重（7 层 Drafter、9 个 Target 层时为 63 个），归一化权重可在训练后预计算，因此丰富逐层条件几乎不增加推理时延。"
       }
     },
     {
@@ -767,12 +767,12 @@ window.SD_ATLAS_DATA = {
       "url": "https://arxiv.org/abs/2605.29707",
       "localPdf": "../Reference/Domino.pdf",
       "categoryContributions": {
-        "A": "先由并行 Backbone 产生整块分布，再用轻量 Causal Head 注入 Prefix 依赖；课程训练缓解并行 Draft 的 Suffix Decay。"
+        "A": "以 5 层 DFlash 为并行 Backbone，在一次前向中为 16-Token 块生成 Hidden State，并通过冻结的 Target LM Head 得到 Base Logits；随后 1024 维 GRU 顺序汇总已选 Prefix Token，再由 256 维低秩头给每个位置添加 Logit 残差。这样只让轻量修正分支承担块内因果建模，配合 Teacher Forcing 与 Base-Anchored Curriculum 避免因果头绕过并拖垮并行 Backbone。"
       },
       "tagContributions": {
-        "D": "把昂贵的块级 Backbone 并行化，只让轻量 Causal Head 顺序修正。",
-        "Q": "根据已经选择的 Prefix 修正后续 Logits，补回纯并行 Drafter 缺失的块内因果依赖。",
-        "R": "使用 Base-Anchored Curriculum 稳定并行基础分布与顺序修正头的协同训练。"
+        "D": "昂贵的 5 层 Backbone 和全词表 Target LM Head 对整个块只并行执行一次，顺序部分仅保留 GRU 与低秩 Logit 残差头，避免逐 Token 重跑 Transformer 和完整 LM Head；融合 Triton Kernel 与 CUDA Graph 后，Domino Head 时延由 2.64 ms 降至 1.20 ms。",
+        "Q": "GRU 将已经采样的 Prefix Token 编码为因果状态，低秩头据此计算 ΔLogits=W₂·SiLU(W₁[Hidden State; Causal State]) 并残差修正并行 Base Logits，使后续候选重新依赖块内 Prefix，而不牺牲 Backbone 的并行性。",
+        "R": "因果 Encoder 使用 Ground-Truth Prefix 的 Teacher Forcing，针对只有此前 Token 已被接受时才有意义的修正区间；同时令 L=(1−λₜ)L_final+λₜL_base 并将 λₜ 从 1 线性退火到 0，先稳固并行 Base Distribution、再学习最终残差，防止修正头走捷径导致 Backbone 崩塌。训练响应由冻结 Target 在 142 万条 PerfectBlend 提示上重新生成，两个损失都使用前重后轻的指数位置权重。"
       }
     },
     {
@@ -818,15 +818,15 @@ window.SD_ATLAS_DATA = {
       "url": "https://arxiv.org/abs/2607.05147",
       "localPdf": "../Reference/DSpark.pdf",
       "categoryContributions": {
-        "A": "用并行 Backbone 搭配轻量 Markov/RNN 顺序模块，在保留吞吐的同时补充块内依赖、减缓尾部质量衰减。",
-        "C": "预测 Prefix 存活置信度，并结合引擎吞吐曲线和负载为每个请求动态选择 Verify 长度。"
+        "A": "先让 DFlash 式并行 Backbone 在一次前向中产出整块 Hidden State 与 Base Logits，再以低秩一阶 Markov Head（默认）或带完整 Prefix 状态的 RNN Head 左到右加入转移偏置并采样。昂贵计算仍与块长近似解耦，轻量顺序环节却让第 k 个候选显式依赖已选 Prefix，从而抑制独立并行预测的多模态碰撞与 Suffix Decay。",
+        "C": "Confidence Head 由 Backbone Hidden State 与前一候选的 Markov Embedding 预测“此前均接受时当前位置仍通过”的条件接受率，并以总变差导出的软标签训练、再用 STS 逐位置校准累计 Prefix 存活概率。调度器将 Batch 内各请求的可扩展 Prefix 按累计存活概率全局排序，查询引擎预先 Profiling 的 SPS(B) 曲线，沿贪心路径最大化期望产出 τ·SPS(B)，为每个请求给出不同 Verify 长度；生产版用两轮前的信号异步预估容量 K，避免阻塞 ZOS/CUDA Graph，并以这道因果屏障保持 Target 输出分布不变。"
       },
       "tagContributions": {
-        "D": "DFlash 式并行 Backbone 配合便宜的 Markov/RNN 顺序头，形成半自回归 Draft。",
-        "Q": "顺序头利用已选 Prefix 缓解块后部的 Suffix Decay。",
-        "V": "Confidence Head 预测逐位置条件接受率，按请求动态决定 Verify Length。",
-        "S": "结合实时 SPS 曲线和当前 Batch 负载分配 Verify 预算。",
-        "R": "联合训练并行 Backbone、顺序头与置信度头以支持生成和调度。"
+        "D": "DFlash 式 Backbone 对整块只前向一次，顺序部分仅用 rank-256 的两次词表投影（Markov Head）或单门控 RNN 更新转移 Logit，不必为每个候选重复 Transformer Rollout。实验中块长从 4 扩到 16 时，相对纯并行 DFlash 的整轮时延仅增加 0.2%–1.3%（Batch Size 128）。",
+        "Q": "顺序 Head 把上一枚已采样 Token（RNN 版本还累积完整块内 Prefix 与对应 Backbone Hidden State）映射为词表转移偏置，与每个位置的 Base Logits 相加后再采样，使候选沿已经选定的语义分支继续，而非对所有可能前驱取边缘分布。该机制保留并行 Backbone 的首 Token 容量，同时显著缓解后部条件接受率衰减。",
+        "V": "Confidence Head 用 c_k=σ(wᵀ[h_k;W₁[x_{k−1}]]) 估计条件接受率，STS 对 ∏_{i≤j}c_i 逐位置温度校准，使累计概率可用于估算期望接受数而不只是候选排序。调度器据此截去低存活率 Suffix，并以一次 Profiling 得到的 SPS(B) 表在 Batch 内联合选择各请求的 Verify 长度，避免把 Target Batch 容量耗在高拒绝风险节点上。",
+        "S": "Serving 时以总 Verify Token 数 B=Σ_r(1+ℓ_r) 表示实时负载，沿全局存活概率顺序增量查询 SPS(B)，低负载可分配更长 Prefix、高负载则自动收缩。DeepSeek-V4 生产实现把两轮前的置信度仅用于预估下一步容量 K、当前候选仍按最新分数选择 Top-K，并将不同请求的变长 Token 摊平、用 Sparse Attention Marker 传递依赖，从而兼容 ZOS 与 CUDA Graph。",
+        "R": "Target、共享 Embedding 与 LM Head 全程冻结；从每条 Target 序列随机抽取多个 Anchor 组成 γ-Token Block，只更新并行 Backbone、顺序模块和 Confidence Head。训练将位置指数加权的 Cross-Entropy、Draft/Target 分布总变差和置信度 BCE 以 0.1/0.9/1.0 组合，前部位置权重更高；其中总变差直接对应理论接受率，置信度软标签同为 1−½‖p_d−p_t‖₁。"
       }
     },
     {
@@ -891,13 +891,13 @@ window.SD_ATLAS_DATA = {
       "localPdf": null,
       "localPdfNote": "Reference 目录中没有与 SpecInfer 对应的本地 PDF。",
       "categoryContributions": {
-        "B": "把一个或多个 Draft 模型提出的候选合并成 Token Tree，减少重复前缀并扩大候选覆盖。",
-        "C": "以树形注意力在一次 Target 前向中对整棵候选树执行并行 Verify，面向 Serving 场景降低延迟。"
+        "B": "单个 SSM 按预设扩展向量 ⟨k₁,…,k_m⟩ 逐层取 Top-k，在模型内部扩大候选分支；也可让多个经残差样本 Boost-Tuning 的 SSM 并行提出树，再按完整 Root-to-node Token Sequence 合并相同 Prefix。这样既去除多条候选序列的公共前缀重复，又同时利用单模型 Top-k 多样性与跨模型互补性，而不是只 Verify 一条候选链。",
+        "C": "Verifier 将树线性化，用 DFS 维护共享 KV Cache，并以拓扑感知 Causal Mask 只开放每个节点到其祖先的注意力，从而把整树 Tree Attention 融成一次 Target Forward，复用公共 Prefix 计算。Greedy Verify 沿与 Target 输出相同的子节点走到首个缺失分支并补一枚 Target Token；随机采样则用 MSS 依次对同父候选做接受率检验与残差分布更新，在多分支、多 SSM 下仍严格恢复 Target 分布。运行时 Request Manager 以 Iteration 粒度执行 Continuous Batching，SSM 走 Data Parallel、Target 走 Tensor 与 Pipeline Parallel，使一次整树 Verify 同时减少分布式激活交换轮次和 Offloading 场景的 CPU–GPU 权重搬运轮次。"
       },
       "tagContributions": {
-        "T": "将多个小模型或候选序列合并、扩展成共享前缀的 Token Tree。",
-        "V": "用 Tree Attention 在一次 Target 前向中对整棵树执行并行 Verify。",
-        "S": "围绕大模型 Serving 组织多模型投机推理、树构建与 Verify 流水线。"
+        "T": "Expansion-based 构树用固定向量指定每个 Draft 步为各节点扩展多少个 Top-k 后继，以单个 SSM 的候选多样性换取更高覆盖；Merge-based 构树则把多个 SSM 的 Root-to-node 序列取并集并折叠公共 Prefix。多个 SSM 依次在前一模型未命中的 Prompt 上做无监督 Boost-Tuning，因此合并树聚合的是互补而非简单重复的候选。",
+        "V": "Tree Attention 令每个节点的输出严格等于其 Root-to-node 序列单独解码的结果；拓扑 Mask 屏蔽兄弟分支、共享 KV Cache 消除公共 Prefix 重算，使整树在一次 Target Pass 中并行 Verify。Greedy 模式沿命中子树取最长路径，随机模式 MSS 逐候选接受或拒绝并重整残差分布；论文证明其拒绝率不高于 Naive Sampling，且输出分布与 Target 完全一致。",
+        "S": "Request Manager 按 Iteration 而非整请求调度并执行 Continuous Batching；小 SSM 以 Data Parallel 分布到 GPU，多个 SSM 可同时运行，大模型则结合节点内 Tensor Parallel 与节点间 Pipeline Parallel，管理器只交换 Token 并完成树合并与接受判定。整树一次推进多枚 Token，因而在分布式场景减少跨 GPU 解码轮次，在 Offloading 场景减少 CPU DRAM↔GPU HBM 权重搬运轮次；其收益主要来自低并发下可用于树 Verify 的闲置 GPU 算力。"
       }
     },
     {
@@ -939,12 +939,12 @@ window.SD_ATLAS_DATA = {
       "url": "https://aclanthology.org/2025.tacl-1.8/",
       "localPdf": "../Reference/OPTTree.pdf",
       "categoryContributions": {
-        "B": "基于自回归 Drafter 的概率搜索可扩展树结构，目标是直接最大化期望接受长度。",
-        "C": "在每个解码步内按当前概率重新分配节点预算，使 Verify 规模随上下文自适应。"
+        "B": "对任意自回归 Drafter，OPT-Tree 将每个节点沿 Root 路径的概率乘积 p̂ 视作该 Prefix 的命中概率，并把期望接受长度近似为全树 Σp̂。每个 Draft 步在当前叶节点的后继分布中选全局 p̂ 最大的 n 个节点扩下一层，停止后再从累计搜索树取 p̂ 最大的 n 个节点；这些节点必然组成含 Root 的子树，在给定节点预算下最大化该目标，并随当前上下文重新形成树形。",
+        "C": "节点预算 n 将每轮 Target Verify 规模限制在并行吞吐仍合算的范围；OPT-Tree 为最终子树生成 Tree Attention Mask，一次 Target Forward 后沿最深命中路径接受，并追加该路径末节点的 Target 后继。为免更深自回归扩树的成本抵消收益，当最优 n 节点子树的期望增量 E_sub(T,n)−E 不再超过阈值 δ 即停止，δ 取单步 Draft/整轮解码时间比 μ 与 1 之间；KV Cache 让每个扩树步实际只处理 n 个新节点。"
       },
       "tagContributions": {
-        "T": "在固定节点预算下搜索最大化期望接受长度的自适应树结构。",
-        "V": "按上下文概率配置有限 Verify 节点，避免固定树对所有样本一刀切。"
+        "T": "以 Drafter 概率沿路径连乘得到节点 p̂，再将所有候选节点的 p̂ 求和作为期望接受长度代理；扩树与最终 Top-n 选择都按 p̂ 全局排序。父节点 p̂ 必不小于子节点，因此选出的高分节点天然保持连通，在相同节点数下可随上下文把宽度和深度分配给更可能命中的分支。",
+        "V": "Verify 端只接收最终 n 节点子树，并用对应 Tree Attention Mask 在一次 Target 前向中取得每个节点的后继，返回最长命中分支再加一枚 Target Token；共享 Prefix 只占一个节点。n 可按 Target 与 GPU 的并行平台选取，δ 又在 Draft 深度上剔除期望增益低于额外 Draft 时间比的层，避免更深树的额外开销抵消接受收益。"
       }
     },
     {
@@ -987,13 +987,13 @@ window.SD_ATLAS_DATA = {
       "url": "https://arxiv.org/abs/2601.19278",
       "localPdf": "../Reference/DART.pdf",
       "categoryContributions": {
-        "A": "基于 Target Hidden State 在一次轻量前向中并行预测多个未来 Mask 位置的 Logits，避免自回归 Rollout。",
-        "B": "用 N-gram 连贯性约束和高效剪枝，从并行 Logits 中构造质量更高的 Draft Token Tree。"
+        "A": "在每轮 Target Prefill/Verify 后，DART 拼接低、中、高三层 Hidden State 并投影，再与右移的 Target Token Embedding 组合为 Prefix 表征，追加 d−1 个可训练 [MASK]；单个定制 Transformer Decoder Layer 在严格 Causal Mask 下通过 Shifted Logits Prediction 一次给出 d 个未来位置分布。它既不做扩散模型的迭代去噪或双向修正，也不做自回归 Drafter Rollout，因此 Draft Forward 开销不随 d 线性增长。",
+        "B": "对每个并行位置的 Logits 先取 Top-25，再将 Draft Log-Probability 与当前部分序列的 3-gram 条件概率合成扩展分数；Logit 权重按 0.9^level 衰减、N-gram 权重为 0.5，组合结果再乘 (level+1)^−0.7，Beam 只保留 20 条活跃序列，最终从全局扩展树选 59 个最高分节点。该 Continuity-Aware Pruning 用外部 Dolma 3 Mix Trie 排除独立位置拼接出的不连贯路径，并把指数候选空间压成可一次 Tree Attention Verify 的紧凑树。"
       },
       "tagContributions": {
-        "D": "从 Target Hidden State 一次并行预测多个未来位置的 Logits。",
-        "Q": "外部 N-gram Trie 约束并行位置之间的语义连续性。",
-        "T": "从多位置 Logits 剪枝并组织为候选树，同时控制分支规模。"
+        "D": "一个定制 Decoder Layer 复用 Target 多层 Hidden State，在 Prefix 后附加 d−1 个 [MASK]，一次前向同时产出 d 个位置的 Logits；无需逐 Token 重跑 Drafter，也无需维护自回归 Drafter 的 KV Cache。论文在 Qwen3-14B 上测得 Draft Forward 为 1.5 ms，较 EAGLE3 的自回归 Drafter 降低 6.8 倍。",
+        "Q": "Shifted Logits 把 Prefix 最后一位的输出解释为第一枚候选、后续 [MASK] 输出依次右移，强化最关键的首位置预测；Prefix-Isolated Sparse Mask 又允许一次训练多个 Prefix/未来块而不泄漏未来真值。目标以 λ_t=0.6^(t−1) 加权 Draft 对 Target 分布的 KL，避免远期噪声压过前部接受率；推理时 3-gram 连贯性分数再抑制独立位置的冲突组合。",
+        "T": "第 i 层从对应位置 Logits 取 25 个候选，并把模型 Log-Probability、3-gram 条件概率与深度权重合成路径分数；每层用 Beam Width 20 截断活跃部分序列，最后从所有已扩节点保留全局 Top-59。这样树宽由联合分数而非各位置笛卡尔积决定，既保留多个高概率 Prefix，又把 Target 的 Tree Attention Verify 规模固定在 59 个节点内。"
       }
     },
     {
@@ -1036,12 +1036,12 @@ window.SD_ATLAS_DATA = {
       "url": "https://arxiv.org/abs/2604.12989",
       "localPdf": "../Reference/DDTree.pdf",
       "categoryContributions": {
-        "B": "从 Block Diffusion 的逐位置分布出发，在固定节点预算下用 Best-First Search 选择最可能匹配的延续。",
-        "C": "用仅祖先可见的 Tree Attention Mask，在一次 Target 前向中对整棵 Diffusion Draft Tree 执行高效 Verify。"
+        "B": "保留 DFlash 单次 Block-Diffusion 前向给出的逐位置边缘分布，不再将其压成一条 Top-1 序列；DDTree 以这些边缘分布的乘积构造因子化路径概率，并把替代期望接受长度分解为树中各前缀的概率质量之和。在固定节点预算内，Best-First Search 直接选出概率最高且自动保持前缀闭合的候选树，无需额外 Drafter 前向或外部 N-gram 评分。",
+        "C": "将所选树展平后按深度赋予 Position ID，并用仅允许节点关注根、祖先和自身的 Tree Attention Mask，在一次 Target 前向中为所有分支计算分数。Verifier 随 Target 自身的解码规则沿匹配子节点行走，首个未匹配 Token 成为下一轮 Bonus Token，KV Cache 只保留已接受路径。"
       },
       "tagContributions": {
-        "T": "用 Best-First Heap 按逐位置边缘概率，在固定预算内选择概率质量最高的前缀节点。",
-        "V": "通过 Tree Attention 一次完成整棵树的 Verify，并用节点预算限制 Verify 成本。"
+        "T": "把深度 d 的节点表示为各位置候选名次组成的元组，其分数是对应边缘概率乘积；Max-Heap 每弹出一个最高分前缀，只加入它的下一兄弟与最优孩子。该算法在 O(B log B) 时间内恢复 B 个最高概率前缀，并严格优化因子化 Draft 分布下的替代目标，而非声称获得不可用的 Target 路径概率。",
+        "V": "整棵候选树仅触发一次 Target 前向；祖先可见掩码隔离不同分支，节点预算 B 则直接限制进入 Verify 的 Token 数。匹配结束后压缩 KV Cache 到被接受的根到叶路径，使多分支覆盖不会污染后续上下文。"
       }
     },
     {
@@ -1079,13 +1079,13 @@ window.SD_ATLAS_DATA = {
       "url": "https://arxiv.org/abs/2606.00487",
       "localPdf": "../Reference/TAPS.pdf",
       "categoryContributions": {
-        "B": "把扩散边缘概率转换为路径条件的 Prefix Survival 估计，并选择紧凑、前缀闭合的子树。",
-        "C": "用 Target-Aware Scorer 在固定 Verify 预算下权衡接受收益与成本，避免把不可达后代送入 Verify。"
+        "B": "先从扩散 Drafter 每个位置的 Top-K Token 组成大候选池，再由轻量 Target-Aware Scorer 为每条父子边估计“已到达父节点时接受该孩子”的条件概率；沿根路径连乘后得到节点可达概率，因而会压低错误 Prefix 下看似高置信的后代。选择器再按可达收益与深度成本从高到低保留节点及全部祖先，形成紧凑、前缀闭合的子树。",
+        "C": "以 q_reach/(λ₁+λ₂·depth) 衡量节点效用，在最多 N_max 个 Verify 节点之外再设置最低效用阈值 τ：高置信轮次可填满预算，低置信轮次则提前停止并生成更小的树。最终子树用 Tree Attention 执行 Verify；论文在贪心解码条件下以这种动态规模减少大树带来的 Target 延迟。"
       },
       "tagContributions": {
-        "T": "按 Prefix-Conditioned Acceptance 选择前缀闭合的紧凑子树。",
-        "V": "避免为前缀已经失败的后代分配 Verify 节点，减少无效 Verify。",
-        "Q": "Target-Aware Scorer 估计真实路径存活率，而非只看逐位置边缘概率。"
+        "T": "从最多 N_pool 个扩散边缘候选出发，按路径可达概率除以深度相关成本进行贪心选点；每次加入节点时同时补齐祖先，保证结果始终是可供 Tree Attention 使用的连通前缀树。树大小由 N_max 与效用阈值共同控制，而不是机械耗尽固定预算。",
+        "V": "将“祖先全部通过后该节点才有用”显式纳入 Verify 分配，避免高边缘概率但 Prefix 已不可达的后代占用 Target 计算。λ₁建模逐节点 Tree Attention 开销，λ₂惩罚较深且 KV 复用机会更低的节点，τ 则在剩余节点收益不足时终止扩树。",
+        "Q": "Scorer 读取父子 Token、边深度、子 Token 的 Draft Log Probability 与该位置熵，并在兄弟节点间做 Softmax，预测 Target 的局部条件偏好。它用离线记录的 Target Verify 轨迹蒸馏：KL 项学习已到达 Prefix 的局部分布，BCE 项校准沿路径累乘的可达概率，推理时无需调用 Target 进行选树。"
       }
     },
     {
@@ -1125,14 +1125,14 @@ window.SD_ATLAS_DATA = {
       "url": "https://arxiv.org/abs/2604.09731",
       "localPdf": "../Reference/SMART.pdf",
       "categoryContributions": {
-        "B": "在运行时以边际收益—成本规则决定是否继续扩展节点，把树结构直接对齐端到端加速目标。",
-        "C": "引入硬件与 Batch 感知成本模型，动态控制节点预算，避免大树在计算饱和时产生负加速。"
+        "B": "把候选树目标从最大化概率或接受长度改为最大化端到端加速比 R(T)=c_T·L_tree/(C_Draft+C_Verify)，其中 L_tree 由根到叶 Prefix 的累积接受概率估计。运行时逐层生成各活跃节点的 Top-k 孩子，仅当候选的边际收益—成本比高于当前整棵树的加速比时保留，从而让树形同时适应上下文难度和系统成本。",
+        "C": "预先在目标设备上拟合 Draft 的线性时延与 Verify 的幂指数时延曲线，并把总 Verify 预算按 Batch Size 分为每请求 B_Verify/b；在线决策直接使用当前树大小下两条曲线的边际成本。这样可在显存带宽受限时允许较大树摊薄权重读取，又在大 Batch 进入计算饱和后主动收缩树，避免接受长度增加却出现端到端负加速。"
       },
       "tagContributions": {
-        "T": "以边际接受收益和扩树成本决定是否添加下一节点。",
-        "V": "不盲目最大化接受长度，仅对预计能够带来端到端收益的节点执行 Verify。",
-        "S": "随 Batch 状态和运行时负载调整树规模，面向真实 Serving 吞吐。",
-        "H": "显式建模硬件 Verify 成本与计算饱和，避免理论收益转化为负加速。"
+        "T": "每层为活跃节点产生 Top-k 候选，以 Drafter 的累积概率估计新增节点带来的接受长度，再用 ΔJ=α·ΔC_target/ΔC_spec−C_target/C_spec 判断是否保留；折扣 α 修正 Drafter 对 Target 接受率的乐观偏差。扩展在达到最大深度、节点预算或没有合格候选时停止，贪心构树复杂度为 O(kB)。",
+        "V": "Verify 节点不再由固定宽度和深度预先决定，而是只接收预计能提高全局端到端加速比的分支。总预算 B_Verify 还把工作区限制在设备 Verify 时延曲线较平坦的区域，减少大树在计算饱和时引入的超线性 Verify 开销。",
+        "S": "以当前 Batch Size 将设备级 Verify 预算均分为每条序列的树预算，并让每个请求再根据自身候选置信度逐节点扩展或剪枝。该训练无关的运行时控制器不改 Drafter、Target 或 Verify 规则，可作为 EAGLE、MSD、DFlash 等已有投机解码管线的插件。",
+        "H": "分别用 C_Draft=λ|T| 与 C_Verify=γ(exp(δ|T|^ρ)−1) 拟合指定 GPU 上的 Draft 和 Verify 时延，再用曲线导数估算新增节点的硬件边际成本。设备只需少量预分析前向即可重拟合参数，因此控制策略能反映不同 GPU 的算力、带宽与 Batch 饱和转折点。"
       }
     },
     {
@@ -1175,12 +1175,12 @@ window.SD_ATLAS_DATA = {
       "url": "https://arxiv.org/abs/2607.10661",
       "localPdf": "../Reference/PTD.pdf",
       "categoryContributions": {
-        "B": "由 Target 模型自身在一次前向中并行探索渐进树，并逐步剪枝以保持分支多样性和连贯性；无需训练额外 Drafter。"
+        "B": "把 Target 自身的候选生成组织为持续演化的 Draft Tree：每个节点只关注祖先、Position ID 由路径深度确定，因此一次模型前向可同时为当前所有节点追加孩子并探索多条语义路径。树以最大孩子数限制宽度，超过深度阈值时用滑动窗口式 Stepwise Pruning 保留最早加入的孩子及其后代；所得子树再按共同根递归合并进候选缓存，兼顾前缀复用、分支多样性和连贯性。"
       },
       "tagContributions": {
-        "D": "不附加独立 Drafter，由 Target 自身在一次前向中产生结构化候选。",
-        "T": "渐进构造多条路径，在单次并行探索中保持分支多样性。",
-        "V": "边构造边剪枝，避免把低价值路径带入后续 Verify。"
+        "D": "不增加独立 Drafter、预测头或训练过程，而是通过树形输入与 Attention Mask 调用 Target 的内生预测能力；同一次前向并行产生 AR Next Token、为所有 Draft Tree 节点生成孩子，并为已缓存候选计算 Verify 结果。这样免去额外模型的训练、对齐与跨模型通信。",
+        "T": "用共享 Prefix 的树替代彼此独立且高度重复的线性分支；种子节点启动不同语义方向，此后每轮为所有现有节点并行追加一个孩子。Width Control 抑制过度分叉，Stepwise Pruning 在树过深时删除陈旧兄弟分支，保留下来的语义子树按同根递归合并到 Candidate Pool。",
+        "V": "从 Candidate Pool 检索与当前 Prefix 匹配的树，复用仅祖先可见掩码和树深 Position ID，在联合 Target 前向中并行 Verify 各节点。贪心解码递归沿 Target 预测命中的孩子接受；采样解码则对兄弟候选做无放回抽样与重新归一化，以保持原始采样分布。"
       }
     }
   ]
