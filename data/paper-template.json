@@ -27,5 +27,6 @@
   "venue": "会议或版本",
   "date": "2026-07",
   "url": "https://example.org/paper",
+  "explanationPage": null,
   "localPdf": "../Reference/Paper.pdf"
 }

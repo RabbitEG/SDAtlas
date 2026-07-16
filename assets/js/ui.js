@@ -539,6 +539,12 @@
     }).join("") + "</ul>";
   }
 
+  function explanationLink(paper, className) {
+    if (!paper.explanationPage) return "";
+    return "<a class=\"" + className + "\" href=\"" +
+      ui.escapeHtml(paper.explanationPage) + "\">论文解读 <span aria-hidden=\"true\">→</span></a>";
+  }
+
   function paperCard(paper, options) {
     options = options || {};
     var highlightedCode = options.subproblem || null;
@@ -556,8 +562,11 @@
         "\"><small>时间</small><strong>" + ui.escapeHtml(paper.date) + "</strong></time>",
       "<span class=\"paper-context-summary\"><strong>贡献</strong><span class=\"math-rich-text\">" +
         ui.renderMathText(context) + "</span></span></span>",
+      "<span class=\"paper-summary__secondline\">",
       "<span class=\"paper-summary__institutions\"><strong>相关单位</strong><span>" +
-        ui.escapeHtml(paper.institutions) + "</span></span></span>",
+        ui.escapeHtml(paper.institutions) + "</span></span>",
+      explanationLink(paper, "paper-summary__explanation"),
+      "</span></span>",
       "<span class=\"paper-summary__toggle\" aria-hidden=\"true\"><span class=\"when-closed\">展开</span>" +
         "<span class=\"when-open\">收起</span><i></i></span>",
       "</span></summary><div class=\"paper-card__details\">",
@@ -674,4 +683,11 @@
   ui.paperMatchesText = paperMatchesText;
   ui.sortPapers = sortPapers;
   ui.mountChrome = mountChrome;
+
+  /* Links inside <summary> navigate normally without also toggling the card. */
+  document.addEventListener("click", function (event) {
+    var target = event.target;
+    var link = target && target.closest ? target.closest(".paper-summary__explanation") : null;
+    if (link) event.stopPropagation();
+  });
 })();

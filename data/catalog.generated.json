@@ -791,6 +791,7 @@
       "venue": "ICML 2026",
       "date": "2026-07",
       "url": "https://arxiv.org/abs/2602.06036",
+      "explanationPage": "explanations/DFlash.html",
       "provenance": {
         "legacyWorkbookRow": 10,
         "workbookInstitutions": "中国科学院计算技术研究所、其他合作单位"

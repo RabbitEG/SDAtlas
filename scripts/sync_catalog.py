@@ -145,6 +145,27 @@ def validate_sources(catalog: Dict[str, Any], papers: List[Dict[str, Any]]) -> N
               f"{label}: institutions is generated from institutionDetails")
         check("workbookTags" not in paper, f"{label}: workbookTags has been retired")
 
+        explanation_page = paper.get("explanationPage")
+        if explanation_page is not None:
+            check(isinstance(explanation_page, str) and bool(explanation_page.strip()),
+                  f"{label}: explanationPage must be a non-empty relative HTML path")
+            if isinstance(explanation_page, str) and explanation_page.strip():
+                explanation_path = Path(explanation_page)
+                resolved = (ROOT / explanation_path).resolve()
+                try:
+                    resolved.relative_to(ROOT.resolve())
+                    inside_root = True
+                except ValueError:
+                    inside_root = False
+                check(not explanation_path.is_absolute(),
+                      f"{label}: explanationPage must be relative to SDAtlas")
+                check(explanation_path.suffix.lower() == ".html",
+                      f"{label}: explanationPage must point to an HTML file")
+                check(inside_root,
+                      f"{label}: explanationPage must stay inside SDAtlas")
+                check(resolved.is_file(),
+                      f"{label}: explanationPage does not exist: {explanation_page}")
+
     if errors:
         raise ValueError("source validation failed:\n- " + "\n- ".join(errors))
 

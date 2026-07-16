@@ -192,6 +192,29 @@ def validate_local_pdf(paper: Dict[str, Any], label: str, result: Validation) ->
                 f"{label}: 已有 localPdf，localPdfNote 通常应删除以免信息冲突")
 
 
+def validate_explanation_page(paper: Dict[str, Any], label: str, result: Validation) -> None:
+    """Validate the optional, reader-facing standalone HTML explanation."""
+    if "explanationPage" not in paper or paper.get("explanationPage") is None:
+        return
+
+    value = paper.get("explanationPage")
+    result.check(nonempty_text(value), f"{label}: explanationPage 必须是非空相对路径")
+    if not nonempty_text(value):
+        return
+
+    path = Path(value)
+    resolved = (ROOT / path).resolve()
+    try:
+        resolved.relative_to(ROOT.resolve())
+        inside_root = True
+    except ValueError:
+        inside_root = False
+    result.check(not path.is_absolute(), f"{label}: explanationPage 必须相对于 SDAtlas/")
+    result.check(path.suffix.lower() == ".html", f"{label}: explanationPage 必须指向 HTML")
+    result.check(inside_root, f"{label}: explanationPage 不能指向 SDAtlas/ 之外")
+    result.check(resolved.is_file(), f"{label}: 论文解读页不存在：{value}")
+
+
 def validate_papers(
     papers: List[Dict[str, Any]], valid_codes: List[str], result: Validation
 ) -> None:
@@ -275,6 +298,7 @@ def validate_papers(
             result.check(derived_field not in paper,
                          f"{label}: {derived_field} 是生成字段，不能写入论文源文件")
         validate_local_pdf(paper, label, result)
+        validate_explanation_page(paper, label, result)
 
     result.check(covered_codes == valid_code_set,
                  f"A–E 每个子问题都应至少有一篇论文，当前缺少 {sorted(valid_code_set - covered_codes)}")

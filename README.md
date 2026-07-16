@@ -53,6 +53,7 @@ python3 -m http.server 8000 --directory SDAtlas
 - `institutionDetails[]` / `institutionSource`：单位顺位、解释和来源；
 - `subproblemContributions`：论文涉及的 A–E 子问题及对应贡献；
 - `citations[]`：当前图谱范围内由该论文指向被引用论文的有向边；
+- `explanationPage`：可选的站内论文解读 HTML，相对于 `SDAtlas/`；未提供或设为 `null` 时不显示入口；
 - `localPdf`：相对于 `SDAtlas/` 的本地 PDF 路径。没有正确本地文件时改用 `localPdfNote` 说明原因。
 
 每条 `subproblemContributions.<code>` 都包含两种粒度：
@@ -60,7 +61,7 @@ python3 -m http.server 8000 --directory SDAtlas
 - `summary`：折叠卡片和 Tooltip 使用的概括性贡献；
 - `detail`：论文展开区域与详情页使用的相对详细说明。
 
-`subproblemCodes`、`institutions` 和 `citedBy` 不写入论文源文件。它们分别由贡献键、单位明细和全站 `citations` 自动派生，避免维护两份会漂移的数据。
+`subproblemCodes`、`institutions` 和 `citedBy` 不写入论文源文件。它们分别由贡献键、单位明细和全站 `citations` 自动派生，避免维护两份会漂移的数据。独立解读页统一放在 [`explanations/`](explanations/)；建议使用自包含 HTML，文件名可以与论文简称一致。
 
 ### 引用口径
 
@@ -81,7 +82,7 @@ python3 scripts/check_terminology.py
 三个脚本只依赖 Python 标准库：
 
 - `sync_catalog.py` 读取拆分源文件，派生反向引用、单位摘要和子问题代码，并更新两份生成物；
-- `validate_catalog.py` 检查 schema v4、A–E 定义、主键与索引、`summary/detail`、作者、备注、引用、单位、本地 PDF 以及生成物同步状态；
+- `validate_catalog.py` 检查 schema v4、A–E 定义、主键与索引、`summary/detail`、作者、备注、引用、单位、本地 PDF、可选解读页以及生成物同步状态；
 - `check_terminology.py` 检查元数据、每篇论文的自有文案和界面文案是否遵循统一术语。
 
 提交前可以额外运行：

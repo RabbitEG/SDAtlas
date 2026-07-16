@@ -154,7 +154,7 @@ def main() -> int:
 
     # HTML and non-generated rendering scripts contain authored UI copy. Their
     # code identifiers are intentionally not subjected to English case checks.
-    for path in sorted(ROOT.glob("*.html")):
+    for path in sorted(ROOT.rglob("*.html")):
         errors.extend(check_text_file(path, ui_fragments))
     for path in sorted((ROOT / "assets" / "js").glob("*.js")):
         if path != RUNTIME_CATALOG_PATH:

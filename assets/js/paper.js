@@ -25,12 +25,17 @@
   }
 
   function actions() {
+    var explanation = paper.explanationPage
+      ? "<a class=\"button button-secondary\" href=\"" + ui.escapeHtml(paper.explanationPage) +
+        "\">论文解读 <span aria-hidden=\"true\">→</span></a>"
+      : "";
     var localPdf = paper.localPdf
       ? "<a class=\"button button-secondary\" href=\"" + ui.escapeHtml(paper.localPdf) +
         "\" target=\"_blank\" rel=\"noopener\">本地 PDF <span aria-hidden=\"true\">↗</span></a>"
       : "";
     return "<a class=\"button button-primary\" href=\"" + ui.escapeHtml(paper.url) +
-      "\" target=\"_blank\" rel=\"noopener\">论文页面 <span aria-hidden=\"true\">↗</span></a>" + localPdf;
+      "\" target=\"_blank\" rel=\"noopener\">论文页面 <span aria-hidden=\"true\">↗</span></a>" +
+      explanation + localPdf;
   }
 
   function renderGraph() {
