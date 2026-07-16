@@ -313,301 +313,8 @@
       .toLocaleLowerCase("zh-CN");
   }
 
-  function getCategory(codeOrId) {
-    var key = normalize(codeOrId);
-    return data.categories.find(function (item) {
-      return normalize(item.code) === key || normalize(item.id) === key || normalize(item.name) === key;
-    }) || null;
-  }
-
-  function getTag(codeOrId) {
-    var key = normalize(codeOrId);
-    return data.tags.find(function (item) {
-      return normalize(item.code) === key || normalize(item.id) === key ||
-        normalize(item.name) === key || normalize(item.zhName) === key;
-    }) || null;
-  }
-
-  function categoryHref(code) {
-    return "category.html?kind=major&id=" + encodeURIComponent(code);
-  }
-
-  function tagHref(code) {
-    return "category.html?kind=tag&id=" + encodeURIComponent(code);
-  }
-
-  function explorerHref(options) {
-    var params = new URLSearchParams();
-    options = options || {};
-    if (options.major && options.major.length) params.set("major", options.major.join(","));
-    if (options.tags && options.tags.length) params.set("tag", options.tags.join(","));
-    if (options.mode) params.set("mode", options.mode);
-    var query = params.toString();
-    return "explorer.html" + (query ? "?" + query : "");
-  }
-
   function itemStyle(item) {
     return "--item-color:" + item.color + ";--item-soft:" + item.softColor;
-  }
-
-  function exactRegion(paper) {
-    return data.categories
-      .map(function (category) { return category.code; })
-      .filter(function (code) { return paper.categoryCodes.indexOf(code) !== -1; })
-      .join("");
-  }
-
-  function regionLabel(codes) {
-    return String(codes).split("").join(" ∩ ");
-  }
-
-  function papersForCategory(code) {
-    return data.papers.filter(function (paper) { return paper.categoryCodes.indexOf(code) !== -1; });
-  }
-
-  function papersForTag(code) {
-    return data.papers.filter(function (paper) { return paper.tagCodes.indexOf(code) !== -1; });
-  }
-
-  function categoryContribution(paper, code) {
-    return paper.categoryContributions[code] || "该论文没有此宏观类别的贡献说明。";
-  }
-
-  function tagContribution(paper, code) {
-    return paper.tagContributions[code] || "该论文没有此子问题的贡献说明。";
-  }
-
-  function combinedCategoryContribution(paper) {
-    return paper.categoryCodes.map(function (code) {
-      var category = getCategory(code);
-      return category.shortName + "：" + categoryContribution(paper, code);
-    }).join("\n");
-  }
-
-  function categoryBadges(paper) {
-    return paper.categoryCodes.map(function (code) {
-      var category = getCategory(code);
-      return [
-        "<a class=\"category-badge\" style=\"" + itemStyle(category) + "\" href=\"" + categoryHref(code) + "\"",
-        " data-tooltip=\"" + escapeHtml(categoryContribution(paper, code)) + "\">",
-        "<span class=\"badge-code\">" + escapeHtml(code) + "</span>",
-        "<span>" + escapeHtml(category.shortName) + "</span></a>"
-      ].join("");
-    }).join("");
-  }
-
-  function researchTagLinks(paper, highlightedCode) {
-    return paper.tagCodes.map(function (code) {
-      var tag = getTag(code);
-      var matched = code === highlightedCode ? " is-matched" : "";
-      return [
-        "<a class=\"research-tag" + matched + "\" style=\"" + itemStyle(tag) + "\" href=\"" + tagHref(code) + "\"",
-        " data-tooltip=\"" + escapeHtml(tagContribution(paper, code)) + "\">",
-        "<strong>" + escapeHtml(code) + "</strong><span>" + escapeHtml(tag.name) + "</span></a>"
-      ].join("");
-    }).join("");
-  }
-
-  /*
-   * Institution records are maintained as ordered, independently explainable
-   * entries in data/catalog.json. Reusing the site's delegated tooltip keeps
-   * mouse, keyboard and touch-adjacent focus behavior consistent with tags.
-   */
-  function institutionList(paper) {
-    var details = paper.institutionDetails || [];
-    if (!details.length) return "<p>" + escapeHtml(paper.institutions) + "</p>";
-
-    var previousOrder = null;
-    var chips = details.map(function (item) {
-      var order = Number(item.order);
-      var separator = previousOrder !== null && previousOrder !== order
-        ? "<span class=\"institution-arrow\" aria-hidden=\"true\">→</span>"
-        : "";
-      previousOrder = order;
-      return [
-        separator,
-        "<span class=\"institution-chip\" tabindex=\"0\" data-order=\"" + escapeHtml(order) + "\"",
-        " data-tooltip=\"顺位 " + escapeHtml(order) + "｜" + escapeHtml(item.explanation) + "\">",
-        "<span class=\"institution-chip__order\" aria-hidden=\"true\">" + escapeHtml(order) + "</span>",
-        "<span>" + escapeHtml(item.name) + "</span></span>"
-      ].join("");
-    }).join("");
-    var sourceLink = paper.institutionSource
-      ? "<a class=\"institution-source\" href=\"" + escapeHtml(paper.institutionSource) +
-        "\" target=\"_blank\" rel=\"noopener\">单位依据 <span aria-hidden=\"true\">↗</span></a>"
-      : "";
-    return [
-      "<div class=\"institution-list\" aria-label=\"论文相关单位\">" + chips + "</div>",
-      sourceLink ? "<div class=\"institution-meta\">" + sourceLink + "</div>" : ""
-    ].join("");
-  }
-
-  function categoryContributionPanels(paper, highlightedCode) {
-    return paper.categoryCodes.map(function (code) {
-      var category = getCategory(code);
-      var active = code === highlightedCode ? " is-highlighted" : "";
-      return [
-        "<article class=\"contribution-panel" + active + "\" style=\"" + itemStyle(category) + "\">",
-        "<a class=\"contribution-label\" href=\"" + categoryHref(code) + "\"><span>" +
-          escapeHtml(code) + "</span>" + escapeHtml(category.name) + "</a>",
-        "<p class=\"math-rich-text\">" + renderMathText(categoryContribution(paper, code)) + "</p>",
-        "</article>"
-      ].join("");
-    }).join("");
-  }
-
-  function tagContributionPanels(paper, highlightedCode) {
-    return paper.tagCodes.map(function (code) {
-      var tag = getTag(code);
-      var active = code === highlightedCode ? " is-highlighted" : "";
-      return [
-        "<article class=\"tag-contribution" + active + "\" style=\"" + itemStyle(tag) + "\">",
-        "<a href=\"" + tagHref(code) + "\"><strong>" + escapeHtml(code) + "</strong>",
-        "<span>" + escapeHtml(tag.name) + " · " + escapeHtml(tag.zhName) + "</span></a>",
-        "<p class=\"math-rich-text\">" + renderMathText(tagContribution(paper, code)) + "</p>",
-        "</article>"
-      ].join("");
-    }).join("");
-  }
-
-  /*
-   * Contribution text is maintained directly in categoryContributions and
-   * tagContributions. Normalize whitespace for the closed card, but preserve
-   * every sentence instead of manufacturing a shortened copy with an ellipsis.
-   */
-  function completeContribution(value) {
-    return String(value == null ? "" : value).replace(/\s+/g, " ").trim();
-  }
-
-  function paperContextSummary(paper, options) {
-    options = options || {};
-    var parts = [];
-    var label = "贡献";
-
-    function addMajor(code) {
-      if (paper.categoryCodes.indexOf(code) === -1) return;
-      var category = getCategory(code);
-      if (!category) return;
-      parts.push(category.shortName + "：" + completeContribution(categoryContribution(paper, code)));
-    }
-
-    function addTag(code) {
-      if (paper.tagCodes.indexOf(code) === -1) return;
-      var tag = getTag(code);
-      if (!tag) return;
-      parts.push(tag.name + "：" + completeContribution(tagContribution(paper, code)));
-    }
-
-    if (options.kind === "major") {
-      addMajor(options.id);
-    } else if (options.kind === "tag") {
-      addTag(options.id);
-    } else if (options.filters) {
-      var majorCodes = options.filters.majorCodes || [];
-      var tagCodes = options.filters.tagCodes || [];
-      if (majorCodes.length || tagCodes.length) {
-        majorCodes.forEach(addMajor);
-        tagCodes.forEach(addTag);
-      }
-    }
-
-    /* No active explorer filters (or a stale unmatched option): summarize the
-       paper through its maintained major-category notes. */
-    if (!parts.length) paper.categoryCodes.forEach(addMajor);
-
-    return {
-      label: label,
-      text: parts.join("；")
-    };
-  }
-
-  /*
-   * A paper card is a native, keyboard-operable disclosure. The closed summary
-   * is optimized for comparison: short name, venue, date and contextual
-   * contribution stay on the first row, while institutions occupy the second.
-   * Source-management fields remain in the catalog for validation and search,
-   * but are deliberately absent from the reader-facing expanded view.
-   */
-  function paperCard(paper, options) {
-    options = options || {};
-    var major = options.kind === "major" ? options.id : null;
-    var tagCode = options.kind === "tag" ? options.id : null;
-    var summary = paperContextSummary(paper, options);
-    var localLink = paper.localPdf
-      ? "<a class=\"button button-secondary\" href=\"" + escapeHtml(paper.localPdf) +
-        "\" target=\"_blank\" rel=\"noopener\">本地 PDF <span aria-hidden=\"true\">↗</span></a>"
-      : "";
-    var localNote = paper.localPdfNote
-      ? "<span class=\"source-note\" tabindex=\"0\" data-tooltip=\"" + escapeHtml(paper.localPdfNote) +
-        "\">本地文件说明</span>"
-      : "";
-
-    return [
-      "<details class=\"paper-card\" data-paper-id=\"" + escapeHtml(paper.id) + "\">",
-      "<summary class=\"paper-card__summary\"><span class=\"paper-summary__layout\">",
-      "<span class=\"paper-summary__content\"><span class=\"paper-summary__topline\">",
-      "<span class=\"paper-summary__title\" role=\"heading\" aria-level=\"2\">" +
-        escapeHtml(paper.shortName) + "</span>",
-      "<span class=\"paper-summary__datum paper-summary__venue\"><small>会议</small><strong>" +
-        escapeHtml(paper.venue) + "</strong></span>",
-      "<time class=\"paper-summary__datum paper-summary__date\" datetime=\"" +
-        escapeHtml(paper.date) + "\"><small>时间</small><strong>" +
-        escapeHtml(paper.date) + "</strong></time>",
-      "<span class=\"paper-context-summary\"><strong>" + escapeHtml(summary.label) +
-        "</strong><span class=\"math-rich-text\">" + renderMathText(summary.text) + "</span></span></span>",
-      "<span class=\"paper-summary__institutions\"><strong>相关单位</strong><span>" +
-        escapeHtml(paper.institutions) + "</span></span></span>",
-      "<span class=\"paper-summary__toggle\" aria-hidden=\"true\"><span class=\"when-closed\">展开全部信息</span>" +
-        "<span class=\"when-open\">收起详细信息</span><i></i></span>",
-      "</span></summary><div class=\"paper-card__details\">",
-      "<section class=\"paper-data-grid paper-overview-grid\" aria-label=\"论文信息\">",
-      "<div class=\"paper-field paper-field--full paper-field--row-end\"><span class=\"field-label\">标题</span><p class=\"math-rich-text\">" +
-        renderMathText(paper.title) + "</p></div>",
-      "<div class=\"paper-field\"><span class=\"field-label\">宏观类别</span><div class=\"chip-row\">" +
-        categoryBadges(paper) + "</div></div>",
-      "<div class=\"paper-field paper-field--row-end\"><span class=\"field-label\">子问题</span>" +
-        "<div class=\"chip-row\">" + researchTagLinks(paper, tagCode) + "</div></div>",
-      "<div class=\"paper-field paper-field--full paper-field--row-end paper-field--institutions\"><span class=\"field-label\">相关单位</span>" +
-        institutionList(paper) + "</div>",
-      "<div class=\"paper-field\"><span class=\"field-label\">会议 / 版本</span><p>" + escapeHtml(paper.venue) + "</p></div>",
-      "<div class=\"paper-field paper-field--row-end\"><span class=\"field-label\">发表时间</span><p>" + escapeHtml(paper.date) + "</p></div>",
-      "<div class=\"paper-field paper-field--full paper-field--row-end paper-field--link\"><span class=\"field-label\">论文链接</span><a href=\"" +
-        escapeHtml(paper.url) + "\" target=\"_blank\" rel=\"noopener\">" + escapeHtml(paper.url) + "</a></div>",
-      "</section>",
-      "<section class=\"paper-contributions\" aria-label=\"贡献说明\">",
-      "<div class=\"section-mini-title\"><span>MACRO PERSPECTIVES</span><strong>宏观视角</strong></div>",
-      "<div class=\"contribution-grid\">" + categoryContributionPanels(paper, major) + "</div>",
-      "<div class=\"section-mini-title section-mini-title--tags\"><span>SUBPROBLEMS</span><strong>子问题解析</strong></div>",
-      "<div class=\"tag-contribution-grid\">" + tagContributionPanels(paper, tagCode) + "</div>",
-      "</section>",
-      "<footer class=\"paper-card__footer\"><a class=\"button button-primary\" href=\"" + escapeHtml(paper.url) +
-        "\" target=\"_blank\" rel=\"noopener\">论文页面 <span aria-hidden=\"true\">↗</span></a>" +
-        localLink + localNote + "</footer>",
-      "</div></details>"
-    ].join("");
-  }
-
-  function paperMatchesText(paper, query) {
-    var q = normalize(query);
-    if (!q) return true;
-    var institutionText = (paper.institutionDetails || []).map(function (item) {
-      return [item.name, item.order, item.explanation].join(" ");
-    }).join(" ");
-    var categoryNames = paper.categoryCodes.map(function (code) {
-      var item = getCategory(code);
-      return item.name + " " + item.shortName;
-    });
-    var tagNames = paper.tagCodes.map(function (code) {
-      var item = getTag(code);
-      return [code, item.name, item.zhName, item.description].join(" ");
-    });
-    return normalize([
-      paper.index, paper.title, paper.shortName, paper.institutions,
-      paper.workbookInstitutions, institutionText,
-      paper.venue, paper.date, paper.url, paper.categoryCodes.join(" "),
-      paper.workbookTags.join(" "), paper.tagCodes.join(" "),
-      categoryNames.join(" "), tagNames.join(" ")
-    ].join(" ")).indexOf(q) !== -1;
   }
 
   function emptyState(title, body, actionHtml) {
@@ -616,41 +323,6 @@
       "<h2>" + escapeHtml(title) + "</h2><p>" + escapeHtml(body) + "</p>",
       actionHtml || "", "</div>"
     ].join("");
-  }
-
-  function siteHeader(active) {
-    function navLink(href, key, label) {
-      return "<a href=\"" + href + "\"" + (active === key ? " aria-current=\"page\"" : "") + ">" + label + "</a>";
-    }
-    return [
-      "<a class=\"skip-link\" href=\"#main-content\">跳到主要内容</a>",
-      "<div class=\"site-header__inner\"><a class=\"brand\" href=\"index.html\" aria-label=\"返回 SDAtlas 首页\">",
-      "<span class=\"brand-mark\" aria-hidden=\"true\"><i></i><i></i><i></i></span>",
-      "<span><strong>SDAtlas</strong><small>SPECULATIVE DECODING</small></span></a>",
-      "<nav class=\"site-nav\" aria-label=\"主导航\">",
-      navLink("index.html", "atlas", "论文索引"),
-      navLink("explorer.html", "explorer", "组合筛选"),
-      "<a href=\"" + escapeHtml(data.meta.catalogFile) + "\" download>合并数据</a>",
-      "</nav></div>"
-    ].join("");
-  }
-
-  function siteFooter() {
-    return [
-      "<div class=\"footer-grid\"><a class=\"brand brand--footer\" href=\"index.html\">",
-      "<span class=\"brand-mark\" aria-hidden=\"true\"><i></i><i></i><i></i></span>",
-      "<span><strong>SDAtlas</strong><small>RESEARCH NAVIGATOR</small></span></a>",
-      "<p>投机解码论文的宏观类别、子问题与贡献索引。</p>",
-      "<p class=\"footer-meta\">DATASET · " + escapeHtml(data.meta.updated) + "<br>SCHEMA · v" +
-        escapeHtml(data.schemaVersion) + "</p></div>"
-    ].join("");
-  }
-
-  function mountChrome(active) {
-    var header = document.getElementById("site-header");
-    var footer = document.getElementById("site-footer");
-    if (header) header.innerHTML = siteHeader(active);
-    if (footer) footer.innerHTML = siteFooter();
   }
 
   function initTooltips() {
@@ -720,26 +392,286 @@
     escapeHtml: escapeHtml,
     renderMathText: renderMathText,
     normalize: normalize,
-    getCategory: getCategory,
-    getTag: getTag,
-    categoryHref: categoryHref,
-    tagHref: tagHref,
-    explorerHref: explorerHref,
     itemStyle: itemStyle,
-    exactRegion: exactRegion,
-    regionLabel: regionLabel,
-    papersForCategory: papersForCategory,
-    papersForTag: papersForTag,
-    categoryContribution: categoryContribution,
-    tagContribution: tagContribution,
-    combinedCategoryContribution: combinedCategoryContribution,
-    categoryBadges: categoryBadges,
-    researchTagLinks: researchTagLinks,
-    paperContextSummary: paperContextSummary,
-    paperCard: paperCard,
-    paperMatchesText: paperMatchesText,
     emptyState: emptyState,
-    mountChrome: mountChrome,
     initTooltips: initTooltips
   };
+})();
+/*
+ * Schema v4 application layer.
+ *
+ * The formula renderer above remains deliberately independent from the data
+ * model. This layer exposes the single A–E subproblem taxonomy, internal paper
+ * routes and shared paper-list components used by every v4 page.
+ */
+(function () {
+  "use strict";
+
+  var ui = window.SDAtlasUI;
+  var data = ui.data;
+
+  function getSubproblem(codeOrId) {
+    var key = ui.normalize(codeOrId);
+    return data.subproblems.find(function (item) {
+      return ui.normalize(item.code) === key || ui.normalize(item.id) === key ||
+        ui.normalize(item.name) === key || ui.normalize(item.shortName) === key;
+    }) || null;
+  }
+
+  function getPaper(id) {
+    var key = ui.normalize(id);
+    return data.papers.find(function (paper) { return ui.normalize(paper.id) === key; }) || null;
+  }
+
+  function paperHref(id) {
+    return "paper.html?id=" + encodeURIComponent(id);
+  }
+
+  function subproblemHref(code) {
+    return "category.html?id=" + encodeURIComponent(code);
+  }
+
+  function explorerHref(options) {
+    options = options || {};
+    var params = new URLSearchParams();
+    var codes = options.subproblems || options.questions || [];
+    if (codes.length) params.set("subproblem", codes.join(","));
+    if (options.mode) params.set("mode", options.mode);
+    var query = params.toString();
+    return "explorer.html" + (query ? "?" + query : "");
+  }
+
+  function papersForSubproblem(code) {
+    return data.papers.filter(function (paper) {
+      return paper.subproblemCodes.indexOf(code) !== -1;
+    });
+  }
+
+  function subproblemContribution(paper, code) {
+    return paper.subproblemContributions[code] || {
+      summary: "该论文没有此子问题的贡献说明。",
+      detail: "该论文没有此子问题的贡献说明。"
+    };
+  }
+
+  function subproblemBadges(paper, highlightedCode) {
+    return paper.subproblemCodes.map(function (code) {
+      var item = getSubproblem(code);
+      var matched = code === highlightedCode ? " is-matched" : "";
+      return [
+        "<a class=\"category-badge" + matched + "\" style=\"" + ui.itemStyle(item) + "\" href=\"" +
+          subproblemHref(code) + "\" data-tooltip=\"" +
+          ui.escapeHtml(subproblemContribution(paper, code).summary) + "\">",
+        "<span class=\"badge-code\">" + ui.escapeHtml(code) + "</span>",
+        "<span>" + ui.escapeHtml(item.shortName) + "</span></a>"
+      ].join("");
+    }).join("");
+  }
+
+  function institutionList(paper) {
+    var details = paper.institutionDetails || [];
+    var previousOrder = null;
+    var chips = details.map(function (item) {
+      var order = Number(item.order);
+      var separator = previousOrder !== null && previousOrder !== order
+        ? "<span class=\"institution-arrow\" aria-hidden=\"true\">→</span>"
+        : "";
+      previousOrder = order;
+      return [
+        separator,
+        "<span class=\"institution-chip\" tabindex=\"0\" data-order=\"" + ui.escapeHtml(order) + "\"",
+        " data-tooltip=\"顺位 " + ui.escapeHtml(order) + "｜" + ui.escapeHtml(item.explanation) + "\">",
+        "<span class=\"institution-chip__order\" aria-hidden=\"true\">" + ui.escapeHtml(order) + "</span>",
+        "<span>" + ui.escapeHtml(item.name) + "</span></span>"
+      ].join("");
+    }).join("");
+    var source = paper.institutionSource
+      ? "<a class=\"institution-source\" href=\"" + ui.escapeHtml(paper.institutionSource) +
+        "\" target=\"_blank\" rel=\"noopener\">单位来源 <span aria-hidden=\"true\">↗</span></a>"
+      : "";
+    return "<div class=\"institution-list\" aria-label=\"论文相关单位\">" + chips +
+      "</div>" + (source ? "<div class=\"institution-meta\">" + source + "</div>" : "");
+  }
+
+  function contributionPanels(paper, highlightedCode) {
+    return paper.subproblemCodes.map(function (code) {
+      var item = getSubproblem(code);
+      var contribution = subproblemContribution(paper, code);
+      var active = code === highlightedCode ? " is-highlighted" : "";
+      return [
+        "<article class=\"contribution-panel" + active + "\" style=\"" + ui.itemStyle(item) + "\">",
+        "<a class=\"contribution-label\" href=\"" + subproblemHref(code) + "\"><span>" +
+          ui.escapeHtml(code) + "</span>" + ui.escapeHtml(item.name) + "</a>",
+        "<p class=\"contribution-summary math-rich-text\">" +
+          ui.renderMathText(contribution.summary) + "</p>",
+        "<div class=\"contribution-detail math-rich-text\"><p>" +
+          ui.renderMathText(contribution.detail).replace(/\n\n/g, "</p><p>") + "</p></div>",
+        "</article>"
+      ].join("");
+    }).join("");
+  }
+
+  function contextualContribution(paper, options) {
+    options = options || {};
+    var codes = [];
+    if (options.subproblem) codes = [options.subproblem];
+    if (options.filters && options.filters.subproblemCodes) {
+      codes = options.filters.subproblemCodes.slice();
+    }
+    codes = codes.filter(function (code) { return paper.subproblemCodes.indexOf(code) !== -1; });
+    if (!codes.length) return paper.methodOverview;
+    return codes.map(function (code) {
+      var item = getSubproblem(code);
+      return item.shortName + "：" + subproblemContribution(paper, code).summary;
+    }).join("；");
+  }
+
+  function authorsMarkup(paper) {
+    return (paper.authors || []).map(function (author) {
+      return "<span>" + ui.escapeHtml(author) + "</span>";
+    }).join("");
+  }
+
+  function notesMarkup(paper) {
+    if (!paper.notes || !paper.notes.length) return "<p class=\"empty-note\">暂无研究笔记。</p>";
+    return "<ul class=\"paper-notes\">" + paper.notes.map(function (note) {
+      return "<li class=\"math-rich-text\">" + ui.renderMathText(note) + "</li>";
+    }).join("") + "</ul>";
+  }
+
+  function paperCard(paper, options) {
+    options = options || {};
+    var highlightedCode = options.subproblem || null;
+    var context = contextualContribution(paper, options);
+    var detailHref = paperHref(paper.id);
+    return [
+      "<details class=\"paper-card\" data-paper-id=\"" + ui.escapeHtml(paper.id) + "\">",
+      "<summary class=\"paper-card__summary\"><span class=\"paper-summary__layout\">",
+      "<span class=\"paper-summary__content\"><span class=\"paper-summary__topline\">",
+      "<span class=\"paper-summary__title\" role=\"heading\" aria-level=\"3\">" +
+        ui.escapeHtml(paper.shortName) + "</span>",
+      "<span class=\"paper-summary__datum paper-summary__venue\"><small>会议</small><strong>" +
+        ui.escapeHtml(paper.venue) + "</strong></span>",
+      "<time class=\"paper-summary__datum paper-summary__date\" datetime=\"" + ui.escapeHtml(paper.date) +
+        "\"><small>时间</small><strong>" + ui.escapeHtml(paper.date) + "</strong></time>",
+      "<span class=\"paper-context-summary\"><strong>贡献</strong><span class=\"math-rich-text\">" +
+        ui.renderMathText(context) + "</span></span></span>",
+      "<span class=\"paper-summary__institutions\"><strong>相关单位</strong><span>" +
+        ui.escapeHtml(paper.institutions) + "</span></span></span>",
+      "<span class=\"paper-summary__toggle\" aria-hidden=\"true\"><span class=\"when-closed\">展开</span>" +
+        "<span class=\"when-open\">收起</span><i></i></span>",
+      "</span></summary><div class=\"paper-card__details\">",
+      "<section class=\"paper-data-grid paper-overview-grid\" aria-label=\"论文信息\">",
+      "<div class=\"paper-field paper-field--full paper-field--row-end\"><span class=\"field-label\">标题</span>" +
+        "<p class=\"paper-expanded-title math-rich-text\">" + ui.renderMathText(paper.title) + "</p></div>",
+      "<div class=\"paper-field paper-field--full paper-field--row-end\"><span class=\"field-label\">作者</span>" +
+        "<div class=\"author-list\">" + authorsMarkup(paper) + "</div></div>",
+      "<div class=\"paper-field paper-field--full paper-field--row-end\"><span class=\"field-label\">子问题</span>" +
+        "<div class=\"chip-row\">" + subproblemBadges(paper, highlightedCode) + "</div></div>",
+      "<div class=\"paper-field paper-field--full paper-field--row-end paper-field--institutions\">" +
+        "<span class=\"field-label\">相关单位</span>" + institutionList(paper) + "</div>",
+      "<div class=\"paper-field paper-field--full paper-field--row-end\"><span class=\"field-label\">直观方法概述</span>" +
+        "<p class=\"math-rich-text\">" + ui.renderMathText(paper.methodOverview) + "</p></div>",
+      "<div class=\"paper-field paper-field--full paper-field--row-end\"><span class=\"field-label\">笔记</span>" +
+        notesMarkup(paper) + "</div></section>",
+      "<section class=\"paper-contributions\" aria-label=\"子问题贡献\">",
+      "<div class=\"section-mini-title\"><span>SUBPROBLEM CONTRIBUTIONS</span><strong>详细贡献</strong></div>",
+      "<div class=\"contribution-grid\">" + contributionPanels(paper, highlightedCode) + "</div></section>",
+      "<footer class=\"paper-card__footer\"><a class=\"button button-primary\" href=\"" + detailHref +
+        "\">查看论文详情 <span aria-hidden=\"true\">→</span></a>" +
+        "<span class=\"citation-counts\">引用 " + paper.citations.length + " · 被引用 " +
+        paper.citedBy.length + "</span></footer>",
+      "</div></details>"
+    ].join("");
+  }
+
+  function paperTile(paper, subproblemCode) {
+    var contribution = subproblemCode ? subproblemContribution(paper, subproblemCode).summary : paper.methodOverview;
+    return "<a class=\"paper-tile\" href=\"" + paperHref(paper.id) + "\" data-tooltip=\"" +
+      ui.escapeHtml(contribution) + "\"><strong>" + ui.escapeHtml(paper.shortName) + "</strong>" +
+      "<small>" + ui.escapeHtml(paper.date.slice(0, 4)) + "</small></a>";
+  }
+
+  function paperMatchesText(paper, query) {
+    var q = ui.normalize(query);
+    if (!q) return true;
+    var contributionText = paper.subproblemCodes.map(function (code) {
+      var item = getSubproblem(code);
+      var contribution = subproblemContribution(paper, code);
+      return [code, item.name, item.shortName, item.description,
+        contribution.summary, contribution.detail].join(" ");
+    }).join(" ");
+    var institutionText = (paper.institutionDetails || []).map(function (item) {
+      return [item.name, item.explanation].join(" ");
+    }).join(" ");
+    return ui.normalize([
+      paper.index, paper.id, paper.title, paper.shortName, (paper.authors || []).join(" "),
+      paper.methodOverview, (paper.notes || []).join(" "), paper.institutions,
+      institutionText, paper.venue, paper.date, contributionText
+    ].join(" ")).indexOf(q) !== -1;
+  }
+
+  function sortPapers(papers, sort) {
+    return papers.slice().sort(function (a, b) {
+      if (sort === "newest") return b.date.localeCompare(a.date) || a.index - b.index;
+      if (sort === "name") return a.shortName.localeCompare(b.shortName, "en") || a.index - b.index;
+      if (sort === "citations") return b.citedBy.length - a.citedBy.length || a.index - b.index;
+      return a.index - b.index;
+    });
+  }
+
+  function siteHeader(active) {
+    function navLink(href, key, label) {
+      return "<a href=\"" + href + "\"" + (active === key ? " aria-current=\"page\"" : "") +
+        ">" + label + "</a>";
+    }
+    return [
+      "<a class=\"skip-link\" href=\"#main-content\">跳到主要内容</a>",
+      "<div class=\"site-header__inner\"><a class=\"brand\" href=\"index.html\" aria-label=\"返回 SDAtlas 首页\">",
+      "<span class=\"brand-mark\" aria-hidden=\"true\"><i></i><i></i><i></i></span>",
+      "<span><strong>SDAtlas</strong><small>SPECULATIVE DECODING</small></span></a>",
+      "<nav class=\"site-nav\" aria-label=\"主导航\">",
+      navLink("index.html", "atlas", "论文索引"),
+      navLink("papers.html", "papers", "全部论文"),
+      navLink("explorer.html", "explorer", "组合筛选"),
+      "<a href=\"" + ui.escapeHtml(data.meta.catalogFile) + "\" download>合并数据</a>",
+      "</nav></div>"
+    ].join("");
+  }
+
+  function siteFooter() {
+    return [
+      "<div class=\"footer-grid\"><a class=\"brand brand--footer\" href=\"index.html\">",
+      "<span class=\"brand-mark\" aria-hidden=\"true\"><i></i><i></i><i></i></span>",
+      "<span><strong>SDAtlas</strong><small>RESEARCH NAVIGATOR</small></span></a>",
+      "<p>投机解码论文的子问题、方法与引用关系索引。</p>",
+      "<p class=\"footer-meta\">DATASET · " + ui.escapeHtml(data.meta.updated) + "<br>SCHEMA · v" +
+        ui.escapeHtml(data.schemaVersion) + "</p></div>"
+    ].join("");
+  }
+
+  function mountChrome(active) {
+    var header = document.getElementById("site-header");
+    var footer = document.getElementById("site-footer");
+    if (header) header.innerHTML = siteHeader(active);
+    if (footer) footer.innerHTML = siteFooter();
+  }
+
+  /* Override the v3 data-specific APIs while retaining formula and tooltip helpers. */
+  ui.getSubproblem = getSubproblem;
+  ui.getPaper = getPaper;
+  ui.paperHref = paperHref;
+  ui.subproblemHref = subproblemHref;
+  ui.explorerHref = explorerHref;
+  ui.papersForSubproblem = papersForSubproblem;
+  ui.subproblemContribution = subproblemContribution;
+  ui.subproblemBadges = subproblemBadges;
+  ui.institutionList = institutionList;
+  ui.contributionPanels = contributionPanels;
+  ui.contextualContribution = contextualContribution;
+  ui.paperCard = paperCard;
+  ui.paperTile = paperTile;
+  ui.paperMatchesText = paperMatchesText;
+  ui.sortPapers = sortPapers;
+  ui.mountChrome = mountChrome;
 })();

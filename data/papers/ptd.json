@@ -1,0 +1,59 @@
+{
+  "id": "ptd",
+  "index": 20,
+  "title": "Unlocking Parallelism in Autoregressive Language Models via Speculative Decoding with Progressive Tree Drafting",
+  "shortName": "PTD",
+  "authors": [
+    "Zipeng Gao",
+    "Zhi Zheng",
+    "Qingrong Xia",
+    "Junda Lin",
+    "Ziwei Zhao",
+    "Tong Xu",
+    "Zhefeng Wang",
+    "Enhong Chen"
+  ],
+  "methodOverview": "不引入独立 Drafter，而是通过渐进式树结构引导 Target 在一次前向中探索多条路径，并逐阶段剪枝，在候选多样性、连贯性和 Verify 成本间取得平衡。",
+  "notes": [],
+  "institutionDetails": [
+    {
+      "name": "中国科学技术大学认知智能全国重点实验室",
+      "order": 1,
+      "explanation": "一作、通讯作者及多数作者所属单位。"
+    },
+    {
+      "name": "华为技术有限公司",
+      "order": 2,
+      "explanation": "其他作者所属单位。"
+    }
+  ],
+  "institutionSource": "https://arxiv.org/pdf/2607.10661",
+  "subproblemContributions": {
+    "A": {
+      "summary": "不增加独立 Drafter、预测头或训练过程，而是通过树形输入与 Attention Mask 调用 Target 的内生预测能力；同一次前向并行产生 AR Next Token、为所有 Draft Tree 节点生成孩子，并为已缓存候选计算 Verify 结果。",
+      "detail": "不增加独立 Drafter、预测头或训练过程，而是通过树形输入与 Attention Mask 调用 Target 的内生预测能力；同一次前向并行产生 AR Next Token、为所有 Draft Tree 节点生成孩子，并为已缓存候选计算 Verify 结果。这样免去额外模型的训练、对齐与跨模型通信。"
+    },
+    "B": {
+      "summary": "把 Target 自身的候选生成组织为持续演化的 Draft Tree：每个节点只关注祖先、Position ID 由路径深度确定，因此一次模型前向可同时为当前所有节点追加孩子并探索多条语义路径。",
+      "detail": "把 Target 自身的候选生成组织为持续演化的 Draft Tree：每个节点只关注祖先、Position ID 由路径深度确定，因此一次模型前向可同时为当前所有节点追加孩子并探索多条语义路径。树以最大孩子数限制宽度，超过深度阈值时用滑动窗口式 Stepwise Pruning 保留最早加入的孩子及其后代；所得子树再按共同根递归合并进候选缓存，兼顾前缀复用、分支多样性和连贯性。\n\n用共享 Prefix 的树替代彼此独立且高度重复的线性分支；种子节点启动不同语义方向，此后每轮为所有现有节点并行追加一个孩子。Width Control 抑制过度分叉，Stepwise Pruning 在树过深时删除陈旧兄弟分支，保留下来的语义子树按同根递归合并到 Candidate Pool。"
+    },
+    "C": {
+      "summary": "从 Candidate Pool 检索与当前 Prefix 匹配的树，复用仅祖先可见掩码和树深 Position ID，在联合 Target 前向中并行 Verify 各节点。",
+      "detail": "从 Candidate Pool 检索与当前 Prefix 匹配的树，复用仅祖先可见掩码和树深 Position ID，在联合 Target 前向中并行 Verify 各节点。贪心解码递归沿 Target 预测命中的孩子接受；采样解码则对兄弟候选做无放回抽样与重新归一化，以保持原始采样分布。"
+    }
+  },
+  "citations": [
+    "medusa",
+    "eagle",
+    "eagle-2",
+    "specinfer"
+  ],
+  "venue": "COLM 2026",
+  "date": "2026-10",
+  "url": "https://arxiv.org/abs/2607.10661",
+  "provenance": {
+    "legacyWorkbookRow": 20,
+    "workbookInstitutions": "未知（arXiv作者团队）"
+  },
+  "localPdf": "../Reference/PTD.pdf"
+}

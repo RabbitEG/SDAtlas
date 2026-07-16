@@ -1,0 +1,64 @@
+{
+  "id": "diffuspec",
+  "index": 8,
+  "title": "DiffuSpec: Unlocking Diffusion Language Models for Speculative Decoding",
+  "shortName": "DiffuSpec",
+  "authors": [
+    "Guanghao Li",
+    "Zhihui Fu",
+    "Min Fang",
+    "Qibin Zhao",
+    "Ming Tang",
+    "Chun Yuan",
+    "Jun Wang"
+  ],
+  "methodOverview": "复用预训练扩散语言模型，一次产生多个位置的候选 Token 网格；Causal-consistency Path Search 从中抽取满足自回归因果关系的路径，ADL 再根据历史接受情况动态调整 Draft 长度。",
+  "notes": [],
+  "institutionDetails": [
+    {
+      "name": "清华大学深圳国际研究生院",
+      "order": 1,
+      "explanation": "一作和通讯作者分布于两所主导单位，双方共同主导。"
+    },
+    {
+      "name": "南方科技大学",
+      "order": 1,
+      "explanation": "一作和通讯作者分布于两所主导单位，双方共同主导。"
+    },
+    {
+      "name": "OPPO研究院",
+      "order": 2,
+      "explanation": "其他作者所属单位。"
+    }
+  ],
+  "institutionSource": "https://arxiv.org/pdf/2510.02358",
+  "subproblemContributions": {
+    "A": {
+      "summary": "DiffuSpec 直接复用预训练扩散语言模型作为 Drafter，在前缀后追加 k 个 Mask，并以一次默认的去噪精炼前向同时产生各位置的候选分布与 Token Lattice，避免自回归 Drafter 为每个 Token 单独前向。",
+      "detail": "DiffuSpec 直接复用预训练扩散语言模型作为 Drafter，在前缀后追加 k 个 Mask，并以一次默认的去噪精炼前向同时产生各位置的候选分布与 Token Lattice，避免自回归 Drafter 为每个 Token 单独前向。为接入标准投机采样，它通过遮蔽块内其余位置构造逐位置的左到右条件概率，Target 架构无需修改。\n\nDream-7B 等扩散 Drafter 可在一次去噪精炼前向中并行填充整个 Mask 块，无需按 Token 串行调用；现成 DLM 可作为插件替换标准接口中的自回归 Drafter。论文固定单步精炼，因为增加精炼步数虽能提高接受长度，却会以额外前向显著侵蚀实际吞吐。"
+    },
+    "B": {
+      "summary": "CPS 从每个位置的 Top-M 候选出发，按累计概率质量自适应剪枝、始终保留 EOS，并在首个 EOS 处停止扩展；随后以 DLM Log 概率和 3-gram 因果分数的加权和进行左到右束搜索。",
+      "detail": "CPS 从每个位置的 Top-M 候选出发，按累计概率质量自适应剪枝、始终保留 EOS，并在首个 EOS 处停止扩展；随后以 DLM Log 概率和 3-gram 因果分数的加权和进行左到右束搜索。它不把各位置边际 Top-1 生硬拼接，而是选择因果连贯路径，将 Drafter 与 AR Verifier 的首次失配推向更后位置。"
+    },
+    "C": {
+      "summary": "ADL 分别对原始扩散候选首个 EOS 前的生成长度 L_gen 和 Verify 后的连续接受长度 L_acc 做指数滑动平均；当接受进度跟上生成进度时小幅扩长，否则按 L_gen 回缩，并把下一轮长度限制在预设上下界。",
+      "detail": "ADL 分别对原始扩散候选首个 EOS 前的生成长度 L_gen 和 Verify 后的连续接受长度 L_acc 做指数滑动平均；当接受进度跟上生成进度时小幅扩长，否则按 L_gen 回缩，并把下一轮长度限制在预设上下界。这样可避开固定长 Draft 过短限制进度、过长产生漂移并增加无效 Verify 的两端浪费。"
+    }
+  },
+  "citations": [
+    "medusa",
+    "eagle",
+    "eagle-2",
+    "eagle-3",
+    "specinfer"
+  ],
+  "venue": "Findings of ACL 2026",
+  "date": "2026-07",
+  "url": "https://aclanthology.org/2026.findings-acl.1048/",
+  "provenance": {
+    "legacyWorkbookRow": 8,
+    "workbookInstitutions": "香港中文大学（深圳）、其他合作单位"
+  },
+  "localPdf": "../Reference/DiffuSpec.pdf"
+}

@@ -1,64 +1,42 @@
-/* Query-driven category page: one template supports every current/future set. */
+/* One parameterized page for every A–E subproblem. */
 (function () {
   "use strict";
 
   var ui = window.SDAtlasUI;
   var data = ui.data;
   var params = new URLSearchParams(window.location.search);
-  var kind = params.get("kind") === "tag" ? "tag" : "major";
-  var rawId = params.get("id") || (kind === "tag" ? data.tags[0].code : data.categories[0].code);
-  var item = kind === "tag" ? ui.getTag(rawId) : ui.getCategory(rawId);
-  var papers = item
-    ? (kind === "tag" ? ui.papersForTag(item.code) : ui.papersForCategory(item.code))
-    : [];
+  var rawId = params.get("id") || data.subproblems[0].code;
+  var item = ui.getSubproblem(rawId);
+  var papers = item ? ui.papersForSubproblem(item.code) : [];
 
-  function relatedItems() {
-    var pool = kind === "major" ? data.tags : data.categories;
-    return pool.map(function (candidate) {
+  function relatedLinks() {
+    if (!item) return "";
+    return data.subproblems.filter(function (candidate) {
+      return candidate.code !== item.code;
+    }).map(function (candidate) {
       var count = papers.filter(function (paper) {
-        return (kind === "major" ? paper.tagCodes : paper.categoryCodes).indexOf(candidate.code) !== -1;
+        return paper.subproblemCodes.indexOf(candidate.code) !== -1;
       }).length;
       return { item: candidate, count: count };
     }).filter(function (entry) { return entry.count > 0; })
-      .sort(function (a, b) { return b.count - a.count; });
-  }
-
-  function relatedLinks() {
-    return relatedItems().map(function (entry) {
-      var candidate = entry.item;
-      var href = kind === "major" ? ui.tagHref(candidate.code) : ui.categoryHref(candidate.code);
-      var label = kind === "major"
-        ? candidate.code + " · " + candidate.name
-        : candidate.code + " · " + candidate.shortName;
-      return "<a style=\"" + ui.itemStyle(candidate) + "\" href=\"" + href + "\"><span>" +
-        ui.escapeHtml(label) + "</span><em>" + entry.count + "</em></a>";
-    }).join("");
+      .sort(function (a, b) { return b.count - a.count; })
+      .map(function (entry) {
+        return "<a style=\"" + ui.itemStyle(entry.item) + "\" href=\"" +
+          ui.subproblemHref(entry.item.code) + "\"><span>" + ui.escapeHtml(entry.item.code) +
+          " · " + ui.escapeHtml(entry.item.shortName) + "</span><em>" + entry.count + "</em></a>";
+      }).join("");
   }
 
   function renderHero() {
     var hero = document.getElementById("category-hero");
     if (!item) {
-      hero.innerHTML = "<div class=\"page-shell invalid-category\"><p class=\"section-index\">UNKNOWN CATEGORY</p>" +
-        "<h1>找不到这个分类</h1><p>链接中的分类标识不存在，可能已经被数据维护者修改。</p>" +
-        "<a class=\"button button-primary\" href=\"index.html\">论文索引</a></div>";
+      hero.innerHTML = "<div class=\"page-shell invalid-category\"><p class=\"section-index\">UNKNOWN SUBPROBLEM</p>" +
+        "<h1>找不到这个子问题</h1><p>链接中的标识不存在，可能已经被数据维护者修改。</p>" +
+        "<a class=\"button button-primary\" href=\"index.html\">返回论文索引</a></div>";
       return;
     }
 
-    /* Draft / Verify are intentionally kept in English. Avoid repeating the
-       term when the localized label already starts with the canonical name. */
-    var title = item.name;
-    if (kind === "tag") {
-      title = item.zhName.indexOf(item.name) === 0
-        ? item.zhName
-        : item.name + " · " + item.zhName;
-    }
-    var description = kind === "major" ? item.description : item.description + "。";
-    var source = kind === "major" ? "宏观类别" : "子问题";
-    var explorer = kind === "major"
-      ? ui.explorerHref({ major: [item.code], mode: "intersection" })
-      : ui.explorerHref({ tags: [item.code], mode: "intersection" });
-
-    document.title = item.code + " · " + title + " · SDAtlas";
+    document.title = item.code + " · " + item.name + " · SDAtlas";
     hero.style.setProperty("--detail-color", item.color);
     hero.style.setProperty("--detail-soft", item.softColor);
     hero.innerHTML = [
@@ -66,39 +44,52 @@
       "<div class=\"page-shell\"><nav class=\"breadcrumb\" aria-label=\"面包屑\"><a href=\"index.html\">论文索引</a><span>/</span><span>" +
         ui.escapeHtml(item.code) + "</span></nav>",
       "<div class=\"detail-hero__grid\"><div class=\"detail-identity\">",
-      "<p class=\"section-index\">" + ui.escapeHtml(source) + "</p>",
+      "<p class=\"section-index\">SUBPROBLEM</p>",
       "<div class=\"detail-title-row\"><span class=\"detail-code\">" + ui.escapeHtml(item.code) + "</span><div>",
-      "<h1>" + ui.escapeHtml(title) + "</h1>",
-      (kind === "major" ? "<p class=\"detail-question math-rich-text\">" +
-        ui.renderMathText(item.question) + "</p>" : ""),
+      "<h1>" + ui.escapeHtml(item.name) + "</h1>",
+      "<p class=\"detail-question math-rich-text\">" + ui.renderMathText(item.question) + "</p>",
       "</div></div><p class=\"detail-description math-rich-text\">" +
-        ui.renderMathText(description) + "</p>",
-      "<div class=\"detail-actions\"><a class=\"button button-primary\" href=\"" + explorer +
-        "\">在组合筛选中打开</a><a class=\"text-link\" href=\"index.html\">返回总览</a></div></div>",
+        ui.renderMathText(item.description) + "</p>",
+      "<div class=\"detail-actions\"><a class=\"button button-primary\" href=\"" +
+        ui.explorerHref({ subproblems: [item.code], mode: "intersection" }) +
+        "\">在组合筛选中打开</a><a class=\"text-link\" href=\"papers.html\">全部论文</a></div></div>",
       "<aside class=\"detail-summary\"><div class=\"detail-count\"><strong>" + papers.length +
-        "</strong><span>篇相关论文</span></div><div class=\"related-sets\"><span>同时涉及的" +
-        (kind === "major" ? "子问题" : "宏观类别") + "</span>" + relatedLinks() + "</div></aside>",
-      "</div></div>"
+        "</strong><span>篇相关论文</span></div><div class=\"related-sets\"><span>同时涉及的子问题</span>" +
+        relatedLinks() + "</div></aside></div></div>"
     ].join("");
   }
 
+  function renderGraph(result) {
+    var container = document.getElementById("citation-graph");
+    if (!container || !window.SDAtlasCitationGraph) return;
+    window.SDAtlasCitationGraph.render(container, result, {
+      title: item ? item.name + "的引用关系" : "引用关系"
+    });
+  }
+
   function renderPapers(query) {
-    var result = item ? papers.filter(function (paper) { return ui.paperMatchesText(paper, query); }) : [];
+    var result = item ? papers.filter(function (paper) {
+      return ui.paperMatchesText(paper, query);
+    }) : [];
     var list = document.getElementById("paper-list");
     var resultLine = document.getElementById("result-line");
     if (!item) {
-      list.innerHTML = ui.emptyState("没有可展示的论文", "该分类不存在。",
-        "<a class=\"button button-primary\" href=\"index.html\">论文索引</a>");
+      list.innerHTML = ui.emptyState("没有可展示的论文", "该子问题不存在。",
+        "<a class=\"button button-primary\" href=\"index.html\">返回论文索引</a>");
       resultLine.textContent = "";
+      renderGraph([]);
       return;
     }
     resultLine.textContent = query
       ? "搜索“" + query + "” · 显示 " + result.length + " / " + papers.length + " 篇"
       : "共 " + result.length + " 篇论文";
     list.innerHTML = result.length
-      ? result.map(function (paper) { return ui.paperCard(paper, { kind: kind, id: item.code }); }).join("")
-      : ui.emptyState("当前搜索没有结果", "没有匹配标题、简称、单位或子问题的论文。",
+      ? result.map(function (paper) {
+        return ui.paperCard(paper, { subproblem: item.code });
+      }).join("")
+      : ui.emptyState("当前搜索没有结果", "没有匹配标题、作者、单位或方法的论文。",
         "<button class=\"button button-secondary\" type=\"button\" id=\"reset-search\">清除搜索</button>");
+    renderGraph(result);
     var reset = document.getElementById("reset-search");
     if (reset) reset.addEventListener("click", function () {
       document.getElementById("list-search").value = "";

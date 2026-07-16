@@ -3,9 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="按宏观类别与 D/Q/T/V/R/S/H 子问题浏览投机解码论文。">
+  <meta name="description" content="围绕五个子问题浏览投机解码论文、方法贡献与研究联系。">
   <title>SDAtlas · 投机解码论文索引</title>
   <link rel="stylesheet" href="assets/css/styles.css">
+  <link rel="stylesheet" href="assets/css/question-cards.css">
   <script defer src="assets/js/data.js"></script>
   <script defer src="assets/js/ui.js"></script>
   <script defer src="assets/js/index.js"></script>
@@ -19,10 +20,10 @@
         <div class="hero-copy">
           <p class="eyebrow"><span>RESEARCH NAVIGATOR</span><span>2024—2026</span></p>
           <h1>投机解码论文索引</h1>
-          <p class="hero-lede">围绕 Draft 生成、候选组织与 Verify 系统协同，收录 20 篇代表性论文。</p>
+          <p class="hero-lede">围绕 Draft、候选组织、Verify、系统与 Training 五个子问题，收录 <span id="hero-paper-count">—</span> 篇代表性论文。</p>
           <div class="hero-actions">
-            <a class="button button-light" href="#major-categories">宏观类别</a>
-            <a class="text-link text-link--light" href="explorer.html">进入组合筛选 <span aria-hidden="true">↗</span></a>
+            <a class="button button-light" href="papers.html">全部论文 <span aria-hidden="true">→</span></a>
+            <a class="text-link text-link--light" href="explorer.html">组合筛选 <span aria-hidden="true">↗</span></a>
           </div>
         </div>
         <div class="hero-side">
@@ -52,44 +53,43 @@
       </div>
     </section>
 
-    <section class="section page-shell" id="major-categories">
-      <header class="section-heading section-heading--split">
-        <div>
-          <p class="section-index">01 / MACRO CATEGORIES</p>
-          <h2>宏观类别</h2>
-        </div>
-        <div class="view-switch" role="group" aria-label="切换宏观类别视图">
-          <button class="is-active" type="button" data-view="venn" aria-pressed="true"><span aria-hidden="true">◉</span> 韦恩图</button>
-          <button type="button" data-view="table" aria-pressed="false"><span aria-hidden="true">▦</span> 表格</button>
-        </div>
-      </header>
-
-      <div class="category-legend" id="category-legend"></div>
-      <div class="view-panel" id="venn-view"></div>
-      <div class="view-panel" id="table-view" hidden></div>
-    </section>
-
-    <section class="section section--tinted" id="research-tags">
+    <section class="section question-section" id="subproblems">
       <div class="page-shell">
         <header class="section-heading section-heading--split">
           <div>
-            <p class="section-index">02 / SUBPROBLEMS</p>
-            <h2>子问题</h2>
+            <p class="section-index">01 / FIVE SUBPROBLEMS</p>
+            <h2>从五个子问题进入研究图谱</h2>
+            <p>每张卡片汇集同一研究问题下的方法、论文及其对应贡献。</p>
           </div>
-          <a class="text-link" href="explorer.html">组合子问题 <span aria-hidden="true">↗</span></a>
+          <div class="question-heading-actions">
+            <a class="button button-primary" href="papers.html">全部论文</a>
+            <a class="button button-secondary" href="explorer.html">组合筛选</a>
+          </div>
         </header>
-        <div class="tag-grid" id="tag-grid"></div>
+        <div class="question-card-grid" id="subproblem-grid"></div>
       </div>
     </section>
 
-    <section class="section page-shell">
-      <div class="explorer-callout">
-        <div>
-          <p class="section-index">03 / SET EXPLORER</p>
-          <h2>跨分类研究组合</h2>
+    <section class="section home-routes-section">
+      <div class="page-shell">
+        <header class="section-heading">
+          <p class="section-index">02 / CONTINUE EXPLORING</p>
+          <h2>继续浏览或组合子问题</h2>
+        </header>
+        <div class="home-routes">
+          <a class="home-route home-route--papers" href="papers.html">
+            <span class="home-route__index">01</span>
+            <span class="home-route__copy"><small>COMPLETE CATALOG</small><strong>全部论文</strong>
+              <span>查看 <b class="route-paper-count">—</b> 篇论文的完整信息、子问题贡献与引用关系。</span></span>
+            <i aria-hidden="true">→</i>
+          </a>
+          <a class="home-route home-route--explorer" href="explorer.html">
+            <span class="home-route__index">02</span>
+            <span class="home-route__copy"><small>SET EXPLORER</small><strong>组合筛选</strong>
+              <span>多选 A–E 子问题，用并集或交集寻找论文。</span></span>
+            <i aria-hidden="true">↗</i>
+          </a>
         </div>
-        <a class="button button-primary button-large" href="explorer.html">打开组合筛选 <span aria-hidden="true">→</span></a>
-        <div class="callout-orbit" aria-hidden="true"><i>A</i><i>T</i><i>H</i></div>
       </div>
     </section>
   </main>

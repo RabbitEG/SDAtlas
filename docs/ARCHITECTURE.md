@@ -1,125 +1,149 @@
 # SDAtlas 架构与数据模型
 
-## 1. 模块边界
+## 1. 构建边界
 
 ```text
-legacy/speculative_decoding_papers_2026-07.xlsx ─┐
-legacy/tag.txt ───────────────────────────────────┼─> data/catalog.json（唯一维护源）
-单位与来源说明 ────────────────────────────┘              │
-                                                         │ sync_catalog.py
-                                                         v
-Reference/*.pdf ──────────────────────────────> assets/js/data.js（生成物）
-                                                         │
-                                                         v
-                                               assets/js/ui.js
-                                                 /     |     \
-                                        index.js  category.js  explorer.js
-                                           |          |           |
-                                       index.html category.html explorer.html
+data/catalog.json（meta + A–E subproblems） ─┐
+                                             ├─> scripts/sync_catalog.py
+data/papers/<id>.json（每论文一个文件） ──────┘             │
+                                                            ├─> data/catalog.generated.json
+                                                            └─> assets/js/data.js
+                                                                       │
+                                                                       v
+                                                                 assets/js/ui.js
+                                                           /      /      |       \
+                                                    index.js category.js papers.js paper.js
+                                                                          \
+                                                                        explorer.js
 ```
 
-- `data/catalog.json` 是唯一人工维护的数据源，合并 `legacy/` 中的 Excel 条目、`tag.txt` 子问题 / 贡献和单位增强信息。
-- `sync_catalog.py` 确定性生成 `data.js`；它是唯一运行时数据源，但不是编辑入口。
-- `ui.js` 提供查找、路由、论文卡片、页眉页脚、搜索匹配、Tooltip，以及零依赖的内联 MathML 渲染。
-- 三个页面脚本只负责各自状态与布局，不复制论文字段渲染代码。
-- `category.html` 是参数化模板，不为每个分类生成重复文件。
-- `explorer.js` 把每一个已选宏观类别或子问题视为一个布尔条件。
-- `ui.js` 使用原生 `details` / `summary` 生成论文卡片；关闭状态首行横排简称、会议、时间和贡献概括，单位独占第二行；展开后只渲染对读者有价值的完整论文信息和详细贡献区。
-- `renderMathText()` 在输出 HTML 前先转义原文，再只把已识别的公式片段变成原生 MathML；数据层仍保存可搜索、可与 `legacy/tag.txt` 对齐的原始记法。复合公式集中登记在 `MATH_EXPRESSIONS`，常见下标、上标和希腊字母由回退规则自动识别。
-- `paper-details.css` 只负责分类页和筛选页的折叠卡片，避免与首页图谱布局互相耦合。
+- `data/catalog.json` 只维护站点元数据和统一子问题定义，不包含论文数组。
+- `data/papers/*.json` 是论文事实与 SDAtlas 解读的维护源；一个文件只描述一篇论文。
+- `data/paper-template.json` 给出新增论文所需字段和推荐形状。
+- `sync_catalog.py` 读取拆分源，检查跨文件引用并生成完整目录。
+- `data/catalog.generated.json` 与 `assets/js/data.js` 是同一运行目录的两种包装，均不可手工编辑。
+- `ui.js` 负责通用查找、路由、论文卡片、Tooltip 和 MathML；`citation-graph.js` 负责所有列表共用的引用有向图，各页面脚本只管理自身状态与布局。
+- `Reference/` 不参与元数据合并；论文通过 `localPdf` 显式链接相应文件，验证器负责检查路径。
 
-## 2. 两套分类不能混用
+这种拆分把“子问题定义”和“单篇论文维护”分离。新增论文只产生一个独立 diff，不会重写大型目录文件；生成物仍为静态页面提供一次性、无请求的完整数据。
 
-| 维度 | 数据来源 | 字段 | 用途 |
-|---|---|---|---|
-| 宏观类别 | Excel E 列 | `categoryCodes` | 韦恩图、矩阵、分类页、筛选 |
-| 子问题 | `legacy/tag.txt` | `tagCodes` | 子问题卡片、分类页、筛选 |
-| 原始描述 | Excel F 列 | `workbookTags` | 后台追溯、校验与既有文本搜索，不进入 UI |
-| 原始单位 | Excel D 列 | `workbookInstitutions` | 后台追溯、数据校验与既有文本搜索，不进入 UI |
-| 校正单位 | 论文作者单位信息 | `institutionDetails` | 排序展示、Tooltip、搜索 |
+## 2. 统一子问题模型
 
-Excel F 列的原始表头为“标签”，但它不能用于子问题分类。因此代码使用 `workbookTags` 这个刻意不同的名字，避免维护时误用。
+Schema v4 不再维护两套研究问题体系。所有页面、贡献文字和筛选条件都使用同一组 `subproblems`，当前固定为：
 
-## 3. 数据结构
+| Code | 子问题 | 主要范围 |
+|---|---|---|
+| A | Draft 生成与建模 | Drafter 架构、特征条件、并行生成与候选分布 |
+| B | 候选组织与树搜索 | 候选块、Token Tree、路径评分、扩树与剪枝 |
+| C | Verify 策略与效率 | 接受规则、动态长度、节点预算、状态同步与输出等价性 |
+| D | 系统优化 | Batch、流水线、调度、内存、KV Cache 与硬件适配 |
+| E | Training 优化 | 目标、数据、蒸馏、损失、课程学习与稳定化 |
 
-### `categories[]`
+页面统一称其为“子问题”。`code` 是紧凑、稳定的筛选键，`id` 是可读稳定标识；两者都不应因展示文案调整而改变。
 
-- `code`：源表使用的稳定集合代号，例如 `A`。
-- `id`：可读稳定标识，查询参数也可使用它。
-- `name` / `shortName` / `question` / `description`：页面文案。
-- `color` / `softColor`：通过 CSS 自定义属性驱动所有视图。
+## 3. 源数据结构
 
-### `tags[]`
+### `data/catalog.json`
 
-- `code`：`legacy/tag.txt` 中的稳定代号，例如 `V`。
-- `id`：可读稳定标识。
-- `name` / `zhName` / `description`：子问题解释。
-- `color` / `softColor`：子问题页与贡献卡片颜色。
+- `schemaVersion`：当前为 `4`。
+- `meta`：标题、更新时间、源目录和生成目录位置、引用口径等站点级信息。
+- `subproblems[]`：A–E 定义。每项包含 `code`、`id`、`name`、`shortName`、`question`、`description`、`color` 和 `softColor`。
 
-### `papers[]`
+该文件不包含 `papers`；若出现论文数组，构建与验证都应失败。
 
-- `id` / `index`：内部稳定主键与 Excel 行序号。
-- `title` / `shortName` / `venue` / `date` / `url`：Excel 对应列。
-- `workbookInstitutions`：Excel D 列的逐字原值，不作为校正单位展示。
-- `institutions`：按 `order` 合成的单位摘要；相同 `order` 用 `、`，不同 `order` 用 `→`。
-- `institutionDetails[]`：规范化单位明细。`name` 是显示名，`order` 是从 1 开始的展示顺序，`explanation` 是单位说明。相同层级的单位复用同一个 `order`。
-- `institutionSource`：用于校正单位信息的论文页面或论文 PDF。
-- `categoryCodes`：Excel E 列拆分后的集合代号。
-- `workbookTags`：Excel F 列拆分后的原始条目，仅供后台追溯、校验与既有文本搜索。
-- `tagCodes`：依据 `legacy/tag.txt` 整理的子问题。
-- `categoryContributions`：论文在每个所属宏观类别中的贡献。键必须与 `categoryCodes` 完全一致。
-- `tagContributions`：论文在每个子问题下的贡献。键必须与 `tagCodes` 完全一致。
-- `localPdf` / `localPdfNote`：本地文件链接或缺失 / 异常说明。
+### `data/papers/<id>.json`
 
-逐宏观类别、逐子问题贡献不是一个通用摘要，因为同一篇论文在不同区域承担的作用不同。首页与详情页读取同一字段，避免文案分叉。
+- `id`：小写字母、数字和连字符组成的稳定主键，同时也是文件名。
+- `index`：从 1 开始的连续展示顺序。
+- `title` / `shortName` / `venue` / `date` / `url`：论文书目信息。
+- `authors[]`：按论文署名顺序记录的完整作者列表。
+- `methodOverview`：独立于具体子问题的一至三句直观方法概述。它应准确说明核心机制，也要让非该分支专家能快速理解。
+- `notes[]`：需要向读者披露的核实备注，可为空；不用于替代方法或贡献字段。
+- `institutionDetails[]`：规范化单位明细。`name` 是显示名，`order` 是从 1 开始的顺位，`explanation` 说明该单位与作者或工作的关系。同一顺位复用同一 `order`。
+- `institutionSource`：单位信息的可追溯 HTTP(S) 来源。
+- `subproblemContributions`：以 A–E `code` 为键。键本身就是论文所属子问题集合。
+- `citations[]`：站内有向引用的目标论文 `id`。
+- `localPdf` / `localPdfNote`：正确本地 PDF 的相对路径；若没有可用文件，则用说明字段替代。
+- `provenance`：可选的历史来源或迁移记录，不参与页面子问题展示与核心校验。
 
-## 4. 路由
+每条贡献必须同时提供：
 
-分类详情页支持：
+```json
+{
+  "A": {
+    "summary": "折叠列表中的单句贡献概括。",
+    "detail": "展开卡片和论文详情页中的相对详细贡献。"
+  }
+}
+```
+
+`summary` 负责快速浏览，`detail` 负责解释机制、取舍与效果；两者分开维护，避免 UI 从长段落中截断出不完整句子。
+
+## 4. 生成字段
+
+下列字段只存在于生成目录：
+
+- `subproblemCodes`：按 `subproblemContributions` 的键顺序派生；
+- `institutions`：按 `institutionDetails.order` 合成，相同顺位用 `、`，不同顺位用 ` → `；
+- `citedBy`：反转全站 `citations` 得到，并按引用论文的 `index` 排列。
+
+源文件若手写这些字段，构建会失败。唯一派生规则保证论文列表、详情页和引用图使用相同事实。
+
+## 5. 引用模型
+
+引用边只覆盖当前图谱中的论文，并且必须由论文正文或参考文献核实。边的方向为：
 
 ```text
-category.html?kind=major&id=A
-category.html?kind=tag&id=V
+A.citations = [B]  =>  A 引用 B  =>  B.citedBy 自动包含 A
 ```
 
-`id` 可以是 `code` 或数据中的可读 `id`。未知分类会展示错误状态，不会抛出脚本异常。
+外部参考文献不进入 `citations`。无法确认的候选边不应写入；需要保留调查结论时，可用 `notes` 清楚说明“不确定”或“未计入”的原因。这样引用图表达的是可追溯事实，而不是方法相似度。
 
-组合筛选页把状态编码进 URL：
+## 6. 页面职责与路由
 
-```text
-explorer.html?major=A,B&tag=T,H&mode=intersection
-```
+- `index.html`：统一子问题总览和主要入口。
+- `category.html?id=A`：一个参数化模板覆盖所有子问题；未知 `id` 显示错误状态。
+- `papers.html`：全部论文的搜索与折叠列表。
+- `paper.html?id=<paper-id>`：单篇论文的完整作者、方法概述、贡献、单位、链接、`citations` 与 `citedBy`。
+- `explorer.html?subproblem=A,B&mode=intersection`：多选筛选。
 
-- `union`：满足任意一个已选条件。
-- `intersection`：同时满足每一个已选条件。
-- 未选条件：显示全部论文。
-- 文本搜索始终作为附加的 AND 条件。
+筛选状态写入 URL：
 
-因此链接可以被收藏、复制或从韦恩交叠区域直接打开。
+- `mode=union`：满足任一已选子问题；
+- `mode=intersection`：同时满足所有已选子问题；
+- 未选择子问题：显示全部论文；
+- 文本搜索作为附加的 AND 条件。
 
-## 5. 视图可扩展性
+`ui.js` 使用原生 `details` / `summary` 生成通用论文卡片。关闭状态只展示论文名、会议、年份和当前语境的 `summary`；展开状态补充完整书目信息、作者、单位、`methodOverview` 和相关 `detail`。单篇论文页复用同一批格式化与查找函数，不复制数据。
 
-矩阵、子问题卡片、筛选选项和详情页全部循环读取数据，无固定 A/B/C 或 D/Q/T/V/R/S/H DOM。
+## 7. 新增论文流程
 
-标准韦恩图只在恰有三个宏观类别时启用。四集合以上会产生过多不可判读的交叠区域，所以 `index.js` 自动按论文的精确成员组合生成区域板。这一退化策略保证新增类别后功能完整，且不要求改页面模板。
+1. 复制 `data/paper-template.json` 的字段形状，在 `data/papers/` 创建 `<id>.json`。
+2. 填写完整作者列表和直观 `methodOverview`。
+3. 为每个所属子问题填写 `summary` 与 `detail`。
+4. 只加入已核实且已收录的 `citations` 目标。
+5. 链接正确本地 PDF；没有时填写 `localPdfNote`。
+6. 运行同步、目录验证和术语检查。
 
-## 6. 维护检查
+无需修改页面模板、生成目录或反向引用。
 
-`scripts/validate_catalog.py` 会检查：
+## 8. 自动检查
 
-1. 宏观类别、子问题和论文主键唯一；
-2. `index` 连续且与 Excel 行对应；
-3. 分类引用存在；
-4. 两类贡献键分别与引用集合完全一致；
-5. `legacy/tag.txt` 定义的子问题集合与目录一致；
-6. Excel 九列源值逐字段一致；
-7. 单位名称、连续顺位、说明、来源和摘要生成规则完整；
-8. `assets/js/data.js` 与合并目录逐字同步；
-9. 本地 PDF 路径存在。
+`scripts/validate_catalog.py` 检查：
 
-`scripts/check_terminology.py` 会读取 `scripts/terminology.json`，检查站点自有文案是否统一使用“投机解码”、`Draft` / `Drafter` 和 `Verify` / `Verifier`。论文原标题、Excel F 列原始条目和公式变量保留原文，完整规范见 [`TERMINOLOGY.md`](TERMINOLOGY.md)。
+1. schema v4、`meta` 与 A–E 子问题定义；
+2. 文件名、论文 `id`、连续 `index` 和必要书目信息；
+3. `authors`、`notes`、`methodOverview` 的结构；
+4. 所属子问题存在，且每项贡献同时具有 `summary` / `detail`；
+5. `citations` 无重复、自引或未知目标；
+6. 单位名称、顺位、解释、来源与派生摘要；
+7. 本地 PDF 存在，或有明确的缺失说明；
+8. `subproblemCodes`、`institutions`、`citedBy` 的派生结果；
+9. 聚合 JSON 与浏览器运行文件和源数据逐字同步。
 
-修改目录后的固定流程是：
+`scripts/check_terminology.py` 结构化扫描 `catalog.json` 和全部论文源文件中的 SDAtlas 自有文案，并读取 `scripts/terminology.json` 统一“投机解码”、`Draft` / `Drafter`、`Verify` / `Verifier` 与 `Training`。来源标题、作者名、代码标识符和数学变量保留原文。
+
+固定维护流程为：
 
 ```bash
 python3 scripts/sync_catalog.py
@@ -127,4 +151,4 @@ python3 scripts/validate_catalog.py
 python3 scripts/check_terminology.py
 ```
 
-之后再在浏览器中检查三种页面和移动端布局。CI 或提交前检查可用 `python3 scripts/sync_catalog.py --check` 阻止忘记生成运行文件。
+CI 或提交前还可运行 `python3 scripts/sync_catalog.py --check`，阻止遗漏生成文件。

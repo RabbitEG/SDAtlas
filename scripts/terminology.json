@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "canonicalTerms": [
     {
       "concept": "speculative decoding",
@@ -20,6 +20,11 @@
       "role": "Verifier",
       "derived": "Verification",
       "note": "投机解码流程中的校验阶段不翻译为“验证”；一般意义的数据验证、脚本验证不受此规则约束。"
+    },
+    {
+      "concept": "training",
+      "preferred": "Training",
+      "note": "英文流程名和统一子问题名称使用首字母大写的 Training；中文“训练”可正常使用。"
     }
   ],
   "globalReplacements": [
@@ -38,7 +43,9 @@
     {"find": "验证规模", "replace": "Verify 规模"},
     {"find": "验证流水线", "replace": "Verify 流水线"},
     {"find": "并行验证", "replace": "并行 Verify"},
-    {"find": "无效验证", "replace": "无效 Verify"}
+    {"find": "无效验证", "replace": "无效 Verify"},
+    {"find": "training-time", "replace": "Training-Time"},
+    {"find": "Training-time", "replace": "Training-Time"}
   ],
   "uiForbiddenFragments": [
     "推测解码",
@@ -58,13 +65,13 @@
     "drafting": "Drafting",
     "verify": "Verify",
     "verifier": "Verifier",
-    "verification": "Verification"
+    "verification": "Verification",
+    "training": "Training"
   },
   "sourceExceptions": [
     "papers[].title：论文原始英文标题",
-    "papers[].workbookTags：Excel F 列原始条目",
-    "legacy/tag.txt 中单独成行的 draft / verify：延迟公式下标",
+    "papers[].authors、venue、URL 与来源元数据：忠实保留来源写法",
     "HTML 公式中的 T_draft / T_verify：数学变量",
-    "代码标识符和 URL 查询值（例如 id=draft、id=verify）"
+    "id、文件名、代码标识符和 URL 查询值（例如 draft-generation、verification）"
   ]
 }

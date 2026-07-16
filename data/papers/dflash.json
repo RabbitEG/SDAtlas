@@ -1,0 +1,48 @@
+{
+  "id": "dflash",
+  "index": 10,
+  "title": "DFlash: Block Diffusion for Flash Speculative Decoding",
+  "shortName": "DFlash",
+  "authors": [
+    "Jian Chen",
+    "Yesheng Liang",
+    "Zhijian Liu"
+  ],
+  "methodOverview": "轻量级 Block-Diffusion Drafter 用一次前向同时预测一个 Token Block，并注入由 Target 多层 KV 融合得到的上下文。位置加权 Training 重点保护靠前 Token。",
+  "notes": [],
+  "institutionDetails": [
+    {
+      "name": "美国加州大学圣迭戈分校（UC San Diego）",
+      "order": 1,
+      "explanation": "全部作者均来自该校。"
+    }
+  ],
+  "institutionSource": "https://arxiv.org/pdf/2602.06036",
+  "subproblemContributions": {
+    "A": {
+      "summary": "以 Target 每轮产生的 Decode Token 为干净锚点，轻量 Block-Diffusion Drafter 在一次双向块注意力前向中并行补全其后的 B−1 个 Mask Token；论文主要配置为 5 层、块长 16。",
+      "detail": "以 Target 每轮产生的 Decode Token 为干净锚点，轻量 Block-Diffusion Drafter 在一次双向块注意力前向中并行补全其后的 B−1 个 Mask Token；论文主要配置为 5 层、块长 16。Target 前向时从浅到深均匀选取 5 层 Hidden State，经拼接投影后作为持久上下文注入每个 Drafter 层的 K/V，配合 Target 重生成响应、随机锚块和位置加权损失提高接受长度。\n\n每轮把上一轮 Target 产生的 Bonus Token 作为干净锚点，将其后 B−1 个位置全部置为 Mask，并由 Block-Diffusion Drafter 一次前向并行补全；Draft 成本不再随候选 Token 数线性增加，可在较深的 5 层 Drafter 上使用块长 16。\n\n从 Target 浅层到深层均匀选取 5 层 Hidden State，拼接压缩成上下文特征，并作为持久 K/V 注入每个 Drafter 层；相比只在输入端融合，这能避免 Target 信息随深度稀释，使轻量 Drafter 的接受长度随层数有效增长。"
+    },
+    "E": {
+      "summary": "用 Nemotron Post-Training Dataset V2 与 CodeAlpaca 的约 80 万条提示，由各 Target 重新生成训练响应；每个序列随机采样锚点并遮蔽后续 B−1 个位置，以块间隔离、块内双向的 Sparse Attention 一次训练多个块。",
+      "detail": "用 Nemotron Post-Training Dataset V2 与 CodeAlpaca 的约 80 万条提示，由各 Target 重新生成训练响应；每个序列随机采样锚点并遮蔽后续 B−1 个位置，以块间隔离、块内双向的 Sparse Attention 一次训练多个块。冻结共享的 Target Embedding 与 LM Head，仅更新 Drafter Transformer，并用随位置指数衰减的交叉熵强调会门控整段接受 Prefix 的前部 Token。"
+    }
+  },
+  "citations": [
+    "medusa",
+    "eagle",
+    "eagle-2",
+    "eagle-3",
+    "pard",
+    "diffuspec",
+    "specdiff-2"
+  ],
+  "venue": "ICML 2026",
+  "date": "2026-07",
+  "url": "https://arxiv.org/abs/2602.06036",
+  "provenance": {
+    "legacyWorkbookRow": 10,
+    "workbookInstitutions": "中国科学院计算技术研究所、其他合作单位"
+  },
+  "localPdf": "../Reference/DFlash.pdf"
+}

@@ -1,0 +1,44 @@
+{
+  "id": "openpangu-npu-speculative-decoding",
+  "index": 24,
+  "title": "Accelerating OpenPangu Inference on NPU via Speculative Decoding",
+  "shortName": "OpenPangu NPU SD",
+  "authors": [
+    "Yuntao Dai",
+    "Jing Wu",
+    "Hang Gu",
+    "Teng Wang"
+  ],
+  "methodOverview": "将 Medusa 风格的轻量多 Head 预测改造成适合 NPU 静态图的固定 Token Tree 与 Tree Attention，并配合零拷贝检索；重点解决长序列推理中的显存与带宽瓶颈。",
+  "notes": [],
+  "institutionDetails": [
+    {
+      "name": "中国科学技术大学软件学院",
+      "order": 1,
+      "explanation": "全部作者均来自中国科学技术大学软件学院。"
+    }
+  ],
+  "institutionSource": "https://arxiv.org/pdf/2603.03383",
+  "subproblemContributions": {
+    "B": {
+      "summary": "将动态候选树改造成可离线预计算的静态树拓扑。",
+      "detail": "将 Medusa 的动态候选树改造成可离线预计算的静态树拓扑，并用固定 Attention Mask、Tree Indices 与祖先可见关系表示父子依赖，使 Tree Attention 能在静态图中执行。"
+    },
+    "D": {
+      "summary": "面向 NPU 静态 Shape 和显式内存管理完成端到端执行适配。",
+      "detail": "完成 Medusa 在 NPU PyTorch 生态中的端到端适配，通过静态图、零拷贝路径提取和算子兼容性改造降低动态控制流开销，并解决图重编译、CPU 回退与长上下文内存带宽瓶颈。"
+    }
+  },
+  "citations": [
+    "medusa",
+    "eagle",
+    "specinfer"
+  ],
+  "venue": "arXiv",
+  "date": "2026-03",
+  "url": "https://arxiv.org/abs/2603.03383",
+  "localPdf": "../Reference/Accelerating_OpenPangu_Inference_on_NPU_via_Speculative_Decoding.pdf",
+  "provenance": {
+    "workbookInstitutions": "中国科学技术大学软件学院"
+  }
+}

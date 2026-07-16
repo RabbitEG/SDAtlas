@@ -1,0 +1,307 @@
+/* Standalone, horizontally scrollable citation graph component. */
+
+.citation-graph {
+  box-sizing: border-box;
+  color: var(--ink, #172825);
+  background: var(--white, #fffdf8);
+  border: 1px solid var(--line, #d8d5cb);
+  box-shadow: 0 5px 20px rgba(24, 40, 37, 0.035);
+}
+
+.citation-graph__header {
+  display: flex;
+  gap: 28px;
+  align-items: end;
+  justify-content: space-between;
+  padding: 22px 24px 18px;
+  border-bottom: 1px solid var(--line, #d8d5cb);
+}
+
+.citation-graph__header p {
+  margin: 0 0 5px;
+  color: var(--muted, #707b77);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+}
+
+.citation-graph__header h2 {
+  margin: 0;
+  font-size: clamp(20px, 2vw, 28px);
+  line-height: 1.2;
+}
+
+.citation-graph__stats {
+  display: flex;
+  gap: 8px;
+  margin: 0;
+}
+
+.citation-graph__stats div {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 8px;
+  align-items: baseline;
+  min-width: 108px;
+  padding: 8px 10px;
+  background: #f2efe7;
+  border: 1px solid var(--line, #d8d5cb);
+}
+
+.citation-graph__stats dt {
+  color: var(--muted, #707b77);
+  font-size: 10px;
+}
+
+.citation-graph__stats dd {
+  margin: 0 0 0 auto;
+  color: var(--brand, #164c45);
+  font-family: var(--font-serif, Georgia, serif);
+  font-size: 19px;
+  font-weight: 700;
+}
+
+.citation-graph__legend,
+.citation-graph__outside,
+.citation-graph__notice {
+  margin: 0;
+  padding: 11px 24px;
+  color: var(--muted, #707b77);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.citation-graph__legend span {
+  color: var(--brand, #164c45);
+  font-weight: 800;
+}
+
+.citation-graph__notice {
+  color: #665f4c;
+  background: #f6efd9;
+  border-top: 1px solid #e6dcc0;
+  border-bottom: 1px solid #e6dcc0;
+}
+
+.citation-graph__outside {
+  border-top: 1px solid var(--line, #d8d5cb);
+}
+
+.citation-graph__outside strong {
+  color: var(--brand, #164c45);
+}
+
+.citation-graph__viewport {
+  position: relative;
+  overflow-x: auto;
+  overflow-y: hidden;
+  max-width: 100%;
+  background:
+    linear-gradient(90deg, rgba(22, 76, 69, 0.025) 1px, transparent 1px) 0 0 / 32px 32px,
+    #faf9f4;
+  overscroll-behavior-inline: contain;
+  scrollbar-color: #82918d #e7e4db;
+  scrollbar-width: thin;
+}
+
+.citation-graph__viewport:focus-visible {
+  outline: 3px solid rgba(22, 76, 69, 0.32);
+  outline-offset: -3px;
+}
+
+.citation-graph__canvas {
+  position: relative;
+  margin-inline: auto;
+}
+
+.citation-graph__svg {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.citation-graph__axis-line,
+.citation-graph__axis-tick {
+  stroke: #c9cec9;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.citation-graph__edge {
+  fill: none;
+  stroke: #5f7b76;
+  stroke-linecap: round;
+  stroke-width: 1.6;
+  opacity: 0.72;
+  vector-effect: non-scaling-stroke;
+}
+
+.citation-graph__arrow {
+  fill: #416a63;
+}
+
+.citation-graph__time {
+  position: absolute;
+  top: 12px;
+  color: var(--muted, #707b77);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+
+.citation-graph__node {
+  position: absolute;
+  z-index: 1;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  justify-content: center;
+  padding: 9px 11px;
+  color: var(--ink, #172825);
+  background: #fffefb;
+  border: 1px solid #aeb9b4;
+  border-left: 4px solid var(--brand, #164c45);
+  box-shadow: 0 3px 9px rgba(18, 45, 40, 0.08);
+  text-decoration: none;
+  transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+}
+
+.citation-graph__node strong {
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.citation-graph__node time {
+  color: var(--muted, #707b77);
+  font-size: 10px;
+}
+
+.citation-graph__node:hover {
+  border-color: var(--brand, #164c45);
+  box-shadow: 0 7px 18px rgba(18, 45, 40, 0.14);
+  transform: translateY(-2px);
+}
+
+.citation-graph__node:focus-visible {
+  outline: 3px solid rgba(22, 76, 69, 0.34);
+  outline-offset: 3px;
+}
+
+.citation-graph__node.is-focused {
+  color: #fff;
+  background: var(--brand, #164c45);
+  border-color: var(--brand, #164c45);
+}
+
+.citation-graph__node.is-focused time {
+  color: rgba(255, 255, 255, 0.76);
+}
+
+.citation-graph__node.is-isolated {
+  border-left-color: #9ba49f;
+  box-shadow: none;
+}
+
+.citation-graph__relations {
+  border-top: 1px solid var(--line, #d8d5cb);
+}
+
+.citation-graph__relations summary {
+  padding: 13px 24px;
+  color: var(--brand, #164c45);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.citation-graph__relations summary:focus-visible {
+  outline: 3px solid rgba(22, 76, 69, 0.28);
+  outline-offset: -3px;
+}
+
+.citation-graph__relations ol,
+.citation-graph__relations p {
+  margin: 0;
+  padding: 0 42px 18px;
+  color: var(--ink-2, #384a46);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.citation-graph__relations p {
+  padding-left: 24px;
+}
+
+.citation-graph__relations a {
+  color: #2f6681;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+@media (max-width: 760px) {
+  .citation-graph__header {
+    align-items: start;
+    flex-direction: column;
+    gap: 14px;
+    padding: 18px 16px 15px;
+  }
+
+  .citation-graph__stats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .citation-graph__stats div {
+    grid-template-columns: 1fr;
+    gap: 2px;
+    min-width: 0;
+    padding: 7px 8px;
+  }
+
+  .citation-graph__stats dd {
+    margin-left: 0;
+  }
+
+  .citation-graph__legend,
+  .citation-graph__outside,
+  .citation-graph__notice {
+    padding-inline: 16px;
+  }
+
+  .citation-graph__relations summary {
+    padding-inline: 16px;
+  }
+
+  .citation-graph__relations ol {
+    padding: 0 32px 16px;
+  }
+
+  .citation-graph__relations p {
+    padding: 0 16px 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .citation-graph__node {
+    transition: none;
+  }
+}
+
+@media print {
+  .citation-graph__viewport {
+    overflow: visible;
+  }
+
+  .citation-graph__node {
+    box-shadow: none;
+  }
+}

@@ -2392,12 +2392,18 @@ svg {
   }
 
   .site-nav {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, auto));
+    gap: 8px;
     width: 100%;
     justify-content: space-between;
   }
 
   .site-nav a {
+    min-width: 0;
     min-height: 48px;
+    font-size: 11px;
+    white-space: nowrap;
   }
 
   .brand strong {
@@ -2589,5 +2595,109 @@ svg {
 
   .explorer-layout {
     display: block;
+  }
+}
+
+/* Schema-v4 shared components: internal paper tiles and list-level controls. */
+.paper-tile {
+  display: inline-grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  min-width: 130px;
+  padding: 10px 12px;
+  color: var(--ink);
+  background: var(--white);
+  border: 1px solid var(--line-dark);
+  box-shadow: 0 2px 8px rgba(24, 40, 37, .035);
+  transition: transform 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.paper-tile:hover {
+  border-color: var(--brand);
+  box-shadow: 0 6px 16px rgba(24, 40, 37, .1);
+  transform: translateY(-2px);
+}
+
+.paper-tile strong {
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.paper-tile small {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.citation-section {
+  padding-block: clamp(3rem, 6vw, 5.5rem);
+}
+
+.results-citation-section {
+  margin: 26px 0 30px;
+}
+
+.results-citation-section > h3 {
+  margin: 0 0 12px;
+  font-size: 17px;
+}
+
+.papers-hero {
+  min-height: 0;
+  padding: clamp(3.5rem, 8vw, 6.5rem) 0;
+}
+
+.papers-hero h1 {
+  margin: .35rem 0 .6rem;
+  font-size: clamp(3.4rem, 8vw, 7rem);
+  letter-spacing: -.06em;
+  line-height: .95;
+}
+
+.papers-hero p:not(.section-index) {
+  max-width: 46rem;
+  margin: 0;
+  color: var(--muted);
+  font-size: 18px;
+}
+
+.papers-toolbar .results-controls {
+  align-items: center;
+}
+
+.paper-quick-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin: 18px 0 26px;
+}
+
+.paper-quick-filters button {
+  padding: 7px 11px;
+  color: var(--item-color, var(--brand));
+  background: var(--item-soft, var(--white));
+  border: 1px solid color-mix(in srgb, var(--item-color, var(--brand)) 25%, var(--line));
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.paper-quick-filters button.is-active {
+  color: #fff;
+  background: var(--item-color, var(--brand));
+  border-color: var(--item-color, var(--brand));
+}
+
+@media (max-width: 760px) {
+  .papers-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .papers-toolbar .results-controls,
+  .papers-toolbar .search-control {
+    width: 100%;
   }
 }

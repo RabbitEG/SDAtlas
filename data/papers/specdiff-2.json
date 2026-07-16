@@ -1,0 +1,49 @@
+{
+  "id": "specdiff-2",
+  "index": 9,
+  "title": "SpecDiff-2: Scaling Diffusion Drafter Alignment For Faster Speculative Decoding",
+  "shortName": "SpecDiff-2",
+  "authors": [
+    "Jameson Sandler",
+    "Jacob K. Christopher",
+    "Thomas Hartvigsen",
+    "Ferdinando Fioretto"
+  ],
+  "methodOverview": "使用离散扩散模型一次生成整个候选块，并通过 Streak-Distillation 或 Self-Selection 让冻结的自回归 Verifier 帮助校准 Drafter；推理时挑选预期接受长度最高的候选。",
+  "notes": [],
+  "institutionDetails": [
+    {
+      "name": "美国弗吉尼亚大学计算机科学系",
+      "order": 1,
+      "explanation": "全部作者均来自该单位。"
+    }
+  ],
+  "institutionSource": "https://arxiv.org/pdf/2511.00606",
+  "subproblemContributions": {
+    "A": {
+      "summary": "以预训练掩码离散扩散模型为 Drafter，在论文配置的一次去噪前向中并行输出 γ 个位置的边缘分布，使 Draft 时延主要取决于去噪步数而非候选长度。",
+      "detail": "以预训练掩码离散扩散模型为 Drafter，在论文配置的一次去噪前向中并行输出 γ 个位置的边缘分布，使 Draft 时延主要取决于去噪步数而非候选长度。Streak-Distillation 用冻结 AR Verifier 的续写对整段可接受 Prefix 做训练对齐；推理时 Self-Selection 从同一组边缘分布采样 K 条候选，并按 Verifier 估计的期望接受 Token 数选择最佳路径。\n\n预训练掩码扩散 Drafter 对整段 Mask 窗口只做一次去噪前向，所有位置同时得到 Token 边缘分布；同一组分布还能近乎不增加神经网络前向成本地独立采样 K 条候选，消除自回归逐 Token Draft。"
+    },
+    "B": {
+      "summary": "Self-Selection 从扩散边缘分布廉价采样 K 条候选，以 Tree-Style Attention 并行取得 Verifier 的逐 Prefix 概率，并按期望可接受 Token 数选择最佳路径后再执行无损 Verify，把额外 Verifier 计算直接换成更长的接受序列。",
+      "detail": "Self-Selection 从扩散边缘分布廉价采样 K 条候选，以 Tree-Style Attention 并行取得 Verifier 的逐 Prefix 概率，并按期望可接受 Token 数选择最佳路径后再执行无损 Verify，把额外 Verifier 计算直接换成更长的接受序列。"
+    },
+    "E": {
+      "summary": "冻结 Verifier，仅微调预训练扩散 Drafter；Streak-Distillation 在 Verifier 生成的教师续写上最大化各 Prefix 的 Draft 概率乘积之和，使目标直接对应期望连续接受 Token 数，而非逐位置平均对齐。",
+      "detail": "冻结 Verifier，仅微调预训练扩散 Drafter；Streak-Distillation 在 Verifier 生成的教师续写上最大化各 Prefix 的 Draft 概率乘积之和，使目标直接对应期望连续接受 Token 数，而非逐位置平均对齐。Qwen 对齐语料由 Verifier 在 GSM8K、Alpaca 与 LiveCodeBench 提示上采样的续写混合而成。"
+    }
+  },
+  "citations": [
+    "eagle",
+    "eagle-2",
+    "eagle-3"
+  ],
+  "venue": "MLSys 2026",
+  "date": "2026-05",
+  "url": "https://arxiv.org/abs/2511.00606",
+  "provenance": {
+    "legacyWorkbookRow": 9,
+    "workbookInstitutions": "美国加州大学圣塔芭芭拉分校（UCSB）等"
+  },
+  "localPdf": "../Reference/SpecDiff2.pdf"
+}

@@ -1,0 +1,59 @@
+{
+  "id": "eagle-2",
+  "index": 4,
+  "title": "EAGLE-2: Faster Inference of Language Models with Dynamic Draft Trees",
+  "shortName": "EAGLE-2",
+  "authors": [
+    "Yuhui Li",
+    "Fangyun Wei",
+    "Chao Zhang",
+    "Hongyang Zhang"
+  ],
+  "methodOverview": "根据当前上下文动态构造 Draft Tree。每条路径的价值由沿途 Token 置信度连乘得到，算法先扩展高价值节点，再从全局保留固定预算内、前缀闭合的最优树。",
+  "notes": [],
+  "institutionDetails": [
+    {
+      "name": "北京大学",
+      "order": 1,
+      "explanation": "一作及主要作者所属单位。"
+    },
+    {
+      "name": "滑铁卢大学",
+      "order": 2,
+      "explanation": "通讯作者所属单位。"
+    },
+    {
+      "name": "Vector Institute",
+      "order": 2,
+      "explanation": "通讯作者所属单位。"
+    },
+    {
+      "name": "微软研究院",
+      "order": 3,
+      "explanation": "其他作者所属单位。"
+    }
+  ],
+  "institutionSource": "https://arxiv.org/pdf/2406.16858",
+  "subproblemContributions": {
+    "B": {
+      "summary": "保持 EAGLE 的特征级 Drafter、训练和推理方式不变，利用其校准良好的 Token 置信度作为接受率的低成本代理。",
+      "detail": "保持 EAGLE 的特征级 Drafter、训练和推理方式不变，利用其校准良好的 Token 置信度作为接受率的低成本代理。EAGLE-2 将节点自身与所有祖先的置信度连乘为 path value，近似该 Token 连同全部前缀最终被接受的概率，因此无需额外树策略模型或再训练即可进行上下文感知的 Draft 选择。\n\n扩树阶段每轮通过 Tree Attention 并行展开当前层 path value 最高的 top-k 节点，让树形随上下文难度而变化；多轮扩展后，再对全树节点按 path value 全局重排并保留 top-m，避免深层已扩节点挤掉更有价值的浅层节点。由于子节点 value 不超过父节点，所选节点天然保持连通，随后可展平并用祖先可见掩码交给 Target 一次 Verify。\n\nEAGLE Drafter 的局部置信度与实际接受率高度校准，但单节点置信度没有计入前缀被拒后整条后缀失效的风险。EAGLE-2 因而用沿根路径的置信度乘积评估全局接受概率，优先保留每一级前缀都更可能命中的分支。\n\n把固定 Draft Tree 改成“按层扩展、全树重排”的两阶段动态树：先按 path value 选择当前层 top-k 节点继续生长，再从所有深度选出全局 top-m 节点；value 相同则优先浅节点。该规则在固定树节点数下随上下文重新分配分支宽度和深度，并保证最终候选仍是一棵连通树。"
+    },
+    "C": {
+      "summary": "全局重排只让 path value 最高的 m 个连通节点进入 Verify，低收益分支不会占用 Target 的节点预算；展平后构造 Tree Attention 掩码，使每个 Token 仅能看到祖先并由 Target 一次并行处理。",
+      "detail": "全局重排只让 path value 最高的 m 个连通节点进入 Verify，低收益分支不会占用 Target 的节点预算；展平后构造 Tree Attention 掩码，使每个 Token 仅能看到祖先并由 Target 一次并行处理。接受阶段仍沿用标准投机解码的 rejection sampling 规则且不放宽条件，因此动态选树不改变 Target 的输出分布。"
+    }
+  },
+  "citations": [
+    "medusa",
+    "eagle"
+  ],
+  "venue": "EMNLP 2024",
+  "date": "2024-11",
+  "url": "https://aclanthology.org/2024.emnlp-main.422/",
+  "provenance": {
+    "legacyWorkbookRow": 4,
+    "workbookInstitutions": "清华大学、美国加州大学圣塔芭芭拉分校（UCSB）"
+  },
+  "localPdf": "../Reference/EAGLE2.pdf"
+}

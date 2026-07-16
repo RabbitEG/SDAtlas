@@ -1,0 +1,49 @@
+{
+  "id": "taps",
+  "index": 18,
+  "title": "TAPS: Target-Aware Prefix Tree Selection for Diffusion-Drafted Speculative Decoding",
+  "shortName": "TAPS",
+  "authors": [
+    "Zhuoyu Wang",
+    "Junnan Huang",
+    "Xinyu Chen"
+  ],
+  "methodOverview": "Training 一个轻量 Target-Aware Scorer 来估计每条边在 Target 下被接受的条件概率，沿 Prefix 连乘后选出紧凑的前缀闭合子树。",
+  "notes": [],
+  "institutionDetails": [
+    {
+      "name": "香港科技大学（广州）",
+      "order": 1,
+      "explanation": "全部作者均来自该校。"
+    }
+  ],
+  "institutionSource": "https://arxiv.org/pdf/2606.00487",
+  "subproblemContributions": {
+    "B": {
+      "summary": "先从扩散 Drafter 每个位置的 Top-K Token 组成大候选池，再由轻量 Target-Aware Scorer 为每条父子边估计“已到达父节点时接受该孩子”的条件概率；沿根路径连乘后得到节点可达概率，因而会压低错误 Prefix 下看似高置信的后代。",
+      "detail": "先从扩散 Drafter 每个位置的 Top-K Token 组成大候选池，再由轻量 Target-Aware Scorer 为每条父子边估计“已到达父节点时接受该孩子”的条件概率；沿根路径连乘后得到节点可达概率，因而会压低错误 Prefix 下看似高置信的后代。选择器再按可达收益与深度成本从高到低保留节点及全部祖先，形成紧凑、前缀闭合的子树。\n\n从最多 N_pool 个扩散边缘候选出发，按路径可达概率除以深度相关成本进行贪心选点；每次加入节点时同时补齐祖先，保证结果始终是可供 Tree Attention 使用的连通前缀树。树大小由 N_max 与效用阈值共同控制，而不是机械耗尽固定预算。\n\nScorer 读取父子 Token、边深度、子 Token 的 Draft Log Probability 与该位置熵，并在兄弟节点间做 Softmax，预测 Target 的局部条件偏好。它用离线记录的 Target Verify 轨迹蒸馏：KL 项学习已到达 Prefix 的局部分布，BCE 项校准沿路径累乘的可达概率，推理时无需调用 Target 进行选树。"
+    },
+    "C": {
+      "summary": "将“祖先全部通过后该节点才有用”显式纳入 Verify 分配，避免高边缘概率但 Prefix 已不可达的后代占用 Target 计算。",
+      "detail": "将“祖先全部通过后该节点才有用”显式纳入 Verify 分配，避免高边缘概率但 Prefix 已不可达的后代占用 Target 计算。λ₁建模逐节点 Tree Attention 开销，λ₂惩罚较深且 KV 复用机会更低的节点，τ 则在剩余节点收益不足时终止扩树。"
+    }
+  },
+  "citations": [
+    "medusa",
+    "eagle",
+    "eagle-2",
+    "eagle-3",
+    "dflash",
+    "specinfer",
+    "dart",
+    "ddtree"
+  ],
+  "venue": "arXiv",
+  "date": "2026-05",
+  "url": "https://arxiv.org/abs/2606.00487",
+  "provenance": {
+    "legacyWorkbookRow": 18,
+    "workbookInstitutions": "未知（arXiv作者团队）"
+  },
+  "localPdf": "../Reference/TAPS.pdf"
+}

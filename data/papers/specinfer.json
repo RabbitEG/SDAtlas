@@ -1,0 +1,81 @@
+{
+  "id": "specinfer",
+  "index": 14,
+  "title": "SpecInfer: Accelerating Large Language Model Serving with Tree-based Speculative Inference and Verification",
+  "shortName": "SpecInfer",
+  "authors": [
+    "Xupeng Miao",
+    "Gabriele Oliaro",
+    "Zhihao Zhang",
+    "Xinhao Cheng",
+    "Zeyu Wang",
+    "Zhengxin Zhang",
+    "Rae Ying Yee Wong",
+    "Alan Zhu",
+    "Lijie Yang",
+    "Xiaoxiang Shi",
+    "Chunan Shi",
+    "Zhuoming Chen",
+    "Daiyaan Arfeen",
+    "Reyna Abhyankar",
+    "Zhihao Jia"
+  ],
+  "methodOverview": "把一个或多个小型投机模型产生的候选合并为共享 Prefix 的 Token Tree，再由 Target 通过 Tree Attention 一次 Verify 整棵树；同时覆盖服务调度、分布式执行和模型卸载。",
+  "notes": [],
+  "institutionDetails": [
+    {
+      "name": "卡内基梅隆大学",
+      "order": 1,
+      "explanation": "四位共同一作、末位作者及绝大多数作者所属单位。"
+    },
+    {
+      "name": "清华大学",
+      "order": 2,
+      "explanation": "其他作者所属单位。"
+    },
+    {
+      "name": "斯坦福大学",
+      "order": 3,
+      "explanation": "其他作者所属单位。"
+    },
+    {
+      "name": "上海交通大学",
+      "order": 4,
+      "explanation": "其他作者所属单位。"
+    },
+    {
+      "name": "北京大学",
+      "order": 5,
+      "explanation": "其他作者所属单位。"
+    },
+    {
+      "name": "加州大学圣迭戈分校",
+      "order": 6,
+      "explanation": "其他作者所属单位。"
+    }
+  ],
+  "institutionSource": "https://arxiv.org/pdf/2305.09781",
+  "subproblemContributions": {
+    "B": {
+      "summary": "单个 SSM 按预设扩展向量 ⟨k₁,…,k_m⟩ 逐层取 Top-k，在模型内部扩大候选分支；也可让多个经残差样本 Boost-Tuning 的 SSM 并行提出树，再按完整 Root-to-node Token Sequence 合并相同 Prefix。",
+      "detail": "单个 SSM 按预设扩展向量 ⟨k₁,…,k_m⟩ 逐层取 Top-k，在模型内部扩大候选分支；也可让多个经残差样本 Boost-Tuning 的 SSM 并行提出树，再按完整 Root-to-node Token Sequence 合并相同 Prefix。这样既去除多条候选序列的公共前缀重复，又同时利用单模型 Top-k 多样性与跨模型互补性，而不是只 Verify 一条候选链。\n\nExpansion-based 构树用固定向量指定每个 Draft 步为各节点扩展多少个 Top-k 后继，以单个 SSM 的候选多样性换取更高覆盖；Merge-based 构树则把多个 SSM 的 Root-to-node 序列取并集并折叠公共 Prefix。多个 SSM 依次在前一模型未命中的 Prompt 上做无监督 Boost-Tuning，因此合并树聚合的是互补而非简单重复的候选。"
+    },
+    "C": {
+      "summary": "Tree Attention 令每个节点的输出严格等于其 Root-to-node 序列单独解码的结果；拓扑 Mask 屏蔽兄弟分支、共享 KV Cache 消除公共 Prefix 重算，使整树在一次 Target Pass 中并行 Verify。",
+      "detail": "Tree Attention 令每个节点的输出严格等于其 Root-to-node 序列单独解码的结果；拓扑 Mask 屏蔽兄弟分支、共享 KV Cache 消除公共 Prefix 重算，使整树在一次 Target Pass 中并行 Verify。Greedy 模式沿命中子树取最长路径，随机模式 MSS 逐候选接受或拒绝并重整残差分布；论文证明其拒绝率不高于 Naive Sampling，且输出分布与 Target 完全一致。"
+    },
+    "D": {
+      "summary": "Request Manager 按 Iteration 而非整请求调度并执行 Continuous Batching；小 SSM 以 Data Parallel 分布到 GPU，多个 SSM 可同时运行，大模型则结合节点内 Tensor Parallel 与节点间 Pipeline Parallel，管理器只交换 Token 并完成树合并与接受判定。",
+      "detail": "Request Manager 按 Iteration 而非整请求调度并执行 Continuous Batching；小 SSM 以 Data Parallel 分布到 GPU，多个 SSM 可同时运行，大模型则结合节点内 Tensor Parallel 与节点间 Pipeline Parallel，管理器只交换 Token 并完成树合并与接受判定。整树一次推进多枚 Token，因而在分布式场景减少跨 GPU 解码轮次，在 Offloading 场景减少 CPU DRAM↔GPU HBM 权重搬运轮次；其收益主要来自低并发下可用于树 Verify 的闲置 GPU 算力。"
+    }
+  },
+  "citations": [],
+  "venue": "ASPLOS 2024",
+  "date": "2024-04",
+  "url": "https://dl.acm.org/doi/10.1145/3620666.3651335",
+  "provenance": {
+    "legacyWorkbookRow": 14,
+    "workbookInstitutions": "美国加州大学圣迭戈分校（UCSD）、其他合作单位"
+  },
+  "localPdfNote": "Reference 目录中没有与 SpecInfer 对应的本地 PDF。"
+}

@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="浏览 SDAtlas 收录的全部投机解码论文、方法信息和引用关系。">
+  <title>全部论文 · SDAtlas</title>
+  <link rel="stylesheet" href="assets/css/styles.css">
+  <link rel="stylesheet" href="assets/css/paper-details.css">
+  <link rel="stylesheet" href="assets/css/citation-graph.css">
+  <script defer src="assets/js/data.js"></script>
+  <script defer src="assets/js/ui.js"></script>
+  <script defer src="assets/js/citation-graph.js"></script>
+  <script defer src="assets/js/papers.js"></script>
+</head>
+<body class="page-papers">
+  <header class="site-header" id="site-header"></header>
+  <main id="main-content">
+    <section class="detail-hero papers-hero">
+      <div class="page-shell">
+        <p class="section-index">COMPLETE PAPER INDEX</p>
+        <h1>全部论文</h1>
+        <p>统一浏览作者、单位、方法概述、子问题贡献与站内引用关系。</p>
+      </div>
+    </section>
+
+    <section class="section page-shell citation-section" aria-labelledby="all-citation-heading">
+      <header class="section-heading">
+        <p class="section-index">CITATION GRAPH</p>
+        <h2 id="all-citation-heading">当前论文列表的引用关系</h2>
+      </header>
+      <div id="citation-graph"></div>
+    </section>
+
+    <section class="section section--list page-shell">
+      <div class="list-toolbar papers-toolbar">
+        <div>
+          <p class="section-index">PAPER LIST</p>
+          <h2><span id="papers-count">25</span> 篇论文</h2>
+        </div>
+        <div class="results-controls">
+          <label class="search-control">
+            <span class="sr-only">搜索全部论文</span>
+            <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"></circle><path d="m16 16 4 4"></path></svg>
+            <input id="papers-search" type="search" autocomplete="off" placeholder="搜索标题、作者、单位或方法…">
+          </label>
+          <label class="sort-control"><span class="sr-only">排序方式</span>
+            <select id="papers-sort">
+              <option value="index">按收录顺序</option>
+              <option value="newest">时间从新到旧</option>
+              <option value="name">按简称排序</option>
+              <option value="citations">按被引用数排序</option>
+            </select>
+          </label>
+        </div>
+      </div>
+      <div class="paper-quick-filters" id="paper-quick-filters" aria-label="按子问题快速筛选"></div>
+      <div class="paper-list" id="all-paper-list"></div>
+    </section>
+  </main>
+  <footer class="site-footer" id="site-footer"></footer>
+</body>
+</html>

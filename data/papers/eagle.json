@@ -1,0 +1,59 @@
+{
+  "id": "eagle",
+  "index": 3,
+  "title": "EAGLE: Speculative Sampling Requires Rethinking Feature Uncertainty",
+  "shortName": "EAGLE",
+  "authors": [
+    "Yuhui Li",
+    "Fangyun Wei",
+    "Chao Zhang",
+    "Hongyang Zhang"
+  ],
+  "methodOverview": "不直接在离散 Token 空间 Draft，而是在 Target 倒数第二层的 Feature 空间自回归预测；同时引入错位一个位置的 Token 序列来消除 Feature 不确定性，最后再把 Feature 映射回 Token。",
+  "notes": [],
+  "institutionDetails": [
+    {
+      "name": "北京大学",
+      "order": 1,
+      "explanation": "一作及主要作者所属单位。"
+    },
+    {
+      "name": "滑铁卢大学",
+      "order": 2,
+      "explanation": "通讯作者所属单位。"
+    },
+    {
+      "name": "Vector Institute",
+      "order": 2,
+      "explanation": "通讯作者所属单位。"
+    },
+    {
+      "name": "微软研究院",
+      "order": 3,
+      "explanation": "其他作者所属单位。"
+    }
+  ],
+  "institutionSource": "https://arxiv.org/pdf/2401.15077",
+  "subproblemContributions": {
+    "A": {
+      "summary": "冻结整个 Target，复用其 Embedding 与 LM Head；将 LM Head 前的 Feature 和向前错一位的已采样 Token embedding 拼接，经 FC 降维与单个 Transformer decoder layer 自回归预测下一 Feature，再由 Target LM Head 采样 Draft Token。",
+      "detail": "冻结整个 Target，复用其 Embedding 与 LM Head；将 LM Head 前的 Feature 和向前错一位的已采样 Token embedding 拼接，经 FC 降维与单个 Transformer decoder layer 自回归预测下一 Feature，再由 Target LM Head 采样 Draft Token。预测 Feature 与实际采样 Token 会回灌下一步，使这个轻量 Drafter 能连续外推 Target 的内部状态，同时显式消除采样结果带来的 Feature 分支歧义。\n\nFeature 序列比离散 Token 序列更规则，但下一 Feature 取决于上一步究竟采样了哪个 Token；把提前一步的真实采样结果作为条件后，同一 Feature 上下文的多分支不确定性被转化为更确定的回归问题。预测 Feature 再复用 Target LM Head 生成候选分布，显著提高 Draft 接受率。"
+    },
+    "E": {
+      "summary": "只训练轻量 Autoregression Head：以 Smooth L1 回归 Target 的下一 Feature，并用 0.1 权重的交叉熵对齐真实与预测 Feature 经 Target LM Head 得到的 Token 分布。",
+      "detail": "只训练轻量 Autoregression Head：以 Smooth L1 回归 Target 的下一 Feature，并用 0.1 权重的交叉熵对齐真实与预测 Feature 经 Target LM Head 得到的 Token 分布。训练时向 Target Feature 注入 U(-0.1, 0.1) 均匀噪声以模拟多步 Draft 的误差累积；使用固定 ShareGPT 数据即可训练，无需为每个 Target 另行生成蒸馏答案。"
+    }
+  },
+  "citations": [
+    "medusa",
+    "specinfer"
+  ],
+  "venue": "ICML 2024",
+  "date": "2024-07",
+  "url": "https://proceedings.mlr.press/v235/li24bt.html",
+  "provenance": {
+    "legacyWorkbookRow": 3,
+    "workbookInstitutions": "清华大学、美国加州大学圣塔芭芭拉分校（UCSB）"
+  },
+  "localPdfNote": "Reference/EAGLE.pdf 实际是 Fused3S 论文，与本条标题不一致，因此不提供错误的本地链接。"
+}

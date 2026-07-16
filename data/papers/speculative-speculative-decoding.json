@@ -1,0 +1,57 @@
+{
+  "id": "speculative-speculative-decoding",
+  "index": 21,
+  "title": "Speculative Speculative Decoding",
+  "shortName": "Saguaro / SSD",
+  "authors": [
+    "Tanishq Kumar",
+    "Tri Dao",
+    "Avner May"
+  ],
+  "methodOverview": "在 Target 执行 Verify 的同时，Drafter 预判 Verify 可能出现的若干结果，并提前为这些结果继续计算后续 Draft；实际结果若命中预判集合，就能立即复用预计算结果。Saguaro 是针对这一重叠执行模式优化的实现。",
+  "notes": [],
+  "institutionDetails": [
+    {
+      "name": "斯坦福大学",
+      "order": 1,
+      "explanation": "第一作者兼通讯作者 Tanishq Kumar 所属单位。"
+    },
+    {
+      "name": "Together AI",
+      "order": 2,
+      "explanation": "末位作者 Avner May 所属单位，Tri Dao 亦具有该单位署名。"
+    },
+    {
+      "name": "普林斯顿大学",
+      "order": 3,
+      "explanation": "Tri Dao 的高校单位。"
+    }
+  ],
+  "institutionSource": "https://arxiv.org/pdf/2603.03251",
+  "subproblemContributions": {
+    "A": {
+      "summary": "让 Drafter 针对多个可能的接受长度和 Bonus Token 提前生成下一轮 Draft。",
+      "detail": "让 Drafter 针对多个可能的接受长度和 Bonus Token 提前生成下一轮 Draft，命中缓存时可将下一轮 Draft 延迟基本隐藏。"
+    },
+    "D": {
+      "summary": "以异步双设备流水线重叠 Draft 与 Verify，并用预推测缓存处理可能的 Verify 结果。",
+      "detail": "提出 Speculative Speculative Decoding：在 Target Verify 当前轮时，由独立硬件上的 Drafter 预测可能的 Verify 结果，并提前生成对应的下一轮 Draft。系统设计异步 Draft–Verify 流水线、Saguaro Cache 和随 Batch Size 变化的 Cache Miss 回退策略，消除两阶段之间的同步等待。"
+    }
+  },
+  "citations": [
+    "medusa",
+    "eagle",
+    "eagle-2",
+    "eagle-3",
+    "diffuspec",
+    "dflash",
+    "specinfer"
+  ],
+  "venue": "ICLR 2026 Poster",
+  "date": "2026-04",
+  "url": "https://openreview.net/forum?id=aL1Wnml9Ef",
+  "localPdf": "../Reference/Speculative_Speculative_Decoding.pdf",
+  "provenance": {
+    "workbookInstitutions": "斯坦福大学 → Together AI → 普林斯顿大学"
+  }
+}

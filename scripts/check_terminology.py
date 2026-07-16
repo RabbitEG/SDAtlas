@@ -1,63 +1,88 @@
 #!/usr/bin/env python3
-"""Check SDAtlas-authored prose against the maintained terminology table.
+"""Check schema-v4 SDAtlas prose against the maintained terminology table.
 
-Only Python's standard library is used. Run from either the repository root or
-the SDAtlas directory:
+The checker reads taxonomy prose from ``data/catalog.json`` and paper prose
+from every ``data/papers/*.json`` source. Generated catalog files are skipped
+because checking them again would only duplicate source diagnostics. Paper
+titles, author names, venue names, URLs and code identifiers retain their
+source spelling.
+
+Run from either the repository root or the SDAtlas directory:
 
     python3 SDAtlas/scripts/check_terminology.py
     python3 scripts/check_terminology.py
-
-The checker deliberately excludes paper titles and ``workbookTags`` because
-they reproduce source material. It also excludes code identifiers and formula
-subscripts, while checking every catalog field that is rendered as SDAtlas
-prose.
 """
 
 import json
 import re
 import sys
 from pathlib import Path
-from typing import Dict, Iterable, List, Tuple
+from typing import Any, Dict, Iterable, List, Tuple
 
 
 ROOT = Path(__file__).resolve().parents[1]
 CATALOG_PATH = ROOT / "data" / "catalog.json"
+PAPERS_DIR = ROOT / "data" / "papers"
 RUNTIME_CATALOG_PATH = ROOT / "assets" / "js" / "data.js"
 GLOSSARY_PATH = ROOT / "scripts" / "terminology.json"
-TAG_PATH = ROOT / "legacy" / "tag.txt"
 
 
-def load_catalog() -> dict:
-    return json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
+def read_object(path: Path) -> Dict[str, Any]:
+    value = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(value, dict):
+        raise ValueError(f"{path.relative_to(ROOT)} 必须是 JSON object")
+    return value
 
 
-def iter_catalog_prose(catalog: dict) -> Iterable[Tuple[str, str]]:
-    """Yield only authored, user-facing prose; source fields stay untouched."""
+def iter_catalog_prose(catalog: Dict[str, Any]) -> Iterable[Tuple[str, str]]:
+    """Yield user-facing taxonomy prose while excluding identifiers."""
     meta = catalog.get("meta", {})
-    yield "meta.subtitle", str(meta.get("subtitle", ""))
-    ordering = meta.get("institutionOrdering", {})
-    yield "meta.institutionOrdering.note", str(ordering.get("note", ""))
+    if isinstance(meta, dict):
+        for field in ("title", "shortTitle", "subtitle", "citationScope"):
+            yield f"meta.{field}", str(meta.get(field, ""))
 
-    for index, category in enumerate(catalog.get("categories", [])):
+    subproblems = catalog.get("subproblems", [])
+    if not isinstance(subproblems, list):
+        return
+    for index, subproblem in enumerate(subproblems):
+        if not isinstance(subproblem, dict):
+            continue
         for field in ("name", "shortName", "question", "description"):
-            yield f"categories[{index}].{field}", str(category.get(field, ""))
+            yield f"subproblems[{index}].{field}", str(subproblem.get(field, ""))
 
-    for index, tag in enumerate(catalog.get("tags", [])):
-        for field in ("name", "zhName", "description"):
-            yield f"tags[{index}].{field}", str(tag.get(field, ""))
 
-    for index, paper in enumerate(catalog.get("papers", [])):
-        # title, workbookTags, institutions, venue and URL are source fields.
-        for field in ("categoryContributions", "tagContributions"):
-            for code, text in paper.get(field, {}).items():
-                yield f"papers[{index}].{field}.{code}", str(text)
-        if paper.get("localPdfNote"):
-            yield f"papers[{index}].localPdfNote", str(paper["localPdfNote"])
-        for detail_index, detail in enumerate(paper.get("institutionDetails", [])):
-            yield (
-                f"papers[{index}].institutionDetails[{detail_index}].explanation",
-                str(detail.get("explanation", "")),
-            )
+def iter_paper_prose(path: Path, paper: Dict[str, Any]) -> Iterable[Tuple[str, str]]:
+    """Yield only SDAtlas-authored prose from one independently maintained paper."""
+    prefix = str(path.relative_to(ROOT))
+    yield f"{prefix}:methodOverview", str(paper.get("methodOverview", ""))
+
+    notes = paper.get("notes", [])
+    if isinstance(notes, list):
+        for index, note in enumerate(notes):
+            yield f"{prefix}:notes[{index}]", str(note)
+
+    contributions = paper.get("subproblemContributions", {})
+    if isinstance(contributions, dict):
+        for code, contribution in contributions.items():
+            if not isinstance(contribution, dict):
+                continue
+            for field in ("summary", "detail"):
+                yield (
+                    f"{prefix}:subproblemContributions.{code}.{field}",
+                    str(contribution.get(field, "")),
+                )
+
+    details = paper.get("institutionDetails", [])
+    if isinstance(details, list):
+        for index, detail in enumerate(details):
+            if isinstance(detail, dict):
+                yield (
+                    f"{prefix}:institutionDetails[{index}].explanation",
+                    str(detail.get("explanation", "")),
+                )
+
+    if paper.get("localPdfNote"):
+        yield f"{prefix}:localPdfNote", str(paper["localPdfNote"])
 
 
 def line_number(source: str, offset: int) -> int:
@@ -75,18 +100,12 @@ def check_english_case(label: str, text: str, case_map: Dict[str, str]) -> List[
     for match in pattern.finditer(text):
         expected = case_map[match.group(0).lower()]
         if match.group(0) != expected:
-            errors.append(
-                f"{label}: 英文术语 {match.group(0)!r} 应写作 {expected!r}"
-            )
+            errors.append(f"{label}: 英文术语 {match.group(0)!r} 应写作 {expected!r}")
     return errors
 
 
-def check_text_file(
-    path: Path,
-    fragments: Iterable[str],
-    case_map: Dict[str, str] = None,
-    formula_exceptions: bool = False,
-) -> List[str]:
+def check_text_file(path: Path, fragments: Iterable[str]) -> List[str]:
+    """Scan static prose files for unambiguous forbidden Chinese fragments."""
     errors = []  # type: List[str]
     source = path.read_text(encoding="utf-8")
     for fragment in fragments:
@@ -99,50 +118,53 @@ def check_text_file(
                 f"{path.relative_to(ROOT)}:{line_number(source, offset)}: 禁用写法 {fragment!r}"
             )
             start = offset + len(fragment)
-
-    if case_map:
-        for number, line in enumerate(source.splitlines(), 1):
-            # These two standalone tokens are the visualized T_draft/T_verify
-            # subscripts in the source note, not prose.
-            if formula_exceptions and line.strip() in {"draft", "verify"}:
-                continue
-            errors.extend(
-                check_english_case(f"{path.relative_to(ROOT)}:{number}", line, case_map)
-            )
     return errors
 
 
 def main() -> int:
     try:
-        glossary = json.loads(GLOSSARY_PATH.read_text(encoding="utf-8"))
-        catalog = load_catalog()
+        glossary = read_object(GLOSSARY_PATH)
+        catalog = read_object(CATALOG_PATH)
         ui_fragments = glossary["uiForbiddenFragments"]
         global_fragments = [item["find"] for item in glossary["globalReplacements"][:3]]
         case_map = glossary["englishCase"]
+        if not isinstance(ui_fragments, list) or not isinstance(case_map, dict):
+            raise ValueError("terminology.json 的规则类型无效")
     except (KeyError, OSError, ValueError, json.JSONDecodeError) as error:
         print(f"[ERROR] 无法执行术语检查：{error}", file=sys.stderr)
         return 2
 
     errors = []  # type: List[str]
-    for label, text in iter_catalog_prose(catalog):
-        errors.extend(check_fragments(f"data/catalog.json:{label}", text, ui_fragments))
-        errors.extend(check_english_case(f"data/catalog.json:{label}", text, case_map))
+    for label, prose in iter_catalog_prose(catalog):
+        errors.extend(check_fragments(f"data/catalog.json:{label}", prose, ui_fragments))
+        errors.extend(check_english_case(f"data/catalog.json:{label}", prose, case_map))
 
-    errors.extend(check_text_file(TAG_PATH, ui_fragments, case_map, formula_exceptions=True))
+    try:
+        paper_paths = sorted(PAPERS_DIR.glob("*.json"))
+        if not paper_paths:
+            raise ValueError("data/papers 中没有论文源文件")
+        for path in paper_paths:
+            paper = read_object(path)
+            for label, prose in iter_paper_prose(path, paper):
+                errors.extend(check_fragments(label, prose, ui_fragments))
+                errors.extend(check_english_case(label, prose, case_map))
+    except (OSError, ValueError, json.JSONDecodeError) as error:
+        print(f"[ERROR] 无法读取论文源文件：{error}", file=sys.stderr)
+        return 2
 
-    # HTML and rendering scripts contain authored interface prose. CSS is not
-    # scanned because it has no rendered copy; data.js was checked structurally.
+    # HTML and non-generated rendering scripts contain authored UI copy. Their
+    # code identifiers are intentionally not subjected to English case checks.
     for path in sorted(ROOT.glob("*.html")):
         errors.extend(check_text_file(path, ui_fragments))
     for path in sorted((ROOT / "assets" / "js").glob("*.js")):
         if path != RUNTIME_CATALOG_PATH:
             errors.extend(check_text_file(path, ui_fragments))
 
-    # Documentation uses “验证” legitimately for data validation, so only the
-    # globally forbidden translations of speculative decoding are checked here.
+    # General documentation may legitimately discuss data “验证”. Only the
+    # unambiguous obsolete translations of speculative decoding are scanned.
     documentation = [ROOT / "README.md"] + [
         path for path in sorted((ROOT / "docs").glob("*.md"))
-        if path.name != "TERMINOLOGY.md"  # This guide must name forbidden examples.
+        if path.name != "TERMINOLOGY.md"
     ]
     for path in documentation:
         errors.extend(check_text_file(path, global_fragments))
@@ -156,7 +178,7 @@ def main() -> int:
 
     print(
         "术语检查通过：中文统一为“投机解码”，流程术语统一为 "
-        "Draft / Drafter 与 Verify / Verifier。"
+        "Draft / Drafter、Verify / Verifier 与 Training。"
     )
     return 0
 

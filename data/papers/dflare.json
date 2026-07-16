@@ -1,0 +1,64 @@
+{
+  "id": "dflare",
+  "index": 11,
+  "title": "DFlare: Scaling Up Draft Capacity for Block Diffusion Speculative Decoding",
+  "shortName": "DFlare",
+  "authors": [
+    "Jiebin Zhang",
+    "Zhenghan Yu",
+    "Song Liu",
+    "Eugene J. Yu",
+    "Zheng Li",
+    "Dawei Zhu",
+    "Jiangshan Duo",
+    "Weimin Xiong",
+    "Yifan Song",
+    "Guanghua Yu",
+    "Jianchen Zhu",
+    "Sujian Li"
+  ],
+  "methodOverview": "在 DFlash 基础上，让每个 Drafter Layer 从更广泛的 Target Layer 中学习独立融合权重，并使用异构 KV Projection；配合更深 Drafter、更多数据和渐进式损失提升容量。",
+  "notes": [],
+  "institutionDetails": [
+    {
+      "name": "北京大学计算机学院",
+      "order": 1,
+      "explanation": "一作、通讯作者及多数作者所属单位。"
+    },
+    {
+      "name": "腾讯",
+      "order": 2,
+      "explanation": "其他作者所属单位。"
+    }
+  ],
+  "institutionSource": "https://arxiv.org/pdf/2606.02091",
+  "subproblemContributions": {
+    "A": {
+      "summary": "沿用 DFlash 的单次 Block-Diffusion Draft，但以 Adaptive Layer Fusion 为每个 Drafter 层学习一组 Softmax 标量权重，分别融合更广的 Target 层（Qwen 配置为 9 层），再用异构 K/V Projection 分离 Target 上下文与 Drafter 状态的表示空间。",
+      "detail": "沿用 DFlash 的单次 Block-Diffusion Draft，但以 Adaptive Layer Fusion 为每个 Drafter 层学习一组 Softmax 标量权重，分别融合更广的 Target 层（Qwen 配置为 9 层），再用异构 K/V Projection 分离 Target 上下文与 Drafter 状态的表示空间。层特异条件使 Qwen Drafter 可稳定扩展到 7 层；约 240 万条 Target 重生成训练样本和渐进位置损失进一步释放扩容后的能力。\n\n保留锚 Token 后 B−1 个 Mask 位置一次前向补全的 Block-Diffusion 流程；Adaptive Layer Fusion 仅新增 D×T 个标量权重（7 层 Drafter、9 个 Target 层时为 63 个），归一化权重可在训练后预计算，因此丰富逐层条件几乎不增加推理时延。\n\n每个 Drafter 层对所选 Target Hidden State 学习独立的 Softmax 加权和并做 RMSNorm，同时为 Target 上下文和演化中的 Drafter 状态设置两套 K/V Projection；不同层因而能专门吸收不同深度的知识，避免 DFlash 共享 FC 特征造成的深度饱和。"
+    },
+    "E": {
+      "summary": "将 Nemotron V2、CodeAlpaca 与 Step-3.5-Flash-SFT 扩展为约 240 万条提示，并用对应 Target 在温度 0.6 下重生成响应，训练规模是 DFlash 的 3 倍。",
+      "detail": "将 Nemotron V2、CodeAlpaca 与 Step-3.5-Flash-SFT 扩展为约 240 万条提示，并用对应 Target 在温度 0.6 下重生成响应，训练规模是 DFlash 的 3 倍。Qwen 训练从 γ₀=4.5 逐步增大指数位置权重的衰减参数，先聚焦决定接受链的前部 Token，再逐渐提高困难后缀的训练权重。"
+    }
+  },
+  "citations": [
+    "medusa",
+    "mtp",
+    "eagle",
+    "eagle-2",
+    "eagle-3",
+    "diffuspec",
+    "specdiff-2",
+    "dflash",
+    "specinfer"
+  ],
+  "venue": "arXiv",
+  "date": "2026-06",
+  "url": "https://arxiv.org/abs/2606.02091",
+  "provenance": {
+    "legacyWorkbookRow": 11,
+    "workbookInstitutions": "北京大学、腾讯"
+  },
+  "localPdf": "../Reference/DFlare.pdf"
+}

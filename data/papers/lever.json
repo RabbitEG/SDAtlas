@@ -1,0 +1,62 @@
+{
+  "id": "lever",
+  "index": 25,
+  "title": "Lever: Speculative LLM Inference on Smartphones",
+  "shortName": "Lever",
+  "authors": [
+    "Tuowei Wang",
+    "Fengzu Li",
+    "Yanfan Sun",
+    "Wei Gao",
+    "Ju Ren"
+  ],
+  "methodOverview": "面向手机异构硬件，让小型 Drafter 驻留 DRAM、Target 驻留 Flash；使用同时考虑 I/O 与计算成本的 Token Tree 目标和 Early-Exit 预测提前剪除低价值分支，并在 CPU 与 NPU 间流水化执行。",
+  "notes": [],
+  "institutionDetails": [
+    {
+      "name": "清华大学",
+      "order": 1,
+      "explanation": "第一作者 Tuowei Wang、第二作者 Fengzu Li 和末位通讯作者 Ju Ren 所属单位，承担论文的主要方法与系统设计。"
+    },
+    {
+      "name": "北京航空航天大学",
+      "order": 2,
+      "explanation": "第三作者 Yanfan Sun 所属单位。"
+    },
+    {
+      "name": "匹兹堡大学",
+      "order": 2,
+      "explanation": "第四作者 Wei Gao 所属单位。"
+    }
+  ],
+  "institutionSource": "https://arxiv.org/pdf/2605.16786",
+  "subproblemContributions": {
+    "B": {
+      "summary": "以包含 Flash I/O 与移动端计算成本的 Gain–Cost 目标动态扩展候选树。",
+      "detail": "根据移动端 Flash I/O、Draft 计算和 Target Verify 成本，以预期输出 Token 数与周期延迟的收益成本比动态构造候选树，不再只追求概率或接受长度最大化。"
+    },
+    "C": {
+      "summary": "利用 Target 中间隐藏状态在完整 Verify 前保守剪除低收益分支。",
+      "detail": "在 Target 中间层附加轻量预测器进行 Early-Exit 分支评分，在完整 Verify 前保守剪除低价值路径，同时保留完整 Target 作为最终接受裁决者。"
+    },
+    "D": {
+      "summary": "联合设计 DRAM–Flash 存储布局与 CPU–NPU 执行映射。",
+      "detail": "面向手机有限 DRAM、低 Flash 带宽和有限 NPU 并行能力，让 Drafter 常驻 DRAM、Target 权重驻留 Flash，将批量 Transformer 运算映射到 NPU，并仅沿接受路径在 CPU 执行必要的输出投影。"
+    }
+  },
+  "citations": [
+    "medusa",
+    "eagle",
+    "eagle-2",
+    "eagle-3",
+    "specinfer",
+    "opt-tree"
+  ],
+  "venue": "arXiv",
+  "date": "2026-05",
+  "url": "https://arxiv.org/abs/2605.16786",
+  "localPdf": "../Reference/Lever.pdf",
+  "provenance": {
+    "workbookInstitutions": "清华大学 → 北京航空航天大学、匹兹堡大学"
+  }
+}

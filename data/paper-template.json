@@ -1,0 +1,31 @@
+{
+  "id": "paper-stable-id",
+  "index": 26,
+  "title": "标题",
+  "shortName": "论文简称",
+  "authors": [
+    "作者一",
+    "作者二"
+  ],
+  "methodOverview": "用一至三句话给出兼顾准确性与可理解性的直观方法概述。",
+  "notes": [],
+  "institutionDetails": [
+    {
+      "name": "研究单位",
+      "order": 1,
+      "explanation": "说明该单位与作者、主要工作或通讯作者的关系。"
+    }
+  ],
+  "institutionSource": "https://example.org/paper.pdf",
+  "subproblemContributions": {
+    "A": {
+      "summary": "列表折叠状态使用的单句贡献概括。",
+      "detail": "论文详情页和展开区域使用的完整贡献说明。"
+    }
+  },
+  "citations": [],
+  "venue": "会议或版本",
+  "date": "2026-07",
+  "url": "https://example.org/paper",
+  "localPdf": "../Reference/Paper.pdf"
+}

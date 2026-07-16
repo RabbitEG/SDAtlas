@@ -1,0 +1,50 @@
+{
+  "id": "smart",
+  "index": 19,
+  "title": "SMART: When is it Actually Worth Expanding a Speculative Tree?",
+  "shortName": "SMART",
+  "authors": [
+    "Lifu Wang",
+    "Pan Zhou"
+  ],
+  "methodOverview": "使用实际测得的 Draft 与 Verify 延迟曲线，在运行时比较增加候选节点的边际收益和成本；只有预计能降低端到端延迟时才扩树。",
+  "notes": [],
+  "institutionDetails": [
+    {
+      "name": "新加坡管理大学",
+      "order": 1,
+      "explanation": "全部作者均来自该校。"
+    }
+  ],
+  "institutionSource": "https://arxiv.org/pdf/2604.09731",
+  "subproblemContributions": {
+    "B": {
+      "summary": "把候选树目标从最大化概率或接受长度改为最大化端到端加速比 R(T)=c_T·L_tree/(C_Draft+C_Verify)，其中 L_tree 由根到叶 Prefix 的累积接受概率估计。",
+      "detail": "把候选树目标从最大化概率或接受长度改为最大化端到端加速比 R(T)=c_T·L_tree/(C_Draft+C_Verify)，其中 L_tree 由根到叶 Prefix 的累积接受概率估计。运行时逐层生成各活跃节点的 Top-k 孩子，仅当候选的边际收益—成本比高于当前整棵树的加速比时保留，从而让树形同时适应上下文难度和系统成本。\n\n每层为活跃节点产生 Top-k 候选，以 Drafter 的累积概率估计新增节点带来的接受长度，再用 ΔJ=α·ΔC_target/ΔC_spec−C_target/C_spec 判断是否保留；折扣 α 修正 Drafter 对 Target 接受率的乐观偏差。扩展在达到最大深度、节点预算或没有合格候选时停止，贪心构树复杂度为 O(kB)。"
+    },
+    "C": {
+      "summary": "Verify 节点不再由固定宽度和深度预先决定，而是只接收预计能提高全局端到端加速比的分支。",
+      "detail": "Verify 节点不再由固定宽度和深度预先决定，而是只接收预计能提高全局端到端加速比的分支。总预算 B_Verify 还把工作区限制在设备 Verify 时延曲线较平坦的区域，减少大树在计算饱和时引入的超线性 Verify 开销。"
+    },
+    "D": {
+      "summary": "以当前 Batch Size 将设备级 Verify 预算均分为每条序列的树预算，并让每个请求再根据自身候选置信度逐节点扩展或剪枝。",
+      "detail": "以当前 Batch Size 将设备级 Verify 预算均分为每条序列的树预算，并让每个请求再根据自身候选置信度逐节点扩展或剪枝。该训练无关的运行时控制器不改 Drafter、Target 或 Verify 规则，可作为 EAGLE、MSD、DFlash 等已有投机解码管线的插件。\n\n分别用 C_Draft=λ|T| 与 C_Verify=γ(exp(δ|T|^ρ)−1) 拟合指定 GPU 上的 Draft 和 Verify 时延，再用曲线导数估算新增节点的硬件边际成本。设备只需少量预分析前向即可重拟合参数，因此控制策略能反映不同 GPU 的算力、带宽与 Batch 饱和转折点。"
+    }
+  },
+  "citations": [
+    "medusa",
+    "dflash",
+    "eagle",
+    "eagle-2",
+    "eagle-3",
+    "specinfer"
+  ],
+  "venue": "ECCV 2026",
+  "date": "2026-09",
+  "url": "https://arxiv.org/abs/2604.09731",
+  "provenance": {
+    "legacyWorkbookRow": 19,
+    "workbookInstitutions": "未知（arXiv作者团队）"
+  },
+  "localPdf": "../Reference/SMART.pdf"
+}

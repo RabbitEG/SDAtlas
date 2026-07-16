@@ -1,0 +1,48 @@
+{
+  "id": "beagle",
+  "index": 6,
+  "title": "Cross-Attention Speculative Decoding",
+  "shortName": "Beagle / Budget EAGLE",
+  "authors": [
+    "Wei Zhong",
+    "Manasa Bharadwaj",
+    "Yixiao Wang",
+    "Yipeng Ji",
+    "Chul Lee"
+  ],
+  "methodOverview": "让 Drafter 通过 Cross-Attention 读取固定的 Target 上下文，而不是依赖紧耦合的 Self-Attention 或逐层 Feature 融合。两阶段 Block-Attention Training 降低多步模拟的显存开销。",
+  "notes": [],
+  "institutionDetails": [
+    {
+      "name": "LG电子多伦多人工智能实验室",
+      "order": 1,
+      "explanation": "全部作者均来自该实验室。"
+    }
+  ],
+  "institutionSource": "https://arxiv.org/html/2505.24544v3",
+  "subproblemContributions": {
+    "A": {
+      "summary": "Beagle 用单层 Cross-Attention 加 MLP 构造 Drafter：当前 Token Embedding 形成 Query，Target 顶层隐状态或 Drafter 自回归产生的状态形成 Key/Value，并以遮蔽对角线及未来位置的因果掩码生成候选。",
+      "detail": "Beagle 用单层 Cross-Attention 加 MLP 构造 Drafter：当前 Token Embedding 形成 Query，Target 顶层隐状态或 Drafter 自回归产生的状态形成 Key/Value，并以遮蔽对角线及未来位置的因果掩码生成候选。Query 与 Key/Value 分处低、高层表示空间，因此无需 EAGLE 式池化、特征复制与拼接；推理时追加缓存的 Key/Value，并沿用 EAGLE-2 的动态 Draft Tree。\n\n去掉自注意力子层、辅助池化/融合层以及高层状态的反复复制拼接，既减少注意力参数与训练开销，也改善推理时的内存局部性。Drafter 只需缓存并追加 Cross-Attention 的 Key/Value，在每轮投机解码结束后恢复为 Target 的真实状态。\n\n早期训练用逆 Block-Attention 同时预测多个未来 Token，把更远位置的信息压入 Drafter 状态；后期则回灌自预测 Key/Value，按真实自回归路径优化即时下一 Token。两阶段分别改善后续位置与中段 Token 的接受率，使简化后的 Cross-Attention Drafter 在相同 ShareGPT 数据规模上达到与 EAGLE-v2 相当的接受长度。"
+    },
+    "E": {
+      "summary": "前 10 个 Epoch 以局部未来 Key 全遮蔽的 Block-Attention 并行优化多 Token 目标，后 10 个 Epoch 原位更新自预测 Key 并按接受长度对逐步损失加权；两阶段还保留隐状态蒸馏正则以稳定收敛。",
+      "detail": "前 10 个 Epoch 以局部未来 Key 全遮蔽的 Block-Attention 并行优化多 Token 目标，后 10 个 Epoch 原位更新自预测 Key 并按接受长度对逐步损失加权；两阶段还保留隐状态蒸馏正则以稳定收敛。Cross-Attention 模拟无需随步数展开新的 Query，因而保持近似常量训练显存，3 步模拟可在单张 24 GiB GPU 上训练 7B Target 的 Drafter。"
+    }
+  },
+  "citations": [
+    "medusa",
+    "eagle",
+    "eagle-2",
+    "eagle-3",
+    "specinfer"
+  ],
+  "venue": "arXiv",
+  "date": "2025-05",
+  "url": "https://arxiv.org/abs/2505.24544",
+  "provenance": {
+    "legacyWorkbookRow": 6,
+    "workbookInstitutions": "清华大学"
+  },
+  "localPdf": "../Reference/BEAGLE.pdf"
+}

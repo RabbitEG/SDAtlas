@@ -1,0 +1,74 @@
+{
+  "id": "medusa",
+  "index": 1,
+  "title": "Medusa: Simple LLM Inference Acceleration Framework with Multiple Decoding Heads",
+  "shortName": "Medusa",
+  "authors": [
+    "Tianle Cai",
+    "Yuhong Li",
+    "Zhengyang Geng",
+    "Hongwu Peng",
+    "Jason D. Lee",
+    "Deming Chen",
+    "Tri Dao"
+  ],
+  "methodOverview": "在冻结的 Target 上增加多个并行预测未来 Token 的 Head，将各 Head 的候选组合成 Token Tree，再用一次 Tree Attention 完成 Verify。它省去了独立 Drafter，可直观理解为让同一个模型一次提出多条短续写，再统一验收。",
+  "notes": [],
+  "institutionDetails": [
+    {
+      "name": "普林斯顿大学",
+      "order": 1,
+      "explanation": "共同一作及资深作者所属单位，列为主要贡献单位。"
+    },
+    {
+      "name": "Together AI",
+      "order": 1,
+      "explanation": "共同一作及资深作者所属单位，列为主要贡献单位。"
+    },
+    {
+      "name": "伊利诺伊大学厄巴纳-香槟分校",
+      "order": 2,
+      "explanation": "共同一作及资深作者所属单位，列为第二顺位。"
+    },
+    {
+      "name": "卡内基梅隆大学",
+      "order": 3,
+      "explanation": "其他作者所属单位。"
+    },
+    {
+      "name": "康涅狄格大学",
+      "order": 4,
+      "explanation": "其他作者所属单位。"
+    }
+  ],
+  "institutionSource": "https://arxiv.org/pdf/2401.10774",
+  "subproblemContributions": {
+    "A": {
+      "summary": "在 Target 最后一层隐藏状态上挂接 K 个带 SiLU 与残差连接的单层 Head，第 k 个 Head 直接预测第 t+k+1 个 Token；它们复用同一份 Target 表征，与原 LM Head 一起并行提出 K+1 个位置，无需维护独立 Drafter。",
+      "detail": "在 Target 最后一层隐藏状态上挂接 K 个带 SiLU 与残差连接的单层 Head，第 k 个 Head 直接预测第 t+k+1 个 Token；它们复用同一份 Target 表征，与原 LM Head 一起并行提出 K+1 个位置，无需维护独立 Drafter。Medusa-1 冻结 Target 只训练 Heads，Medusa-2 则以专门的联合微调配方进一步提高远期预测准确率。\n\nK 个轻量 Head 直接读取同一个 Target 隐藏状态，并行给出多个远期 Token 分布，以一次共享主干计算替代独立 Drafter 的逐 Token 前向。Target 处理候选树所得的隐藏状态又可直接供下一轮 Heads 生成候选，避免重复提取主干特征。\n\n各未来位置不只保留单个预测，而是让多个高概率候选竞争最长可接受前缀；可采用严格 rejection sampling 保持 Target 分布，也可用 Target 条件概率与熵共同设阈值的 typical acceptance 接纳合理 Token，在允许近似采样时换取更长的接受序列。"
+    },
+    "B": {
+      "summary": "每个 Head 保留 top-s_k 预测，并按未来位置的笛卡尔积自顶向下组成共享前缀的 Token Tree；Tree Attention 只允许节点关注其祖先并相应重设位置编码，使 Target 一次前向即可并行 Verify 多条候选路径。",
+      "detail": "每个 Head 保留 top-s_k 预测，并按未来位置的笛卡尔积自顶向下组成共享前缀的 Token Tree；Tree Attention 只允许节点关注其祖先并相应重设位置编码，使 Target 一次前向即可并行 Verify 多条候选路径。论文还用校准集估计不同 Head、不同预测名次的准确率，在节点预算内构造非均匀稀疏树，以提高期望接受长度。\n\n先在校准集上统计第 k 个 Head 的第 i 名预测的单项准确率，再把一条路径的准确率近似为沿途节点准确率之积。构树时从根开始反复加入与当前树相连且估计准确率最高的节点，从而在相同节点预算内得到偏向高命中路径的稀疏树。"
+    },
+    "C": {
+      "summary": "Tree Attention 只允许候选节点关注其祖先并重设位置编码，使 Target 一次前向即可并行 Verify 多条路径；严格 rejection sampling 可保持 Target 分布，typical acceptance 则在允许近似采样时换取更长接受序列。",
+      "detail": "Tree Attention 只允许候选节点关注其祖先并重设位置编码，使 Target 一次前向即可并行 Verify 多条路径；严格 rejection sampling 可保持 Target 分布，typical acceptance 则在允许近似采样时换取更长接受序列。"
+    },
+    "E": {
+      "summary": "Medusa-1 冻结 Target，对各未来偏移的交叉熵按 λ_k（实践中取 0.8^k）加权；Medusa-2 再加入原始 next-token 损失，并以差分学习率和先 Heads、后联合的 warmup 防止破坏 Target 能力。",
+      "detail": "Medusa-1 冻结 Target，对各未来偏移的交叉熵按 λ_k（实践中取 0.8^k）加权；Medusa-2 再加入原始 next-token 损失，并以差分学习率和先 Heads、后联合的 warmup 防止破坏 Target 能力。缺少原训练数据时，可让 Target 自生成响应训练 Heads，并用原模型分布到当前主干分布的 KL 项进行自蒸馏。"
+    }
+  },
+  "citations": [
+    "specinfer"
+  ],
+  "venue": "ICML 2024",
+  "date": "2024-07",
+  "url": "https://proceedings.mlr.press/v235/cai24b.html",
+  "provenance": {
+    "legacyWorkbookRow": 1,
+    "workbookInstitutions": "美国卡内基梅隆大学（CMU）、Meta"
+  },
+  "localPdf": "../Reference/Medusa.pdf"
+}

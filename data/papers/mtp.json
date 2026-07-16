@@ -1,0 +1,58 @@
+{
+  "id": "mtp",
+  "index": 2,
+  "title": "Better & Faster Large Language Models via Multi-token Prediction",
+  "shortName": "MTP",
+  "authors": [
+    "Fabian Gloeckle",
+    "Badr Youbi Idrissi",
+    "Baptiste Rozière",
+    "David Lopez-Paz",
+    "Gabriel Synnaeve"
+  ],
+  "methodOverview": "在共享主干上设置多个相互独立的预测 Head，同时预测接下来的若干 Token。多 Token Training 目标既能强化中间表示，也让模型具备用于自投机解码的并行未来预测能力。",
+  "notes": [],
+  "institutionDetails": [
+    {
+      "name": "Meta FAIR",
+      "order": 1,
+      "explanation": "全部作者的主要单位。"
+    },
+    {
+      "name": "巴黎高科路桥学院 CERMICS",
+      "order": 2,
+      "explanation": "其中一位共同一作的联合单位。"
+    },
+    {
+      "name": "巴黎萨克雷大学 LISN",
+      "order": 3,
+      "explanation": "其中一位共同一作的联合单位。"
+    }
+  ],
+  "institutionSource": "https://arxiv.org/pdf/2404.19737",
+  "subproblemContributions": {
+    "A": {
+      "summary": "以共享 Transformer 主干、n 个独立 Transformer 层预测 Head 和共享 unembedding 矩阵组成多 Token 预测器，每个 Head 从同一上下文表征预测第 i 个未来 Token。",
+      "detail": "以共享 Transformer 主干、n 个独立 Transformer 层预测 Head 和共享 unembedding 矩阵组成多 Token 预测器，每个 Head 从同一上下文表征预测第 i 个未来 Token。训练时把这些未来位置纳入预训练目标；推理时既可丢弃附加 Heads 按普通 next-token 模式运行，也可保留它们执行 greedy 自投机解码。\n\n一次主干前向产生共享上下文表征，n 个独立 Head 随后并行提出连续未来位置，无需额外 Drafter；主 next-token Head 再并行 Verify 这段块候选。该自投机路径在保留完整 Target 能力的同时，把原本串行的多步生成合并为更少的模型前向。\n\n附加 Heads 不是在既有 next-token 模型上事后拟合，而是在预训练阶段与主干共同学习全部未来目标，因此远期 Head 的候选准确率更高。多 Token 目标还强化对长程依赖和关键 choice point 的建模，在大模型及代码生成中尤其改善候选质量。"
+    },
+    "B": {
+      "summary": "各 Head 的 top-1 预测可组成长度为 n 的块候选，供论文实际采用的 greedy blockwise 自投机解码一次并行 Verify。",
+      "detail": "各 Head 的 top-1 预测可组成长度为 n 的块候选，供论文实际采用的 greedy blockwise 自投机解码一次并行 Verify。论文也明确这些 Heads 可将各位置的 top-k 输出接入 Medusa 式 Tree Attention，但候选树算法本身并非该工作的新增机制。"
+    },
+    "E": {
+      "summary": "在每个语料位置，对 n 个未来 Token 的独立条件分布求交叉熵之和，并让所有目标共同反向更新共享主干，使训练信号不再只偏向局部 next-token 模式。",
+      "detail": "在每个语料位置，对 n 个未来 Token 的独立条件分布求交叉熵之和，并让所有目标共同反向更新共享主干，使训练信号不再只偏向局部 next-token 模式。训练实现依次执行各 Head 的前向与反向、累计主干梯度并及时释放词表 logits，把峰值显存从 O(nV+d) 降至 O(V+d)，且不增加训练时长。"
+    }
+  },
+  "citations": [
+    "medusa"
+  ],
+  "venue": "ICML 2024",
+  "date": "2024-07",
+  "url": "https://proceedings.mlr.press/v235/gloeckle24a.html",
+  "provenance": {
+    "legacyWorkbookRow": 2,
+    "workbookInstitutions": "Meta FAIR"
+  },
+  "localPdf": "../Reference/MTP.pdf"
+}

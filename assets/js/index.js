@@ -1,210 +1,116 @@
-/* Homepage: derive both taxonomies and every view directly from data.js. */
+/* Homepage: render the single A–E subproblem model directly from data.js. */
 (function () {
   "use strict";
 
   var ui = window.SDAtlasUI;
   var data = ui.data;
 
-  function paperRegionPill(paper, codes) {
-    var tooltip = codes.map(function (code) {
-      return ui.getCategory(code).shortName + "：" + ui.categoryContribution(paper, code);
-    }).join("\n");
-    return "<a class=\"region-paper\" href=\"" + ui.escapeHtml(paper.url) +
-      "\" target=\"_blank\" rel=\"noopener\" data-tooltip=\"" + ui.escapeHtml(tooltip) +
-      "\">" + ui.escapeHtml(paper.shortName) + "</a>";
+  if (!Array.isArray(data.subproblems) || !Array.isArray(data.papers)) {
+    throw new Error("The homepage requires data.subproblems and data.papers");
+  }
+
+  function papersForSubproblem(code) {
+    if (typeof ui.papersForSubproblem === "function") {
+      return ui.papersForSubproblem(code);
+    }
+    return data.papers.filter(function (paper) {
+      return (paper.subproblemCodes || []).indexOf(code) !== -1;
+    });
+  }
+
+  function subproblemContribution(paper, code) {
+    var contribution = typeof ui.subproblemContribution === "function"
+      ? ui.subproblemContribution(paper, code)
+      : (paper.subproblemContributions || {})[code];
+
+    if (typeof contribution === "string") {
+      return { summary: contribution, detail: contribution };
+    }
+    contribution = contribution || {};
+    return {
+      summary: contribution.summary || contribution.detail || "暂无贡献概括。",
+      detail: contribution.detail || contribution.summary || "暂无详细说明。"
+    };
+  }
+
+  function paperHref(id) {
+    return typeof ui.paperHref === "function"
+      ? ui.paperHref(id)
+      : "paper.html?id=" + encodeURIComponent(id);
+  }
+
+  function subproblemHref(code) {
+    return typeof ui.subproblemHref === "function"
+      ? ui.subproblemHref(code)
+      : "explorer.html?subproblem=" + encodeURIComponent(code);
   }
 
   function renderStats() {
+    var paperCount = data.papers.length;
+    var subproblemCount = data.subproblems.length;
     document.getElementById("hero-stats").innerHTML = [
-      [data.papers.length, "篇论文"],
-      [data.categories.length, "个宏观类别"],
-      [data.tags.length, "个子问题"]
+      [paperCount, "篇论文"],
+      [subproblemCount, "个子问题"]
     ].map(function (stat) {
       return "<div><dt>" + stat[0] + "</dt><dd>" + stat[1] + "</dd></div>";
     }).join("");
-  }
 
-  function renderLegend() {
-    document.getElementById("category-legend").innerHTML = data.categories.map(function (category) {
-      var count = ui.papersForCategory(category.code).length;
-      return [
-        "<a class=\"category-legend__item\" style=\"" + ui.itemStyle(category) + "\" href=\"" +
-          ui.categoryHref(category.code) + "\">",
-        "<span class=\"category-legend__code\">" + ui.escapeHtml(category.code) + "</span>",
-        "<span><strong>" + ui.escapeHtml(category.name) + "</strong><small class=\"math-rich-text\">" +
-          ui.renderMathText(category.question) + "</small></span>",
-        "<em>" + count + "</em></a>"
-      ].join("");
-    }).join("");
-  }
-
-  function subsets(items) {
-    var result = [];
-    for (var mask = 1; mask < Math.pow(2, items.length); mask += 1) {
-      var group = items.filter(function (_, index) { return mask & (1 << index); });
-      result.push(group);
-    }
-    return result.sort(function (a, b) {
-      return a.length - b.length || items.indexOf(a[0]) - items.indexOf(b[0]);
+    document.getElementById("hero-paper-count").textContent = paperCount;
+    document.querySelectorAll(".route-paper-count").forEach(function (element) {
+      element.textContent = paperCount;
     });
   }
 
-  function sameCodes(paper, codes) {
-    return paper.categoryCodes.length === codes.length && codes.every(function (code) {
-      return paper.categoryCodes.indexOf(code) !== -1;
-    });
-  }
-
-  function regionHref(codes) {
-    return codes.length === 1
-      ? ui.categoryHref(codes[0])
-      : ui.explorerHref({ major: codes, mode: "intersection" });
-  }
-
-  function renderThreeSetVenn(categories) {
-    var codes = categories.map(function (item) { return item.code; });
-    var layoutClasses = [
-      "region--one", "region--two", "region--three",
-      "region--one-two", "region--one-three", "region--two-three", "region--all"
-    ];
-    var orderedSubsets = [
-      [codes[0]], [codes[1]], [codes[2]],
-      [codes[0], codes[1]], [codes[0], codes[2]], [codes[1], codes[2]], codes
-    ];
-    var circles = categories.map(function (category, index) {
-      return "<div class=\"venn-circle venn-circle--" + (index + 1) + "\" style=\"" +
-        ui.itemStyle(category) + "\" aria-hidden=\"true\"></div>";
-    }).join("");
-    var circleLabels = categories.map(function (category, index) {
-      return [
-        "<a class=\"venn-set-label venn-set-label--" + (index + 1) + "\" style=\"" +
-          ui.itemStyle(category) + "\" href=\"" + ui.categoryHref(category.code) + "\">",
-        "<span>" + ui.escapeHtml(category.code) + "</span><strong>" + ui.escapeHtml(category.shortName) + "</strong></a>"
-      ].join("");
-    }).join("");
-    var regions = orderedSubsets.map(function (codesForRegion, index) {
-      var papers = data.papers.filter(function (paper) { return sameCodes(paper, codesForRegion); });
-      var paperHtml = papers.length
-        ? papers.map(function (paper) { return paperRegionPill(paper, codesForRegion); }).join("")
-        : "<span class=\"empty-region\">暂无论文</span>";
-      return [
-        "<section class=\"venn-region " + layoutClasses[index] + (papers.length ? "" : " is-empty") + "\">",
-        "<a class=\"region-title\" href=\"" + regionHref(codesForRegion) + "\"><strong>" +
-          ui.escapeHtml(ui.regionLabel(codesForRegion.join(""))) + "</strong><span>" + papers.length + "</span></a>",
-        "<div class=\"region-paper-list\">" + paperHtml + "</div></section>"
-      ].join("");
-    }).join("");
-
+  function renderPaperTile(paper, subproblem) {
+    var contribution = subproblemContribution(paper, subproblem.code);
+    var year = String(paper.date || "").slice(0, 4);
     return [
-      "<div class=\"venn-stage\" aria-label=\"三个宏观类别的韦恩图\">",
-      circles, circleLabels, regions,
-      "</div>"
+      "<a class=\"question-paper\" href=\"" + ui.escapeHtml(paperHref(paper.id)) + "\"",
+      " data-tooltip=\"" + ui.escapeHtml(contribution.summary) + "\"",
+      " aria-label=\"查看 " + ui.escapeHtml(paper.shortName) + " 的论文详情\">",
+      "<strong>" + ui.escapeHtml(paper.shortName) + "</strong>",
+      "<small>" + ui.escapeHtml(year) + "</small>",
+      "</a>"
     ].join("");
   }
 
-  /* More than three sets do not form a readable Venn diagram. The fallback is
-     still generated from exact membership sets, so new categories remain usable. */
-  function renderScalableRegionBoard() {
-    var groups = new Map();
-    data.papers.forEach(function (paper) {
-      var region = ui.exactRegion(paper);
-      if (!groups.has(region)) groups.set(region, []);
-      groups.get(region).push(paper);
-    });
+  function renderSubproblemCard(subproblem) {
+    var papers = papersForSubproblem(subproblem.code);
+    var style = ui.itemStyle(subproblem);
     return [
-      "<div class=\"region-board-note\"><strong>宏观类别交叠区域</strong></div>",
-      "<div class=\"region-board\">",
-      Array.from(groups.entries()).map(function (entry) {
-        var codes = entry[0].split("");
-        return "<section><a class=\"region-title\" href=\"" + regionHref(codes) + "\"><strong>" +
-          ui.escapeHtml(ui.regionLabel(entry[0])) + "</strong><span>" + entry[1].length + "</span></a><div class=\"region-paper-list\">" +
-          entry[1].map(function (paper) { return paperRegionPill(paper, codes); }).join("") + "</div></section>";
-      }).join(""),
-      "</div>"
+      "<article class=\"question-card\" style=\"" + style + "\">",
+      "<header class=\"question-card__header\">",
+      "<a class=\"question-card__identity\" href=\"" + ui.escapeHtml(subproblemHref(subproblem.code)) + "\">",
+      "<span class=\"question-card__code\">" + ui.escapeHtml(subproblem.code) + "</span>",
+      "<span><small>SUBPROBLEM " + ui.escapeHtml(subproblem.code) + "</small>",
+      "<strong>" + ui.escapeHtml(subproblem.name) + "</strong></span></a>",
+      "<span class=\"question-card__count\"><strong>" + papers.length + "</strong><small>篇论文</small></span>",
+      "</header>",
+      "<p class=\"question-card__question math-rich-text\">" + ui.renderMathText(subproblem.question) + "</p>",
+      "<p class=\"question-card__description math-rich-text\">" + ui.renderMathText(subproblem.description) + "</p>",
+      "<div class=\"question-card__papers\" aria-label=\"" + ui.escapeHtml(subproblem.name) + "的论文\">",
+      papers.map(function (paper) { return renderPaperTile(paper, subproblem); }).join(""),
+      "</div>",
+      "<a class=\"question-card__more\" href=\"" + ui.escapeHtml(subproblemHref(subproblem.code)) + "\">",
+      "查看此子问题 <span aria-hidden=\"true\">→</span></a>",
+      "</article>"
     ].join("");
   }
 
-  function renderVenn() {
-    document.getElementById("venn-view").innerHTML = data.categories.length === 3
-      ? renderThreeSetVenn(data.categories)
-      : renderScalableRegionBoard();
+  function renderSubproblems() {
+    document.getElementById("subproblem-grid").innerHTML = data.subproblems
+      .map(renderSubproblemCard)
+      .join("");
   }
 
-  function renderTable() {
-    var categoryHeads = data.categories.map(function (category) {
-      return "<th scope=\"col\"><a style=\"" + ui.itemStyle(category) + "\" href=\"" +
-        ui.categoryHref(category.code) + "\"><span>" + ui.escapeHtml(category.code) + "</span>" +
-        ui.escapeHtml(category.shortName) + "</a></th>";
-    }).join("");
-    var rows = data.papers.map(function (paper) {
-      var cells = data.categories.map(function (category) {
-        if (paper.categoryCodes.indexOf(category.code) === -1) {
-          return "<td class=\"matrix-empty\"><span aria-label=\"不属于此类\">—</span></td>";
-        }
-        return "<td><a class=\"matrix-hit\" style=\"" + ui.itemStyle(category) + "\" href=\"" +
-          ui.categoryHref(category.code) + "\" data-tooltip=\"" +
-          ui.escapeHtml(ui.categoryContribution(paper, category.code)) + "\"><span aria-hidden=\"true\"></span><b class=\"sr-only\">属于" +
-          ui.escapeHtml(category.name) + "</b></a></td>";
-      }).join("");
-      return [
-        "<tr><td class=\"matrix-paper\"><span class=\"row-index\">" + String(paper.index).padStart(2, "0") + "</span>",
-        "<a href=\"" + ui.escapeHtml(paper.url) + "\" target=\"_blank\" rel=\"noopener\" data-tooltip=\"" +
-          ui.escapeHtml(ui.combinedCategoryContribution(paper)) + "\"><strong>" + ui.escapeHtml(paper.shortName) +
-          "</strong><small>" + ui.escapeHtml(paper.title) + "</small></a></td>",
-        "<td class=\"matrix-meta\"><strong>" + ui.escapeHtml(paper.venue) + "</strong><small>" + ui.escapeHtml(paper.date) + "</small></td>",
-        cells,
-        "</tr>"
-      ].join("");
-    }).join("");
-    document.getElementById("table-view").innerHTML = [
-      "<div class=\"matrix-wrap\"><table class=\"category-matrix\"><thead><tr>",
-      "<th scope=\"col\">论文</th><th scope=\"col\">版本 / 时间</th>", categoryHeads,
-      "</tr></thead><tbody>", rows, "</tbody></table></div>"
-    ].join("");
-  }
-
-  function renderTags() {
-    document.getElementById("tag-grid").innerHTML = data.tags.map(function (tag) {
-      var papers = ui.papersForTag(tag.code);
-      return [
-        "<article class=\"tag-card\" style=\"" + ui.itemStyle(tag) + "\">",
-        "<header><a href=\"" + ui.tagHref(tag.code) + "\"><span class=\"tag-letter\">" + ui.escapeHtml(tag.code) + "</span>",
-        "<span><strong>" + ui.escapeHtml(tag.name) + "</strong><small>" + ui.escapeHtml(tag.zhName) + "</small></span>",
-        "<em>" + papers.length + "</em></a></header>",
-        "<p class=\"math-rich-text\">" + ui.renderMathText(tag.description) + "</p>",
-        "<div class=\"tag-paper-list\">",
-        papers.map(function (paper) {
-          return "<a href=\"" + ui.escapeHtml(paper.url) + "\" target=\"_blank\" rel=\"noopener\" data-tooltip=\"" +
-            ui.escapeHtml(ui.tagContribution(paper, tag.code)) + "\">" + ui.escapeHtml(paper.shortName) + "</a>";
-        }).join(""),
-        "</div><a class=\"tag-card__more\" href=\"" + ui.tagHref(tag.code) + "\">全部论文 <span aria-hidden=\"true\">→</span></a>",
-        "</article>"
-      ].join("");
-    }).join("");
-  }
-
-  function initViewSwitch() {
-    var buttons = document.querySelectorAll("[data-view]");
-    var panels = { venn: document.getElementById("venn-view"), table: document.getElementById("table-view") };
-    buttons.forEach(function (button) {
-      button.addEventListener("click", function () {
-        var view = button.getAttribute("data-view");
-        buttons.forEach(function (item) {
-          var selected = item === button;
-          item.classList.toggle("is-active", selected);
-          item.setAttribute("aria-pressed", String(selected));
-        });
-        Object.keys(panels).forEach(function (key) { panels[key].hidden = key !== view; });
-      });
-    });
+  function updateFooterCopy() {
+    var footerCopy = document.querySelector(".footer-grid > p:not(.footer-meta)");
+    if (footerCopy) footerCopy.textContent = "投机解码论文的五个子问题与贡献索引。";
   }
 
   ui.mountChrome("atlas");
+  updateFooterCopy();
   renderStats();
-  renderLegend();
-  renderVenn();
-  renderTable();
-  renderTags();
-  initViewSwitch();
+  renderSubproblems();
   ui.initTooltips();
 })();

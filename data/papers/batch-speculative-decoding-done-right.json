@@ -1,0 +1,53 @@
+{
+  "id": "batch-speculative-decoding-done-right",
+  "index": 22,
+  "title": "Batch Speculative Decoding Done Right",
+  "shortName": "Batch SD Done Right",
+  "authors": [
+    "Ranran Haoran Zhang",
+    "Soumik Dey",
+    "Ashirbad Mishra",
+    "Hansi Wu",
+    "Binbin Li",
+    "Rui Zhang"
+  ],
+  "methodOverview": "从 Position ID、Attention Mask 和 KV Cache 的同步不变量出发，EQSPEC 保证不等长 Batch 投机解码的正确性；EXSPEC 使用滑动请求池动态组合相同长度序列，减少反复对齐产生的实际开销。",
+  "notes": [],
+  "institutionDetails": [
+    {
+      "name": "宾夕法尼亚州立大学",
+      "order": 1,
+      "explanation": "第一作者 Ranran Haoran Zhang 和末位通讯作者 Rui Zhang 所属单位，负责论文的主要方法与学术主导。"
+    },
+    {
+      "name": "eBay",
+      "order": 2,
+      "explanation": "第二至第五作者所属单位，并提供公开代码仓库及工业系统协作。"
+    }
+  ],
+  "institutionSource": "https://arxiv.org/pdf/2510.22876",
+  "subproblemContributions": {
+    "C": {
+      "summary": "形式化 Batch Verify 后的矩形对齐与各项状态同步条件，以保持输出等价。",
+      "detail": "形式化 Verify 后的矩形对齐、Position ID 连续性、Attention Mask 和 KV Cache 同步条件，提出保证状态同步的 EQSPEC，避免批量 Verify 产生错误输出。"
+    },
+    "D": {
+      "summary": "以跨 Batch 同长度分组降低 Ragged Tensor 的反复对齐开销。",
+      "detail": "系统研究 Batch Speculative Decoding 的 Ragged Tensor 正确性问题，并提出 EXSPEC 跨 Batch 调度机制，将长度相同的活跃序列动态组成批次，减少 Unpad–Append–Repad 和状态重对齐开销。"
+    }
+  },
+  "citations": [
+    "medusa",
+    "eagle",
+    "eagle-2",
+    "eagle-3",
+    "specinfer"
+  ],
+  "venue": "arXiv",
+  "date": "2025-10",
+  "url": "https://arxiv.org/abs/2510.22876",
+  "localPdf": "../Reference/Batch_Speculative_Decoding_Done_Right.pdf",
+  "provenance": {
+    "workbookInstitutions": "宾夕法尼亚州立大学 → eBay"
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "id": "specextend",
+  "index": 23,
+  "title": "SpecExtend: A Drop-in Enhancement for Speculative Decoding of Long Sequences",
+  "shortName": "SpecExtend",
+  "authors": [
+    "Jungyoub Cha",
+    "Hyunjong Kim",
+    "Sungzoon Cho"
+  ],
+  "methodOverview": "面向长上下文的免 Training 增强方案：Prefill 使用 FlashAttention，Verify 使用 Hybrid Tree Attention；Cross-model Retrieval 再根据 Target 的 Attention Score，只为 Drafter 保留最有用的上下文 KV。",
+  "notes": [],
+  "institutionDetails": [
+    {
+      "name": "首尔大学",
+      "order": 1,
+      "explanation": "全部作者均来自首尔大学；Hyunjong Kim 为通讯作者。"
+    }
+  ],
+  "institutionSource": "https://aclanthology.org/2026.findings-acl.2153.pdf",
+  "subproblemContributions": {
+    "A": {
+      "summary": "利用 Target 的 Attention Score 筛选 Drafter 最相关的上下文 KV。",
+      "detail": "提出 Cross-model Retrieval，利用 Target Verify 阶段的 Attention Score，为 Drafter 筛选并保留最相关的上下文 KV，从而同时提高长上下文下的 Draft 准确率和速度。"
+    },
+    "D": {
+      "summary": "以 FlashAttention、Hybrid Tree Attention 和压缩后的 Draft KV Cache 优化长上下文流程。",
+      "detail": "将 FlashAttention 用于 Target 与 Draft 的 Prefill，使用 Hybrid Tree Attention 加速树状 Verify，并以 Drop-in 方式同时优化 Prefill、Draft 和 Verify 阶段；方案不要求重新 Training 现有 Drafter。"
+    }
+  },
+  "citations": [
+    "medusa",
+    "eagle",
+    "eagle-2",
+    "eagle-3",
+    "specinfer",
+    "opt-tree"
+  ],
+  "venue": "Findings of ACL 2026",
+  "date": "2026-07",
+  "url": "https://aclanthology.org/2026.findings-acl.2153/",
+  "localPdf": "../Reference/SpecExtend.pdf",
+  "provenance": {
+    "workbookInstitutions": "首尔大学"
+  }
+}

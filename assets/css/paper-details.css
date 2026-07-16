@@ -187,6 +187,62 @@
   display: block;
 }
 
+.paper-expanded-title {
+  color: var(--ink);
+}
+
+.author-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.author-list span {
+  padding: 4px 8px;
+  color: var(--ink-2);
+  background: #f3f0e8;
+  border: 1px solid var(--line);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.paper-notes {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--ink-2);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.empty-note {
+  color: var(--muted) !important;
+  font-weight: 450 !important;
+}
+
+.contribution-summary {
+  font-weight: 720;
+}
+
+.contribution-detail {
+  margin-top: 9px;
+  padding-top: 9px;
+  border-top: 1px solid color-mix(in srgb, var(--item-color) 18%, transparent);
+}
+
+.contribution-detail p {
+  margin: 0 0 9px;
+}
+
+.contribution-detail p:last-child {
+  margin-bottom: 0;
+}
+
+.citation-counts {
+  align-self: center;
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .paper-card__details .paper-field--row-end,
 .paper-list--explorer .paper-card__details .paper-field--wide {
   border-right: 0;

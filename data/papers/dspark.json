@@ -1,0 +1,99 @@
+{
+  "id": "dspark",
+  "index": 13,
+  "title": "DSpark: Confidence-Scheduled Speculative Decoding with Semi-Autoregressive Generation",
+  "shortName": "DSpark",
+  "authors": [
+    "Xin Cheng",
+    "Xingkai Yu",
+    "Chenze Shao",
+    "Jiashi Li",
+    "Yunfan Xiong",
+    "Yi Qian",
+    "Jiaqi Zhu",
+    "Shirong Ma",
+    "Xiaokang Zhang",
+    "Jiasheng Ye",
+    "Qinyu Chen",
+    "Chengqi Deng",
+    "Jiping Yu",
+    "Damai Dai",
+    "Zhengyan Zhang",
+    "Yixuan Wei",
+    "Yixuan Tan",
+    "Wenkai Yang",
+    "Runxin Xu",
+    "Yu Wu",
+    "Zhean Xu",
+    "Xuanyu Wang",
+    "Muyang Chen",
+    "Rui Tian",
+    "Xiao Bi",
+    "Zhewen Hao",
+    "Shaoyuan Chen",
+    "Huanqi Cao",
+    "Wentao Zhang",
+    "Anyi Xu",
+    "Huishuai Zhang",
+    "Dongyan Zhao",
+    "Wenfeng Liang"
+  ],
+  "methodOverview": "并行 Backbone 负责整体候选，廉价 Markov/RNN 串行模块补回 Prefix 依赖；额外的置信度 Head 估计 Prefix 能存活到多远，调度器再按实时负载和 SPS 为每个请求分配 Verify 长度。",
+  "notes": [],
+  "institutionDetails": [
+    {
+      "name": "深度求索（DeepSeek-AI）",
+      "order": 1,
+      "explanation": "五位共同一作中的四位、绝大多数作者及温风梁所属单位。"
+    },
+    {
+      "name": "北京大学",
+      "order": 2,
+      "explanation": "其他作者所属单位。"
+    }
+  ],
+  "institutionSource": "https://arxiv.org/pdf/2607.05147",
+  "subproblemContributions": {
+    "A": {
+      "summary": "先让 DFlash 式并行 Backbone 在一次前向中产出整块 Hidden State 与 Base Logits，再以低秩一阶 Markov Head（默认）或带完整 Prefix 状态的 RNN Head 左到右加入转移偏置并采样。",
+      "detail": "先让 DFlash 式并行 Backbone 在一次前向中产出整块 Hidden State 与 Base Logits，再以低秩一阶 Markov Head（默认）或带完整 Prefix 状态的 RNN Head 左到右加入转移偏置并采样。昂贵计算仍与块长近似解耦，轻量顺序环节却让第 k 个候选显式依赖已选 Prefix，从而抑制独立并行预测的多模态碰撞与 Suffix Decay。\n\nDFlash 式 Backbone 对整块只前向一次，顺序部分仅用 rank-256 的两次词表投影（Markov Head）或单门控 RNN 更新转移 Logit，不必为每个候选重复 Transformer Rollout。实验中块长从 4 扩到 16 时，相对纯并行 DFlash 的整轮时延仅增加 0.2%–1.3%（Batch Size 128）。\n\n顺序 Head 把上一枚已采样 Token（RNN 版本还累积完整块内 Prefix 与对应 Backbone Hidden State）映射为词表转移偏置，与每个位置的 Base Logits 相加后再采样，使候选沿已经选定的语义分支继续，而非对所有可能前驱取边缘分布。该机制保留并行 Backbone 的首 Token 容量，同时显著缓解后部条件接受率衰减。"
+    },
+    "C": {
+      "summary": "Confidence Head 用 c_k=σ(wᵀ[h_k;W₁[x_{k−1}]]) 估计条件接受率，STS 对 ∏_{i≤j}c_i 逐位置温度校准，使累计概率可用于估算期望接受数而不只是候选排序。",
+      "detail": "Confidence Head 用 c_k=σ(wᵀ[h_k;W₁[x_{k−1}]]) 估计条件接受率，STS 对 ∏_{i≤j}c_i 逐位置温度校准，使累计概率可用于估算期望接受数而不只是候选排序。调度器据此截去低存活率 Suffix，并以一次 Profiling 得到的 SPS(B) 表在 Batch 内联合选择各请求的 Verify 长度，避免把 Target Batch 容量耗在高拒绝风险节点上。"
+    },
+    "D": {
+      "summary": "Serving 时以总 Verify Token 数 B=Σ_r(1+ℓ_r) 表示实时负载，沿全局存活概率顺序增量查询 SPS(B)，低负载可分配更长 Prefix、高负载则自动收缩。",
+      "detail": "Serving 时以总 Verify Token 数 B=Σ_r(1+ℓ_r) 表示实时负载，沿全局存活概率顺序增量查询 SPS(B)，低负载可分配更长 Prefix、高负载则自动收缩。DeepSeek-V4 生产实现把两轮前的置信度仅用于预估下一步容量 K、当前候选仍按最新分数选择 Top-K，并将不同请求的变长 Token 摊平、用 Sparse Attention Marker 传递依赖，从而兼容 ZOS 与 CUDA Graph。"
+    },
+    "E": {
+      "summary": "Target、共享 Embedding 与 LM Head 全程冻结；从每条 Target 序列随机抽取多个 Anchor 组成 γ-Token Block，只更新并行 Backbone、顺序模块和 Confidence Head。",
+      "detail": "Target、共享 Embedding 与 LM Head 全程冻结；从每条 Target 序列随机抽取多个 Anchor 组成 γ-Token Block，只更新并行 Backbone、顺序模块和 Confidence Head。训练将位置指数加权的 Cross-Entropy、Draft/Target 分布总变差和置信度 BCE 以 0.1/0.9/1.0 组合，前部位置权重更高；其中总变差直接对应理论接受率，置信度软标签同为 1−½‖p_d−p_t‖₁。"
+    }
+  },
+  "citations": [
+    "medusa",
+    "mtp",
+    "eagle",
+    "eagle-2",
+    "eagle-3",
+    "pard",
+    "diffuspec",
+    "specdiff-2",
+    "dflash",
+    "dflare",
+    "domino",
+    "specinfer",
+    "dart",
+    "ddtree",
+    "taps"
+  ],
+  "venue": "arXiv",
+  "date": "2026-07",
+  "url": "https://arxiv.org/abs/2607.05147",
+  "provenance": {
+    "legacyWorkbookRow": 13,
+    "workbookInstitutions": "未知（arXiv作者团队）"
+  },
+  "localPdf": "../Reference/DSpark.pdf"
+}

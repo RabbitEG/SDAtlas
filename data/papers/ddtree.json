@@ -1,0 +1,54 @@
+{
+  "id": "ddtree",
+  "index": 17,
+  "title": "Accelerating Speculative Decoding with Block Diffusion Draft Trees",
+  "shortName": "DDTree",
+  "authors": [
+    "Liran Ringel",
+    "Yaniv Romano"
+  ],
+  "methodOverview": "利用 DFlash 为各位置给出的边缘概率，通过 Best-First Search 在节点预算下选择代理路径概率最高的候选，并用仅允许访问祖先的 Attention Mask 一次 Verify 整棵树。",
+  "notes": [],
+  "institutionDetails": [
+    {
+      "name": "以色列理工学院（Technion）计算机科学系",
+      "order": 1,
+      "explanation": "主要作者所在院系；与下一顺位院系同属以色列理工学院。"
+    },
+    {
+      "name": "以色列理工学院（Technion）电气与计算机工程系",
+      "order": 2,
+      "explanation": "其他作者所在院系；两个院系实际属于同一个学校级机构。"
+    }
+  ],
+  "institutionSource": "https://arxiv.org/pdf/2604.12989",
+  "subproblemContributions": {
+    "B": {
+      "summary": "保留 DFlash 单次 Block-Diffusion 前向给出的逐位置边缘分布，不再将其压成一条 Top-1 序列；DDTree 以这些边缘分布的乘积构造因子化路径概率，并把替代期望接受长度分解为树中各前缀的概率质量之和。",
+      "detail": "保留 DFlash 单次 Block-Diffusion 前向给出的逐位置边缘分布，不再将其压成一条 Top-1 序列；DDTree 以这些边缘分布的乘积构造因子化路径概率，并把替代期望接受长度分解为树中各前缀的概率质量之和。在固定节点预算内，Best-First Search 直接选出概率最高且自动保持前缀闭合的候选树，无需额外 Drafter 前向或外部 N-gram 评分。\n\n把深度 d 的节点表示为各位置候选名次组成的元组，其分数是对应边缘概率乘积；Max-Heap 每弹出一个最高分前缀，只加入它的下一兄弟与最优孩子。该算法在 O(B log B) 时间内恢复 B 个最高概率前缀，并严格优化因子化 Draft 分布下的替代目标，而非声称获得不可用的 Target 路径概率。"
+    },
+    "C": {
+      "summary": "将所选树展平后按深度赋予 Position ID，并用仅允许节点关注根、祖先和自身的 Tree Attention Mask，在一次 Target 前向中为所有分支计算分数。",
+      "detail": "将所选树展平后按深度赋予 Position ID，并用仅允许节点关注根、祖先和自身的 Tree Attention Mask，在一次 Target 前向中为所有分支计算分数。Verifier 随 Target 自身的解码规则沿匹配子节点行走，首个未匹配 Token 成为下一轮 Bonus Token，KV Cache 只保留已接受路径。\n\n整棵候选树仅触发一次 Target 前向；祖先可见掩码隔离不同分支，节点预算 B 则直接限制进入 Verify 的 Token 数。匹配结束后压缩 KV Cache 到被接受的根到叶路径，使多分支覆盖不会污染后续上下文。"
+    }
+  },
+  "citations": [
+    "medusa",
+    "eagle",
+    "eagle-2",
+    "eagle-3",
+    "pard",
+    "dflash",
+    "specinfer",
+    "opt-tree",
+    "dart"
+  ],
+  "venue": "arXiv",
+  "date": "2026-04",
+  "url": "https://arxiv.org/abs/2604.12989",
+  "provenance": {
+    "legacyWorkbookRow": 17,
+    "workbookInstitutions": "未知（arXiv作者团队）"
+  },
+  "localPdf": "../Reference/DDTree.pdf"
+}

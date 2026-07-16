@@ -1,0 +1,53 @@
+{
+  "id": "opt-tree",
+  "index": 15,
+  "title": "OPT-Tree: Speculative Decoding with Adaptive Draft Tree Structure",
+  "shortName": "OPT-Tree",
+  "authors": [
+    "Jikai Wang",
+    "Yi Su",
+    "Juntao Li",
+    "Qingrong Xia",
+    "Zi Ye",
+    "Xinyu Duan",
+    "Zhefeng Wang",
+    "Min Zhang"
+  ],
+  "methodOverview": "将一条路径上 Drafter 的条件概率连乘，得到节点被接受的近似概率；随后在节点预算内选择使概率总和最大的前缀闭合树，使目标直接对应预期接受 Token 数。",
+  "notes": [],
+  "institutionDetails": [
+    {
+      "name": "苏州大学计算机科学与技术研究所",
+      "order": 1,
+      "explanation": "两位共同一作、通讯作者和末位作者所属单位。"
+    },
+    {
+      "name": "华为云",
+      "order": 2,
+      "explanation": "其他作者所属单位。"
+    }
+  ],
+  "institutionSource": "https://aclanthology.org/2025.tacl-1.8/",
+  "subproblemContributions": {
+    "B": {
+      "summary": "对任意自回归 Drafter，OPT-Tree 将每个节点沿 Root 路径的概率乘积 p̂ 视作该 Prefix 的命中概率，并把期望接受长度近似为全树 Σp̂。",
+      "detail": "对任意自回归 Drafter，OPT-Tree 将每个节点沿 Root 路径的概率乘积 p̂ 视作该 Prefix 的命中概率，并把期望接受长度近似为全树 Σp̂。每个 Draft 步在当前叶节点的后继分布中选全局 p̂ 最大的 n 个节点扩下一层，停止后再从累计搜索树取 p̂ 最大的 n 个节点；这些节点必然组成含 Root 的子树，在给定节点预算下最大化该目标，并随当前上下文重新形成树形。\n\n以 Drafter 概率沿路径连乘得到节点 p̂，再将所有候选节点的 p̂ 求和作为期望接受长度代理；扩树与最终 Top-n 选择都按 p̂ 全局排序。父节点 p̂ 必不小于子节点，因此选出的高分节点天然保持连通，在相同节点数下可随上下文把宽度和深度分配给更可能命中的分支。"
+    },
+    "C": {
+      "summary": "Verify 端只接收最终 n 节点子树，并用对应 Tree Attention Mask 在一次 Target 前向中取得每个节点的后继，返回最长命中分支再加一枚 Target Token；共享 Prefix 只占一个节点。",
+      "detail": "Verify 端只接收最终 n 节点子树，并用对应 Tree Attention Mask 在一次 Target 前向中取得每个节点的后继，返回最长命中分支再加一枚 Target Token；共享 Prefix 只占一个节点。n 可按 Target 与 GPU 的并行平台选取，δ 又在 Draft 深度上剔除期望增益低于额外 Draft 时间比的层，避免更深树的额外开销抵消接受收益。"
+    }
+  },
+  "citations": [
+    "medusa",
+    "eagle"
+  ],
+  "venue": "TACL 2025",
+  "date": "2025-02",
+  "url": "https://aclanthology.org/2025.tacl-1.8/",
+  "provenance": {
+    "legacyWorkbookRow": 15,
+    "workbookInstitutions": "未知（arXiv作者团队）"
+  },
+  "localPdf": "../Reference/OPTTree.pdf"
+}

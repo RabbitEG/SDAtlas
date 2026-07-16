@@ -1,0 +1,54 @@
+{
+  "id": "pard",
+  "index": 7,
+  "title": "PARD: Accelerating LLM Inference with Low-Cost PARallel Draft Model Adaptation",
+  "shortName": "PARD",
+  "authors": [
+    "Zihao An",
+    "Huajun Bai",
+    "Ziqiong Liu",
+    "Dong Li",
+    "Emad Barsoum"
+  ],
+  "methodOverview": "把已有小型自回归模型低成本改造成一次预测多个位置的并行 Drafter，使同一个 Drafter 可以服务一族 Target。Conditional Drop-token 在 Training 时跳过部分不必要 Token，同时维持 KV Prefix 的完整性。",
+  "notes": [],
+  "institutionDetails": [
+    {
+      "name": "AMD",
+      "order": 1,
+      "explanation": "全部作者的主要单位。"
+    },
+    {
+      "name": "清华大学",
+      "order": 2,
+      "explanation": "共同一作胡佳俊的联合单位。"
+    }
+  ],
+  "institutionSource": "https://arxiv.org/pdf/2504.18583",
+  "subproblemContributions": {
+    "A": {
+      "summary": "PARD 从同系列中能力较强的小型自回归模型出发，用 Mask Token 代替块内的未来依赖，使各位置只条件于已知前缀和占位符，从而在一次 Drafter 前向中并行提出多个未来 Token。",
+      "detail": "PARD 从同系列中能力较强的小型自回归模型出发，用 Mask Token 代替块内的未来依赖，使各位置只条件于已知前缀和占位符，从而在一次 Drafter 前向中并行提出多个未来 Token。它不读取 Target 特征，只需低成本适配系列中最小模型，一个 Drafter 即可复用于同系列不同规模的 Target；COD 训练又通过保留完整前缀 KV 状态把适配成本从 O(NK) 降至 O(N)。\n\n以共享 Mask Token 占据未来位置后，各候选之间不再互相依赖，K 个 Token 可由一次并行前向提出，将 Drafter 开销从 K 次前向的 K·T_D 降为 T_D。该设计的 Draft 显存带宽开销不随 K 增长，并可直接接入 vLLM 的链式投机解码。\n\nPARD 继承同系列预训练小模型的语言能力，而非从头训练轻量预测头；COD 优先保留更关键的近端预测并确保每个样本的前缀 KV 上下文完整，以在稀疏训练下维持多位置候选质量。所有位置共享同一 Mask Token 还比位置专属 ID 提高预测一致性，并支持推理时使用大于训练值的 Draft 长度。"
+    },
+    "E": {
+      "summary": "Mask 训练原本要把长度 N 的样本展开为 K 个预测子任务；COD 对第 i 个子任务按 max(r^(i−1), r_min) 保留位置，且只保留拥有完整前缀 Key/Value 的 Token，将训练量压到小于 N/(1−r)。",
+      "detail": "Mask 训练原本要把长度 N 的样本展开为 K 个预测子任务；COD 对第 i 个子任务按 max(r^(i−1), r_min) 保留位置，且只保留拥有完整前缀 Key/Value 的 Token，将训练量压到小于 N/(1−r)。论文采用 K=8、r=0.7、r_min=0.2，在不降低最终推理速度的前提下较完整 Mask 训练提速约 3 倍，并省去为每个 Target 分别训练 Drafter 的成本。"
+    }
+  },
+  "citations": [
+    "medusa",
+    "mtp",
+    "eagle",
+    "eagle-2",
+    "eagle-3",
+    "specinfer"
+  ],
+  "venue": "ICLR 2026",
+  "date": "2026-04",
+  "url": "https://openreview.net/forum?id=XbOyv7iVGL",
+  "provenance": {
+    "legacyWorkbookRow": 7,
+    "workbookInstitutions": "香港中文大学（深圳）、其他合作单位"
+  },
+  "localPdf": "../Reference/PARD.pdf"
+}

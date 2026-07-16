@@ -1,4 +1,4 @@
-/* Boolean set explorer for mixed major-category and tag selections. */
+/* Boolean explorer for the unified A–E subproblem taxonomy. */
 (function () {
   "use strict";
 
@@ -6,144 +6,117 @@
   var data = ui.data;
   var params = new URLSearchParams(window.location.search);
   var state = {
-    major: new Set(),
-    tags: new Set(),
+    subproblems: new Set(),
     mode: params.get("mode") === "intersection" ? "intersection" : "union",
     query: "",
     sort: "index"
   };
 
-  function parseSelection(name, resolver, target) {
-    var raw = params.get(name);
-    if (!raw) return;
-    raw.split(",").forEach(function (value) {
-      var item = resolver(value);
-      if (item) target.add(item.code);
-    });
-  }
+  var initial = params.get("subproblem") || params.get("question") || "";
+  initial.split(",").filter(Boolean).forEach(function (value) {
+    var item = ui.getSubproblem(value);
+    if (item) state.subproblems.add(item.code);
+  });
 
-  parseSelection("major", ui.getCategory, state.major);
-  parseSelection("tag", ui.getTag, state.tags);
-
-  function optionMarkup(item, type, count) {
-    var selected = (type === "major" ? state.major : state.tags).has(item.code);
-    var id = "filter-" + type + "-" + item.code;
-    var title = type === "major"
-      ? item.name
-      : item.name + " · " + item.zhName;
-    var subtitle = type === "major" ? item.question : item.description;
+  function optionMarkup(item) {
+    var selected = state.subproblems.has(item.code);
+    var id = "filter-subproblem-" + item.code;
     return [
       "<label class=\"filter-option\" style=\"" + ui.itemStyle(item) + "\" for=\"" + id + "\">",
-      "<input id=\"" + id + "\" type=\"checkbox\" data-filter-type=\"" + type + "\" value=\"" +
+      "<input id=\"" + id + "\" type=\"checkbox\" data-subproblem value=\"" +
         ui.escapeHtml(item.code) + "\"" + (selected ? " checked" : "") + ">",
       "<span class=\"option-check\" aria-hidden=\"true\"></span><span class=\"option-code\">" +
-        ui.escapeHtml(item.code) + "</span><span class=\"option-copy\"><strong>" + ui.escapeHtml(title) +
-        "</strong><small class=\"math-rich-text\">" + ui.renderMathText(subtitle) +
-        "</small></span><em>" + count + "</em></label>"
+        ui.escapeHtml(item.code) + "</span><span class=\"option-copy\"><strong>" +
+        ui.escapeHtml(item.name) + "</strong><small class=\"math-rich-text\">" +
+        ui.renderMathText(item.question) + "</small></span><em>" +
+        ui.papersForSubproblem(item.code).length + "</em></label>"
     ].join("");
   }
 
   function renderOptions() {
-    document.getElementById("major-options").innerHTML = data.categories.map(function (item) {
-      return optionMarkup(item, "major", ui.papersForCategory(item.code).length);
-    }).join("");
-    document.getElementById("tag-options").innerHTML = data.tags.map(function (item) {
-      return optionMarkup(item, "tag", ui.papersForTag(item.code).length);
-    }).join("");
+    document.getElementById("subproblem-options").innerHTML = data.subproblems.map(optionMarkup).join("");
     var modeInput = document.querySelector("input[name=\"mode\"][value=\"" + state.mode + "\"]");
     if (modeInput) modeInput.checked = true;
   }
 
-  function selectedCodes() {
-    return Array.from(state.major).concat(Array.from(state.tags));
-  }
-
   function matchesFilters(paper) {
-    var checks = [];
-    state.major.forEach(function (code) { checks.push(paper.categoryCodes.indexOf(code) !== -1); });
-    state.tags.forEach(function (code) { checks.push(paper.tagCodes.indexOf(code) !== -1); });
-    if (!checks.length) return true;
-    return state.mode === "intersection"
-      ? checks.every(Boolean)
-      : checks.some(Boolean);
-  }
-
-  function sortedPapers(papers) {
-    return papers.slice().sort(function (a, b) {
-      if (state.sort === "newest") return b.date.localeCompare(a.date) || a.index - b.index;
-      if (state.sort === "name") return a.shortName.localeCompare(b.shortName, "en") || a.index - b.index;
-      return a.index - b.index;
+    var checks = Array.from(state.subproblems).map(function (code) {
+      return paper.subproblemCodes.indexOf(code) !== -1;
     });
-  }
-
-  function filterChip(item, type) {
-    return "<button class=\"active-filter-chip\" type=\"button\" style=\"" + ui.itemStyle(item) +
-      "\" data-remove-type=\"" + type + "\" data-remove-code=\"" + ui.escapeHtml(item.code) +
-      "\"><strong>" + ui.escapeHtml(item.code) + "</strong><span>" +
-      ui.escapeHtml(type === "major" ? item.shortName : item.name) + "</span><i aria-hidden=\"true\">×</i></button>";
+    if (!checks.length) return true;
+    return state.mode === "intersection" ? checks.every(Boolean) : checks.some(Boolean);
   }
 
   function renderActiveFilters() {
     var container = document.getElementById("active-filters");
-    var chips = [];
-    state.major.forEach(function (code) { chips.push(filterChip(ui.getCategory(code), "major")); });
-    state.tags.forEach(function (code) { chips.push(filterChip(ui.getTag(code), "tag")); });
-    if (!chips.length) {
+    if (!state.subproblems.size) {
       container.innerHTML = "<span class=\"all-papers-note\"><i aria-hidden=\"true\"></i> 全部论文</span>";
       return;
     }
     var relation = state.mode === "intersection" ? "且 · AND" : "或 · OR";
+    var chips = Array.from(state.subproblems).map(function (code) {
+      var item = ui.getSubproblem(code);
+      return "<button class=\"active-filter-chip\" type=\"button\" style=\"" + ui.itemStyle(item) +
+        "\" data-remove-code=\"" + ui.escapeHtml(code) + "\"><strong>" + ui.escapeHtml(code) +
+        "</strong><span>" + ui.escapeHtml(item.shortName) + "</span><i aria-hidden=\"true\">×</i></button>";
+    });
     container.innerHTML = "<span class=\"relation-badge\">" + relation + "</span>" + chips.join("");
   }
 
   function updateUrl() {
     var next = new URLSearchParams();
-    if (state.major.size) next.set("major", Array.from(state.major).join(","));
-    if (state.tags.size) next.set("tag", Array.from(state.tags).join(","));
-    if (selectedCodes().length) next.set("mode", state.mode);
+    if (state.subproblems.size) next.set("subproblem", Array.from(state.subproblems).join(","));
+    if (state.subproblems.size) next.set("mode", state.mode);
     var query = next.toString();
     try {
       window.history.replaceState(null, "", window.location.pathname + (query ? "?" + query : ""));
     } catch (error) {
-      /* Some hardened file:// environments disallow replaceState; filtering still works. */
+      /* Some hardened file:// environments disallow replaceState. */
     }
   }
 
-  function renderResults() {
-    var matched = sortedPapers(data.papers.filter(function (paper) {
+  function renderGraph(papers) {
+    if (window.SDAtlasCitationGraph) {
+      window.SDAtlasCitationGraph.render(document.getElementById("citation-graph"), papers, {
+        title: "当前筛选结果的引用关系"
+      });
+    }
+  }
+
+  function matchedPapers() {
+    return ui.sortPapers(data.papers.filter(function (paper) {
       return matchesFilters(paper) && ui.paperMatchesText(paper, state.query);
-    }));
+    }), state.sort);
+  }
+
+  function renderResults() {
+    var matched = matchedPapers();
     document.getElementById("result-count").textContent = matched.length;
     document.getElementById("explorer-results").innerHTML = matched.length
       ? matched.map(function (paper) {
         return ui.paperCard(paper, {
-          filters: {
-            majorCodes: Array.from(state.major),
-            tagCodes: Array.from(state.tags),
-            mode: state.mode
-          }
+          filters: { subproblemCodes: Array.from(state.subproblems), mode: state.mode }
         });
       }).join("")
       : ui.emptyState("没有匹配论文", state.mode === "intersection"
         ? "当前交集没有匹配论文。"
         : "当前并集与搜索条件没有匹配论文。",
         "<button class=\"button button-secondary\" type=\"button\" id=\"empty-clear\">清除全部条件</button>");
-    var emptyClear = document.getElementById("empty-clear");
-    if (emptyClear) emptyClear.addEventListener("click", clearAll);
+    renderGraph(matched);
     renderActiveFilters();
     updateUrl();
+    var emptyClear = document.getElementById("empty-clear");
+    if (emptyClear) emptyClear.addEventListener("click", clearAll);
   }
 
   function syncCheckboxes() {
-    document.querySelectorAll("[data-filter-type]").forEach(function (input) {
-      var set = input.getAttribute("data-filter-type") === "major" ? state.major : state.tags;
-      input.checked = set.has(input.value);
+    document.querySelectorAll("[data-subproblem]").forEach(function (input) {
+      input.checked = state.subproblems.has(input.value);
     });
   }
 
   function clearAll() {
-    state.major.clear();
-    state.tags.clear();
+    state.subproblems.clear();
     state.query = "";
     document.getElementById("result-search").value = "";
     syncCheckboxes();
@@ -156,9 +129,9 @@
 
   document.querySelector(".filter-panel").addEventListener("change", function (event) {
     var input = event.target;
-    if (input.matches("[data-filter-type]")) {
-      var set = input.getAttribute("data-filter-type") === "major" ? state.major : state.tags;
-      if (input.checked) set.add(input.value); else set.delete(input.value);
+    if (input.matches("[data-subproblem]")) {
+      if (input.checked) state.subproblems.add(input.value);
+      else state.subproblems.delete(input.value);
       renderResults();
     }
     if (input.name === "mode") {
@@ -170,12 +143,10 @@
   document.getElementById("active-filters").addEventListener("click", function (event) {
     var button = event.target.closest("[data-remove-code]");
     if (!button) return;
-    var set = button.getAttribute("data-remove-type") === "major" ? state.major : state.tags;
-    set.delete(button.getAttribute("data-remove-code"));
+    state.subproblems.delete(button.getAttribute("data-remove-code"));
     syncCheckboxes();
     renderResults();
   });
-
   document.getElementById("clear-filters").addEventListener("click", clearAll);
   document.getElementById("result-search").addEventListener("input", function (event) {
     state.query = event.target.value.trim();
