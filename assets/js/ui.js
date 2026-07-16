@@ -121,6 +121,43 @@
     }).join("");
   }
 
+  /*
+   * Institution records are maintained as ordered, independently explainable
+   * entries in data/catalog.json. Reusing the site's delegated tooltip keeps
+   * mouse, keyboard and touch-adjacent focus behavior consistent with tags.
+   */
+  function institutionList(paper) {
+    var details = paper.institutionDetails || [];
+    if (!details.length) return "<p>" + escapeHtml(paper.institutions) + "</p>";
+
+    var previousOrder = null;
+    var chips = details.map(function (item) {
+      var order = Number(item.order);
+      var separator = previousOrder !== null && previousOrder !== order
+        ? "<span class=\"institution-arrow\" aria-hidden=\"true\">→</span>"
+        : "";
+      previousOrder = order;
+      return [
+        separator,
+        "<span class=\"institution-chip\" tabindex=\"0\" data-order=\"" + escapeHtml(order) + "\"",
+        " data-tooltip=\"顺位 " + escapeHtml(order) + "｜" + escapeHtml(item.explanation) + "\">",
+        "<span class=\"institution-chip__order\" aria-hidden=\"true\">" + escapeHtml(order) + "</span>",
+        "<span>" + escapeHtml(item.name) + "</span></span>"
+      ].join("");
+    }).join("");
+    var sourceLink = paper.institutionSource
+      ? "<a class=\"institution-source\" href=\"" + escapeHtml(paper.institutionSource) +
+        "\" target=\"_blank\" rel=\"noopener\">单位依据 <span aria-hidden=\"true\">↗</span></a>"
+      : "";
+    var ordering = data.meta.institutionOrdering || {};
+
+    return [
+      "<div class=\"institution-list\" aria-label=\"按贡献重要性排序的研究单位\">" + chips + "</div>",
+      "<div class=\"institution-meta\"><small>" + escapeHtml(ordering.note || "顺位仅表示近似排序。") +
+        "</small>" + sourceLink + "</div>"
+    ].join("");
+  }
+
   function categoryContributionPanels(paper, highlightedCode) {
     return paper.categoryCodes.map(function (code) {
       var category = getCategory(code);
@@ -249,8 +286,9 @@
         escapeHtml(paper.index) + "</p></div>",
       "<div class=\"paper-field\"><span class=\"field-label\">简称</span><p>" +
         escapeHtml(paper.shortName) + "</p></div>",
-      "<div class=\"paper-field paper-field--wide paper-field--row-end\"><span class=\"field-label\">相关单位</span><p>" +
-        escapeHtml(paper.institutions) + "</p></div>",
+      "<div class=\"paper-field paper-field--wide paper-field--row-end paper-field--institutions\"><span class=\"field-label\">研究单位 · 按贡献重要性排序 · 悬停看说明</span>" +
+        institutionList(paper) + "<small class=\"raw-value\">原 Excel D 列：" +
+        escapeHtml(paper.workbookInstitutions) + "</small></div>",
       "<div class=\"paper-field paper-field--full paper-field--row-end\"><span class=\"field-label\">论文完整标题</span><p>" +
         escapeHtml(paper.title) + "</p></div>",
       "<div class=\"paper-field paper-field--wide\"><span class=\"field-label\">大类别 · Excel E 列</span><div class=\"chip-row\">" +
@@ -279,6 +317,9 @@
   function paperMatchesText(paper, query) {
     var q = normalize(query);
     if (!q) return true;
+    var institutionText = (paper.institutionDetails || []).map(function (item) {
+      return [item.name, item.order, item.explanation].join(" ");
+    }).join(" ");
     var categoryNames = paper.categoryCodes.map(function (code) {
       var item = getCategory(code);
       return item.name + " " + item.shortName;
@@ -289,6 +330,7 @@
     });
     return normalize([
       paper.index, paper.title, paper.shortName, paper.institutions,
+      paper.workbookInstitutions, institutionText,
       paper.venue, paper.date, paper.url, paper.categoryCodes.join(" "),
       paper.workbookTags.join(" "), paper.tagCodes.join(" "),
       categoryNames.join(" "), tagNames.join(" ")
@@ -315,7 +357,7 @@
       "<nav class=\"site-nav\" aria-label=\"主导航\">",
       navLink("index.html", "atlas", "分类图谱"),
       navLink("explorer.html", "explorer", "组合筛选"),
-      "<a href=\"" + escapeHtml(data.meta.sourceWorkbook) + "\" download>源表格</a>",
+      "<a href=\"" + escapeHtml(data.meta.catalogFile) + "\" download>合并数据</a>",
       "</nav></div>"
     ].join("");
   }
@@ -325,7 +367,7 @@
       "<div class=\"footer-grid\"><a class=\"brand brand--footer\" href=\"index.html\">",
       "<span class=\"brand-mark\" aria-hidden=\"true\"><i></i><i></i><i></i></span>",
       "<span><strong>SDAtlas</strong><small>RESEARCH NAVIGATOR</small></span></a>",
-      "<p>大类别来自 Excel E 列；小标签及贡献说明来自 tag.txt。Excel F 列只作为原始条目展示。</p>",
+      "<p>合并目录对齐 Excel 原始条目、tag.txt 小标签与分层单位信息；Excel D / F 列原值保留用于追溯。</p>",
       "<p class=\"footer-meta\">DATASET · " + escapeHtml(data.meta.updated) + "<br>SCHEMA · v" +
         escapeHtml(data.schemaVersion) + "</p></div>"
     ].join("");

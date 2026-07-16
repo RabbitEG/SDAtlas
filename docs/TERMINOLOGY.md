@@ -46,8 +46,9 @@
 python3 SDAtlas/scripts/check_terminology.py
 ```
 
-检查器只依赖 Python 标准库，并从 `scripts/terminology.json` 读取规则。它会结构化读取 `data.js`，因此允许论文原标题和 Excel 原始字段保留来源用词，同时检查所有会被页面渲染的 SDAtlas 自有贡献文案。修改目录时还应一并运行：
+检查器只依赖 Python 标准库，并从 `scripts/terminology.json` 读取规则。它会结构化读取唯一维护源 `data/catalog.json`，因此允许论文原标题和 Excel 原始字段保留来源用词，同时检查所有会被页面渲染的 SDAtlas 自有贡献文案与单位说明。修改目录时应先同步运行文件，再执行检查：
 
 ```bash
+python3 SDAtlas/scripts/sync_catalog.py
 python3 SDAtlas/scripts/validate_catalog.py
 ```

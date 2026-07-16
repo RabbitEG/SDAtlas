@@ -21,23 +21,22 @@ from typing import Dict, Iterable, List, Tuple
 
 
 ROOT = Path(__file__).resolve().parents[1]
-CATALOG_PATH = ROOT / "assets" / "js" / "data.js"
+CATALOG_PATH = ROOT / "data" / "catalog.json"
+RUNTIME_CATALOG_PATH = ROOT / "assets" / "js" / "data.js"
 GLOSSARY_PATH = ROOT / "scripts" / "terminology.json"
 TAG_PATH = ROOT / "tag.txt"
 
 
 def load_catalog() -> dict:
-    source = CATALOG_PATH.read_text(encoding="utf-8")
-    match = re.search(r"window\.SD_ATLAS_DATA\s*=\s*(\{.*\})\s*;\s*$", source, re.S)
-    if not match:
-        raise ValueError("data.js must contain one strict-JSON window.SD_ATLAS_DATA assignment")
-    return json.loads(match.group(1))
+    return json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
 
 
 def iter_catalog_prose(catalog: dict) -> Iterable[Tuple[str, str]]:
     """Yield only authored, user-facing prose; source fields stay untouched."""
     meta = catalog.get("meta", {})
     yield "meta.subtitle", str(meta.get("subtitle", ""))
+    ordering = meta.get("institutionOrdering", {})
+    yield "meta.institutionOrdering.note", str(ordering.get("note", ""))
 
     for index, category in enumerate(catalog.get("categories", [])):
         for field in ("name", "shortName", "question", "description"):
@@ -54,6 +53,11 @@ def iter_catalog_prose(catalog: dict) -> Iterable[Tuple[str, str]]:
                 yield f"papers[{index}].{field}.{code}", str(text)
         if paper.get("localPdfNote"):
             yield f"papers[{index}].localPdfNote", str(paper["localPdfNote"])
+        for detail_index, detail in enumerate(paper.get("institutionDetails", [])):
+            yield (
+                f"papers[{index}].institutionDetails[{detail_index}].explanation",
+                str(detail.get("explanation", "")),
+            )
 
 
 def line_number(source: str, offset: int) -> int:
@@ -121,8 +125,8 @@ def main() -> int:
 
     errors = []  # type: List[str]
     for label, text in iter_catalog_prose(catalog):
-        errors.extend(check_fragments(f"assets/js/data.js:{label}", text, ui_fragments))
-        errors.extend(check_english_case(f"assets/js/data.js:{label}", text, case_map))
+        errors.extend(check_fragments(f"data/catalog.json:{label}", text, ui_fragments))
+        errors.extend(check_english_case(f"data/catalog.json:{label}", text, case_map))
 
     errors.extend(check_text_file(TAG_PATH, ui_fragments, case_map, formula_exceptions=True))
 
@@ -131,7 +135,7 @@ def main() -> int:
     for path in sorted(ROOT.glob("*.html")):
         errors.extend(check_text_file(path, ui_fragments))
     for path in sorted((ROOT / "assets" / "js").glob("*.js")):
-        if path != CATALOG_PATH:
+        if path != RUNTIME_CATALOG_PATH:
             errors.extend(check_text_file(path, ui_fragments))
 
     # Documentation uses “验证” legitimately for data validation, so only the
