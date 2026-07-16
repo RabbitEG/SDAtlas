@@ -89,7 +89,7 @@
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
   gap: 9px;
-  align-items: center;
+  align-items: start;
   min-width: 0;
   color: var(--ink-2);
   font-size: 13px;
@@ -104,10 +104,9 @@
 }
 
 .paper-context-summary > span {
-  display: -webkit-box;
-  overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  display: block;
+  overflow: visible;
+  white-space: normal;
 }
 
 .paper-summary__institutions {

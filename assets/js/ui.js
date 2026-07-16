@@ -178,15 +178,12 @@
   }
 
   /*
-   * Keep the closed-card description genuinely contextual without duplicating
-   * another summary field in data.js. The first clause of a maintained
-   * contribution note is its high-level method; the complete note remains in
-   * the expanded contribution panels below.
+   * Contribution text is maintained directly in categoryContributions and
+   * tagContributions. Normalize whitespace for the closed card, but preserve
+   * every sentence instead of manufacturing a shortened copy with an ellipsis.
    */
-  function conciseContribution(value) {
-    var text = String(value == null ? "" : value).replace(/\s+/g, " ").trim();
-    var firstClause = text.split(/[，,；;。]/)[0] || text;
-    return firstClause.length > 52 ? firstClause.slice(0, 51) + "…" : firstClause;
+  function completeContribution(value) {
+    return String(value == null ? "" : value).replace(/\s+/g, " ").trim();
   }
 
   function paperContextSummary(paper, options) {
@@ -198,14 +195,14 @@
       if (paper.categoryCodes.indexOf(code) === -1) return;
       var category = getCategory(code);
       if (!category) return;
-      parts.push(category.shortName + "：" + conciseContribution(categoryContribution(paper, code)));
+      parts.push(category.shortName + "：" + completeContribution(categoryContribution(paper, code)));
     }
 
     function addTag(code) {
       if (paper.tagCodes.indexOf(code) === -1) return;
       var tag = getTag(code);
       if (!tag) return;
-      parts.push(tag.name + "：" + conciseContribution(tagContribution(paper, code)));
+      parts.push(tag.name + "：" + completeContribution(tagContribution(paper, code)));
     }
 
     if (options.kind === "major") {
@@ -225,11 +222,9 @@
        paper through its maintained major-category notes. */
     if (!parts.length) paper.categoryCodes.forEach(addMajor);
 
-    var visibleParts = parts.slice(0, 3);
-    var overflow = parts.length - visibleParts.length;
     return {
       label: label,
-      text: visibleParts.join("；") + (overflow > 0 ? "；另涉及 " + overflow + " 个方向" : "")
+      text: parts.join("；")
     };
   }
 
