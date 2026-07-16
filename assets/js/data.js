@@ -136,7 +136,7 @@ window.SD_ATLAS_DATA = {
         "specinfer"
       ],
       "venue": "ICML 2024",
-      "date": "2024-07",
+      "date": "2024-01",
       "url": "https://proceedings.mlr.press/v235/cai24b.html",
       "provenance": {
         "legacyWorkbookRow": 1,
@@ -225,7 +225,7 @@ window.SD_ATLAS_DATA = {
         "medusa"
       ],
       "venue": "ICML 2024",
-      "date": "2024-07",
+      "date": "2024-04",
       "url": "https://proceedings.mlr.press/v235/gloeckle24a.html",
       "provenance": {
         "legacyWorkbookRow": 2,
@@ -295,7 +295,7 @@ window.SD_ATLAS_DATA = {
         "specinfer"
       ],
       "venue": "ICML 2024",
-      "date": "2024-07",
+      "date": "2024-01",
       "url": "https://proceedings.mlr.press/v235/li24bt.html",
       "provenance": {
         "legacyWorkbookRow": 3,
@@ -382,7 +382,7 @@ window.SD_ATLAS_DATA = {
         "eagle"
       ],
       "venue": "EMNLP 2024",
-      "date": "2024-11",
+      "date": "2024-06",
       "url": "https://aclanthology.org/2024.emnlp-main.422/",
       "provenance": {
         "legacyWorkbookRow": 4,
@@ -467,7 +467,7 @@ window.SD_ATLAS_DATA = {
         "eagle-2"
       ],
       "venue": "NeurIPS 2025",
-      "date": "2025-12",
+      "date": "2025-03",
       "url": "https://proceedings.neurips.cc/paper_files/paper/2025/hash/c7b5a35ea98b62512a869c19ea7b03cb-Abstract-Conference.html",
       "provenance": {
         "legacyWorkbookRow": 5,
@@ -598,7 +598,7 @@ window.SD_ATLAS_DATA = {
         "specinfer"
       ],
       "venue": "ICLR 2026",
-      "date": "2026-04",
+      "date": "2025-04",
       "url": "https://openreview.net/forum?id=XbOyv7iVGL",
       "provenance": {
         "legacyWorkbookRow": 7,
@@ -673,7 +673,7 @@ window.SD_ATLAS_DATA = {
         "specinfer"
       ],
       "venue": "Findings of ACL 2026",
-      "date": "2026-07",
+      "date": "2025-09",
       "url": "https://aclanthology.org/2026.findings-acl.1048/",
       "provenance": {
         "legacyWorkbookRow": 8,
@@ -736,7 +736,7 @@ window.SD_ATLAS_DATA = {
         "eagle-3"
       ],
       "venue": "MLSys 2026",
-      "date": "2026-05",
+      "date": "2025-11",
       "url": "https://arxiv.org/abs/2511.00606",
       "provenance": {
         "legacyWorkbookRow": 9,
@@ -796,7 +796,7 @@ window.SD_ATLAS_DATA = {
         "specdiff-2"
       ],
       "venue": "ICML 2026",
-      "date": "2026-07",
+      "date": "2026-02",
       "url": "https://arxiv.org/abs/2602.06036",
       "explanationPage": "explanations/DFlash.html",
       "provenance": {
@@ -1157,7 +1157,7 @@ window.SD_ATLAS_DATA = {
       },
       "citations": [],
       "venue": "ASPLOS 2024",
-      "date": "2024-04",
+      "date": "2023-05",
       "url": "https://dl.acm.org/doi/10.1145/3620666.3651335",
       "provenance": {
         "legacyWorkbookRow": 14,
@@ -1235,7 +1235,7 @@ window.SD_ATLAS_DATA = {
         "eagle"
       ],
       "venue": "TACL 2025",
-      "date": "2025-02",
+      "date": "2024-06",
       "url": "https://aclanthology.org/2025.tacl-1.8/",
       "provenance": {
         "legacyWorkbookRow": 15,
@@ -1485,7 +1485,7 @@ window.SD_ATLAS_DATA = {
         "specinfer"
       ],
       "venue": "ECCV 2026",
-      "date": "2026-09",
+      "date": "2026-04",
       "url": "https://arxiv.org/abs/2604.09731",
       "provenance": {
         "legacyWorkbookRow": 19,
@@ -1551,7 +1551,7 @@ window.SD_ATLAS_DATA = {
         "specinfer"
       ],
       "venue": "COLM 2026",
-      "date": "2026-10",
+      "date": "2026-07",
       "url": "https://arxiv.org/abs/2607.10661",
       "provenance": {
         "legacyWorkbookRow": 20,
@@ -1616,7 +1616,7 @@ window.SD_ATLAS_DATA = {
         "specinfer"
       ],
       "venue": "ICLR 2026 Poster",
-      "date": "2026-04",
+      "date": "2026-03",
       "url": "https://openreview.net/forum?id=aL1Wnml9Ef",
       "localPdf": "../Reference/Speculative_Speculative_Decoding.pdf",
       "provenance": {
@@ -1727,7 +1727,7 @@ window.SD_ATLAS_DATA = {
         "opt-tree"
       ],
       "venue": "Findings of ACL 2026",
-      "date": "2026-07",
+      "date": "2025-05",
       "url": "https://aclanthology.org/2026.findings-acl.2153/",
       "localPdf": "../Reference/SpecExtend.pdf",
       "provenance": {

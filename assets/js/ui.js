@@ -594,13 +594,6 @@
     ].join("");
   }
 
-  function paperTile(paper, subproblemCode) {
-    var contribution = subproblemCode ? subproblemContribution(paper, subproblemCode).summary : paper.methodOverview;
-    return "<a class=\"paper-tile\" href=\"" + paperHref(paper.id) + "\" data-tooltip=\"" +
-      ui.escapeHtml(contribution) + "\"><strong>" + ui.escapeHtml(paper.shortName) + "</strong>" +
-      "<small>" + ui.escapeHtml(paper.date.slice(0, 4)) + "</small></a>";
-  }
-
   function paperMatchesText(paper, query) {
     var q = ui.normalize(query);
     if (!q) return true;
@@ -679,7 +672,6 @@
   ui.contributionPanels = contributionPanels;
   ui.contextualContribution = contextualContribution;
   ui.paperCard = paperCard;
-  ui.paperTile = paperTile;
   ui.paperMatchesText = paperMatchesText;
   ui.sortPapers = sortPapers;
   ui.mountChrome = mountChrome;

@@ -7,16 +7,6 @@
   var paper = ui.getPaper(params.get("id") || "");
   var root = document.getElementById("paper-page");
 
-  function paperLinks(ids, relation) {
-    if (!ids.length) {
-      return "<p class=\"citation-empty\">当前图谱中尚无已记录的" + relation + "关系。</p>";
-    }
-    return "<div class=\"citation-paper-list\">" + ids.map(function (id) {
-      var related = ui.getPaper(id);
-      return related ? ui.paperTile(related) : "";
-    }).join("") + "</div>";
-  }
-
   function notes() {
     if (!paper.notes.length) return "<p class=\"empty-note\">暂无研究笔记。</p>";
     return "<ul class=\"paper-page-notes\">" + paper.notes.map(function (note) {
@@ -94,11 +84,8 @@
 
       "<section class=\"section section--tinted paper-citation-area\"><div class=\"page-shell\">",
       "<header class=\"section-heading\"><p class=\"section-index\">CITATION GRAPH</p><h2>引用关系</h2>" +
-        "<p>箭头从引用者指向被引用论文；仅展示当前图谱已核实的内部关系。</p></header>",
+        "<p>图中从右向左表示引用方向，并自动省略可由其他路径表达的传递边。</p></header>",
       "<div id=\"citation-graph\"></div>",
-      "<div class=\"citation-relations\"><article><h3>引用了 · " + paper.citations.length + "</h3>" +
-        paperLinks(paper.citations, "引用") + "</article><article><h3>被引用 · " + paper.citedBy.length + "</h3>" +
-        paperLinks(paper.citedBy, "被引用") + "</article></div>",
       "</div></section>"
     ].join("");
     renderGraph();
