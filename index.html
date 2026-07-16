@@ -28,7 +28,24 @@
         <div class="hero-side">
           <div class="formula-card" aria-label="投机解码每 token 延迟近似公式">
             <span class="formula-label">OPTIMIZATION LENS</span>
-            <div class="formula"><i>t</i><sub>token</sub><span>≈</span><span class="fraction"><b><i>T</i><sub>draft</sub> + <i>T</i><sub>verify</sub> + <i>T</i><sub>system</sub></b><b>τ</b></span></div>
+            <div class="formula">
+              <math aria-label="t token 约等于 Draft、Verify 与系统时间之和除以接受长度 tau">
+                <mrow>
+                  <msub><mi>t</mi><mtext>token</mtext></msub>
+                  <mo>≈</mo>
+                  <mfrac>
+                    <mrow>
+                      <msub><mi>T</mi><mtext>draft</mtext></msub>
+                      <mo>+</mo>
+                      <msub><mi>T</mi><mtext>verify</mtext></msub>
+                      <mo>+</mo>
+                      <msub><mi>T</mi><mtext>system</mtext></msub>
+                    </mrow>
+                    <mi>τ</mi>
+                  </mfrac>
+                </mrow>
+              </math>
+            </div>
           </div>
           <dl class="hero-stats" id="hero-stats" aria-label="数据集统计"></dl>
         </div>

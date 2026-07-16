@@ -75,6 +75,29 @@ svg {
   outline-offset: 3px;
 }
 
+/* Native MathML keeps formulae correct in file:// and offline deployments.
+   The small baseline adjustment lets inline equations sit naturally inside
+   Chinese prose without changing paragraph line-height. */
+.math-rich-text math.math-inline {
+  display: inline-block;
+  max-width: 100%;
+  margin-inline: 0.06em;
+  font-family: "STIX Two Math", "Cambria Math", "Latin Modern Math", "Times New Roman", serif;
+  font-size: 1.08em;
+  vertical-align: -0.12em;
+  white-space: nowrap;
+}
+
+.math-rich-text math.math-inline mtext {
+  font-family: var(--font-sans);
+  font-size: 0.9em;
+  font-style: normal;
+}
+
+.atlas-tooltip math.math-inline {
+  font-size: 1em;
+}
+
 .page-shell {
   width: var(--page);
   margin-inline: auto;
@@ -403,48 +426,26 @@ svg {
 }
 
 .formula {
-  display: flex;
-  gap: 13px;
-  align-items: center;
+  display: block;
   margin: 26px 0 22px;
   font-family: var(--font-serif);
   font-size: 25px;
   white-space: nowrap;
 }
 
-.formula sub {
+.formula math {
+  display: inline-block;
+  max-width: 100%;
+  color: inherit;
+  font-family: "STIX Two Math", "Cambria Math", "Latin Modern Math", var(--font-serif);
+  font-size: 1em;
+  vertical-align: middle;
+}
+
+.formula math mtext {
   font-family: var(--font-sans);
-  font-size: 12px;
-  font-weight: 500;
-}
-
-/* t and token are separate flex children in the static formula markup. Cancel
-   the inter-item gap and lower only this direct subscript onto t's baseline. */
-.formula > i:first-child {
-  margin-right: -13px;
-}
-
-.formula > sub:first-of-type {
-  position: relative;
-  top: 0.5em;
-  margin-right: 2px;
-}
-
-.fraction {
-  display: inline-grid;
-  grid-template-rows: auto auto;
-  align-items: center;
-  text-align: center;
-}
-
-.fraction b {
-  padding: 2px 8px;
-  font-weight: 400;
-}
-
-.fraction b:first-child {
-  padding-bottom: 7px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.72);
+  font-size: 0.72em;
+  font-weight: 520;
 }
 
 .formula-card p {

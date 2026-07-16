@@ -14,6 +14,299 @@
       .replace(/'/g, "&#039;");
   }
 
+  /*
+   * Formulae in the source material use compact paper-style notation such as
+   * L_gen, r^(i−1), Σ_r and ‖p_d−p_t‖₁. Keep that source text searchable and
+   * validation-friendly, then turn only the reader-facing copy into native
+   * MathML. This works offline and does not make the static site depend on a
+   * third-party renderer.
+   *
+   * New catalogue copy may also mark an expression explicitly as \(...\).
+   * The registry below covers compound expressions already present in the
+   * aligned dataset; the fallback recognises scripted tokens and Greek symbols.
+   */
+  var MATH_EXPRESSIONS = [
+    "ΔLogits=W₂·SiLU(W₁[Hidden State; Causal State])",
+    "R(T)=c_T·L_tree/(C_Draft+C_Verify)",
+    "ΔJ=α·ΔC_target/ΔC_spec−C_target/C_spec",
+    "c_k=σ(wᵀ[h_k;W₁[x_{k−1}]])",
+    "C_Verify=γ(exp(δ|T|^ρ)−1)",
+    "L=(1−λₜ)L_final+λₜL_base",
+    "q_reach/(λ₁+λ₂·depth)",
+    "λ_t=0.6^(t−1)",
+    "max(r^(i−1), r_min)",
+    "1−½‖p_d−p_t‖₁",
+    "B=Σ_r(1+ℓ_r)",
+    "∏_{i≤j}c_i",
+    "C_Draft=λ|T|",
+    "E_sub(T,n)−E",
+    "⟨k₁,…,k_m⟩",
+    "(level+1)^−0.7",
+    "γ₀=4.5",
+    "τ·SPS(B)",
+    "B_Verify/b",
+    "0.1/0.9/1.0",
+    "N/(1−r)",
+    "0.9^level",
+    "0.8^k",
+    "K·T_D",
+    "K=8",
+    "r_min=0.2",
+    "r=0.7",
+    "Σp̂",
+    "SPS(B)",
+    "O(B log B)",
+    "O(nV+d)",
+    "O(V+d)",
+    "O(NK)",
+    "O(kB)",
+    "O(N)",
+    "top-s_k",
+    "L_gen",
+    "L_acc",
+    "N_max",
+    "N_pool",
+    "L_tree",
+    "B_Verify",
+    "T_D"
+  ].sort(function (a, b) { return b.length - a.length; });
+
+  var SUBSCRIPT_CHARACTERS = {
+    "₀": "0", "₁": "1", "₂": "2", "₃": "3", "₄": "4",
+    "₅": "5", "₆": "6", "₇": "7", "₈": "8", "₉": "9",
+    "ₐ": "a", "ₑ": "e", "ₕ": "h", "ᵢ": "i", "ⱼ": "j",
+    "ₖ": "k", "ₗ": "l", "ₘ": "m", "ₙ": "n", "ₒ": "o",
+    "ₚ": "p", "ᵣ": "r", "ₛ": "s", "ₜ": "t"
+  };
+
+  var SUPERSCRIPT_CHARACTERS = {
+    "⁰": "0", "¹": "1", "²": "2", "³": "3", "⁴": "4",
+    "⁵": "5", "⁶": "6", "⁷": "7", "⁸": "8", "⁹": "9",
+    "⁺": "+", "⁻": "−", "ᵀ": "T"
+  };
+
+  function isIdentifierStart(character) {
+    return /[A-Za-z\u0370-\u03ff\u2113]/.test(character || "");
+  }
+
+  function isIdentifierPart(character) {
+    return /[A-Za-z\u0370-\u03ff\u2113\u0300-\u036f]/.test(character || "");
+  }
+
+  function matchingDelimiter(source, start, opening, closing) {
+    var depth = 0;
+    for (var index = start; index < source.length; index += 1) {
+      if (source[index] === opening) depth += 1;
+      if (source[index] === closing) {
+        depth -= 1;
+        if (depth === 0) return index;
+      }
+    }
+    return -1;
+  }
+
+  function mathIdentifier(name) {
+    if (name === "Σ") return "<mo>∑</mo>";
+    if (name === "∏" || name === "∑") return "<mo>" + escapeHtml(name) + "</mo>";
+    if (name.indexOf("\u0302") !== -1) {
+      var unaccented = name.replace(/\u0302/g, "");
+      return "<mover accent=\"true\"><mi>" + escapeHtml(unaccented) +
+        "</mi><mo>^</mo></mover>";
+    }
+    if (/^[\u0370-\u03ff\u2113][A-Za-z]+$/.test(name)) {
+      return "<mrow><mi>" + escapeHtml(name[0]) + "</mi><mi mathvariant=\"normal\">" +
+        escapeHtml(name.slice(1)) + "</mi></mrow>";
+    }
+    if (name.length > 1 && /^[A-Za-z]+$/.test(name)) {
+      return "<mi mathvariant=\"normal\">" + escapeHtml(name) + "</mi>";
+    }
+    return "<mi>" + escapeHtml(name) + "</mi>";
+  }
+
+  function decodedScript(characters, map) {
+    return characters.split("").map(function (character) {
+      return map[character] || character;
+    }).join("");
+  }
+
+  function readMathScript(source, start) {
+    var first = source[start];
+    var pairs = { "{": "}", "(": ")" };
+    if (pairs[first]) {
+      var end = matchingDelimiter(source, start, first, pairs[first]);
+      if (end !== -1) {
+        return { value: source.slice(start + 1, end), next: end + 1 };
+      }
+    }
+
+    var tail = source.slice(start);
+    var match = tail.match(/^[+\-−]?\d+(?:\.\d+)?|^[A-Za-z\u0370-\u03ff\u2113]+/);
+    if (match) return { value: match[0], next: start + match[0].length };
+    return { value: first || "", next: start + 1 };
+  }
+
+  function attachMathScripts(atom, source, start) {
+    var index = start;
+    var subscript = null;
+    var superscript = null;
+
+    while (index < source.length) {
+      var character = source[index];
+      if (character === "_" || character === "^") {
+        var script = readMathScript(source, index + 1);
+        if (character === "_") subscript = parseMathRow(script.value);
+        else superscript = parseMathRow(script.value);
+        index = script.next;
+        continue;
+      }
+      if (SUBSCRIPT_CHARACTERS[character]) {
+        var subCharacters = "";
+        while (SUBSCRIPT_CHARACTERS[source[index]]) {
+          subCharacters += source[index];
+          index += 1;
+        }
+        subscript = parseMathRow(decodedScript(subCharacters, SUBSCRIPT_CHARACTERS));
+        continue;
+      }
+      if (SUPERSCRIPT_CHARACTERS[character]) {
+        var superCharacters = "";
+        while (SUPERSCRIPT_CHARACTERS[source[index]]) {
+          superCharacters += source[index];
+          index += 1;
+        }
+        superscript = parseMathRow(decodedScript(superCharacters, SUPERSCRIPT_CHARACTERS));
+        continue;
+      }
+      break;
+    }
+
+    if (subscript && superscript) {
+      atom = "<msubsup>" + atom + "<mrow>" + subscript + "</mrow><mrow>" +
+        superscript + "</mrow></msubsup>";
+    } else if (subscript) {
+      atom = "<msub>" + atom + "<mrow>" + subscript + "</mrow></msub>";
+    } else if (superscript) {
+      atom = "<msup>" + atom + "<mrow>" + superscript + "</mrow></msup>";
+    }
+    return { html: atom, next: index };
+  }
+
+  function parseMathRow(source) {
+    var output = [];
+    var index = 0;
+    var delimiterPairs = { "(": ")", "[": "]", "⟨": "⟩" };
+
+    while (index < source.length) {
+      var character = source[index];
+      if (/\s/.test(character)) {
+        output.push("<mspace width=\"0.22em\"></mspace>");
+        index += 1;
+        continue;
+      }
+
+      if (delimiterPairs[character]) {
+        var closing = delimiterPairs[character];
+        var groupEnd = matchingDelimiter(source, index, character, closing);
+        if (groupEnd !== -1) {
+          var grouped = "<mrow><mo fence=\"true\">" + escapeHtml(character) + "</mo>" +
+            parseMathRow(source.slice(index + 1, groupEnd)) +
+            "<mo fence=\"true\">" + escapeHtml(closing) + "</mo></mrow>";
+          var scriptedGroup = attachMathScripts(grouped, source, groupEnd + 1);
+          output.push(scriptedGroup.html);
+          index = scriptedGroup.next;
+          continue;
+        }
+      }
+
+      if (character === "|" || character === "‖") {
+        var normEnd = source.indexOf(character, index + 1);
+        if (normEnd !== -1) {
+          var norm = "<mrow><mo fence=\"true\">" + escapeHtml(character) + "</mo>" +
+            parseMathRow(source.slice(index + 1, normEnd)) +
+            "<mo fence=\"true\">" + escapeHtml(character) + "</mo></mrow>";
+          var scriptedNorm = attachMathScripts(norm, source, normEnd + 1);
+          output.push(scriptedNorm.html);
+          index = scriptedNorm.next;
+          continue;
+        }
+      }
+
+      if (/\d/.test(character) || (character === "." && /\d/.test(source[index + 1] || ""))) {
+        var numberMatch = source.slice(index).match(/^\d+(?:\.\d+)?/);
+        var number = numberMatch ? numberMatch[0] : character;
+        var scriptedNumber = attachMathScripts("<mn>" + escapeHtml(number) + "</mn>", source, index + number.length);
+        output.push(scriptedNumber.html);
+        index = scriptedNumber.next;
+        continue;
+      }
+
+      if (character === "Σ" || character === "∑" || character === "∏") {
+        var scriptedOperator = attachMathScripts(mathIdentifier(character), source, index + 1);
+        output.push(scriptedOperator.html);
+        index = scriptedOperator.next;
+        continue;
+      }
+
+      if (isIdentifierStart(character)) {
+        var end = index + 1;
+        while (isIdentifierPart(source[end])) end += 1;
+        var identifier = source.slice(index, end);
+        var scriptedIdentifier = attachMathScripts(mathIdentifier(identifier), source, end);
+        output.push(scriptedIdentifier.html);
+        index = scriptedIdentifier.next;
+        continue;
+      }
+
+      if (character === "½") output.push("<mn>½</mn>");
+      else if (character === "-") output.push("<mo>−</mo>");
+      else output.push("<mo>" + escapeHtml(character) + "</mo>");
+      index += 1;
+    }
+    return output.join("");
+  }
+
+  function renderFormula(expression) {
+    return "<math class=\"math-inline\" aria-label=\"" + escapeHtml(expression) +
+      "\"><mrow>" + parseMathRow(expression) + "</mrow></math>";
+  }
+
+  function renderMathText(value) {
+    var source = String(value == null ? "" : value);
+    var fragments = [];
+
+    function stash(expression) {
+      var marker = "\uE000" + fragments.length + "\uE001";
+      fragments.push(renderFormula(expression));
+      return marker;
+    }
+
+    source = source.replace(/\\\((.+?)\\\)/g, function (_, expression) {
+      return stash(expression);
+    });
+    MATH_EXPRESSIONS.forEach(function (expression) {
+      if (source.indexOf(expression) !== -1) {
+        source = source.split(expression).join(stash(expression));
+      }
+    });
+
+    source = source.replace(
+      /(?:[A-Za-z\u0370-\u03ff\u2113∑∏]+|\d+(?:\.\d+)?)(?:(?:_(?:\{[^{}]+\}|[A-Za-z0-9]+))|(?:\^(?:\{[^{}]+\}|\([^()]+\)|[A-Za-z0-9\u0370-\u03ff.+−-]+)))+/g,
+      function (expression) { return stash(expression); }
+    );
+    source = source.replace(
+      /[A-Za-z\u0370-\u03ff\u2113]+[₀-₉ₐₑₕᵢⱼₖₗₘₙₒₚᵣₛₜ⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻ᵀ]+/g,
+      function (expression) { return stash(expression); }
+    );
+    source = source.replace(/[A-Za-z]\u0302/g, function (expression) { return stash(expression); });
+    source = source.replace(/[\u0370-\u03ff\u2113][A-Za-z]*/g, function (expression) {
+      return stash(expression);
+    });
+
+    return escapeHtml(source).replace(/\uE000(\d+)\uE001/g, function (_, index) {
+      return fragments[Number(index)] || "";
+    });
+  }
+
   function normalize(value) {
     return String(value == null ? "" : value)
       .trim()
@@ -157,7 +450,7 @@
         "<article class=\"contribution-panel" + active + "\" style=\"" + itemStyle(category) + "\">",
         "<a class=\"contribution-label\" href=\"" + categoryHref(code) + "\"><span>" +
           escapeHtml(code) + "</span>" + escapeHtml(category.name) + "</a>",
-        "<p>" + escapeHtml(categoryContribution(paper, code)) + "</p>",
+        "<p class=\"math-rich-text\">" + renderMathText(categoryContribution(paper, code)) + "</p>",
         "</article>"
       ].join("");
     }).join("");
@@ -171,7 +464,7 @@
         "<article class=\"tag-contribution" + active + "\" style=\"" + itemStyle(tag) + "\">",
         "<a href=\"" + tagHref(code) + "\"><strong>" + escapeHtml(code) + "</strong>",
         "<span>" + escapeHtml(tag.name) + " · " + escapeHtml(tag.zhName) + "</span></a>",
-        "<p>" + escapeHtml(tagContribution(paper, code)) + "</p>",
+        "<p class=\"math-rich-text\">" + renderMathText(tagContribution(paper, code)) + "</p>",
         "</article>"
       ].join("");
     }).join("");
@@ -261,15 +554,15 @@
         escapeHtml(paper.date) + "\"><small>时间</small><strong>" +
         escapeHtml(paper.date) + "</strong></time>",
       "<span class=\"paper-context-summary\"><strong>" + escapeHtml(summary.label) +
-        "</strong><span>" + escapeHtml(summary.text) + "</span></span></span>",
+        "</strong><span class=\"math-rich-text\">" + renderMathText(summary.text) + "</span></span></span>",
       "<span class=\"paper-summary__institutions\"><strong>相关单位</strong><span>" +
         escapeHtml(paper.institutions) + "</span></span></span>",
       "<span class=\"paper-summary__toggle\" aria-hidden=\"true\"><span class=\"when-closed\">展开全部信息</span>" +
         "<span class=\"when-open\">收起详细信息</span><i></i></span>",
       "</span></summary><div class=\"paper-card__details\">",
       "<section class=\"paper-data-grid paper-overview-grid\" aria-label=\"论文信息\">",
-      "<div class=\"paper-field paper-field--full paper-field--row-end\"><span class=\"field-label\">标题</span><p>" +
-        escapeHtml(paper.title) + "</p></div>",
+      "<div class=\"paper-field paper-field--full paper-field--row-end\"><span class=\"field-label\">标题</span><p class=\"math-rich-text\">" +
+        renderMathText(paper.title) + "</p></div>",
       "<div class=\"paper-field\"><span class=\"field-label\">宏观类别</span><div class=\"chip-row\">" +
         categoryBadges(paper) + "</div></div>",
       "<div class=\"paper-field paper-field--row-end\"><span class=\"field-label\">子问题</span>" +
@@ -364,7 +657,7 @@
     if (document.getElementById("atlas-tooltip")) return;
     var tooltip = document.createElement("div");
     var activeTarget = null;
-    tooltip.className = "atlas-tooltip";
+    tooltip.className = "atlas-tooltip math-rich-text";
     tooltip.id = "atlas-tooltip";
     tooltip.setAttribute("role", "tooltip");
     tooltip.hidden = true;
@@ -386,7 +679,7 @@
       var content = target && target.getAttribute("data-tooltip");
       if (!content) return;
       activeTarget = target;
-      tooltip.textContent = content;
+      tooltip.innerHTML = renderMathText(content);
       tooltip.hidden = false;
       target.setAttribute("aria-describedby", tooltip.id);
       requestAnimationFrame(position);
@@ -425,6 +718,7 @@
   window.SDAtlasUI = {
     data: data,
     escapeHtml: escapeHtml,
+    renderMathText: renderMathText,
     normalize: normalize,
     getCategory: getCategory,
     getTag: getTag,
