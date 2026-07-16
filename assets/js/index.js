@@ -17,8 +17,8 @@
   function renderStats() {
     document.getElementById("hero-stats").innerHTML = [
       [data.papers.length, "篇论文"],
-      [data.categories.length, "个大类别"],
-      [data.tags.length, "个小标签"]
+      [data.categories.length, "个宏观类别"],
+      [data.tags.length, "个子问题"]
     ].map(function (stat) {
       return "<div><dt>" + stat[0] + "</dt><dd>" + stat[1] + "</dd></div>";
     }).join("");
@@ -31,7 +31,8 @@
         "<a class=\"category-legend__item\" style=\"" + ui.itemStyle(category) + "\" href=\"" +
           ui.categoryHref(category.code) + "\">",
         "<span class=\"category-legend__code\">" + ui.escapeHtml(category.code) + "</span>",
-        "<span><strong>" + ui.escapeHtml(category.name) + "</strong><small>" + ui.escapeHtml(category.question) + "</small></span>",
+        "<span><strong>" + ui.escapeHtml(category.name) + "</strong><small class=\"math-rich-text\">" +
+          ui.renderMathText(category.question) + "</small></span>",
         "<em>" + count + "</em></a>"
       ].join("");
     }).join("");
@@ -95,9 +96,8 @@
     }).join("");
 
     return [
-      "<div class=\"venn-stage\" aria-label=\"三大类别韦恩图\">",
+      "<div class=\"venn-stage\" aria-label=\"三个宏观类别的韦恩图\">",
       circles, circleLabels, regions,
-      "<p class=\"venn-hint\"><span aria-hidden=\"true\">↗</span> 悬停论文名查看分区贡献 · 点击区域标题进入筛选</p>",
       "</div>"
     ].join("");
   }
@@ -112,7 +112,7 @@
       groups.get(region).push(paper);
     });
     return [
-      "<div class=\"region-board-note\"><strong>交叠区域板</strong><p>大类别超过三个，已自动切换为可扩展的精确区域视图。</p></div>",
+      "<div class=\"region-board-note\"><strong>宏观类别交叠区域</strong></div>",
       "<div class=\"region-board\">",
       Array.from(groups.entries()).map(function (entry) {
         var codes = entry[0].split("");
@@ -171,13 +171,13 @@
         "<header><a href=\"" + ui.tagHref(tag.code) + "\"><span class=\"tag-letter\">" + ui.escapeHtml(tag.code) + "</span>",
         "<span><strong>" + ui.escapeHtml(tag.name) + "</strong><small>" + ui.escapeHtml(tag.zhName) + "</small></span>",
         "<em>" + papers.length + "</em></a></header>",
-        "<p>" + ui.escapeHtml(tag.description) + "</p>",
+        "<p class=\"math-rich-text\">" + ui.renderMathText(tag.description) + "</p>",
         "<div class=\"tag-paper-list\">",
         papers.map(function (paper) {
           return "<a href=\"" + ui.escapeHtml(paper.url) + "\" target=\"_blank\" rel=\"noopener\" data-tooltip=\"" +
             ui.escapeHtml(ui.tagContribution(paper, tag.code)) + "\">" + ui.escapeHtml(paper.shortName) + "</a>";
         }).join(""),
-        "</div><a class=\"tag-card__more\" href=\"" + ui.tagHref(tag.code) + "\">查看该标签全部论文 <span aria-hidden=\"true\">→</span></a>",
+        "</div><a class=\"tag-card__more\" href=\"" + ui.tagHref(tag.code) + "\">全部论文 <span aria-hidden=\"true\">→</span></a>",
         "</article>"
       ].join("");
     }).join("");

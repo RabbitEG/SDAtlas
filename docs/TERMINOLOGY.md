@@ -33,10 +33,10 @@
 
 - `papers[].title` 的论文原始英文标题；
 - `papers[].workbookTags` 的 Excel F 列原始条目；
-- `tag.txt` 中单独成行的 `draft` / `verify` 和 HTML 的 `T_draft` / `T_verify` 公式变量；
+- `legacy/tag.txt` 中单独成行的 `draft` / `verify` 和 HTML 的 `T_draft` / `T_verify` 公式变量；
 - `id`、查询参数、文件名等代码标识符。
 
-页面自有的分类名称、标签解释、逐类别贡献、逐标签贡献和静态文案不属于例外，必须使用标准写法。
+页面自有的宏观类别名称、子问题解释、逐宏观类别贡献、逐子问题贡献和静态文案不属于例外，必须使用标准写法。
 
 ## 4. 自动检查
 

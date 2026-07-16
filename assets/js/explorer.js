@@ -38,7 +38,8 @@
         ui.escapeHtml(item.code) + "\"" + (selected ? " checked" : "") + ">",
       "<span class=\"option-check\" aria-hidden=\"true\"></span><span class=\"option-code\">" +
         ui.escapeHtml(item.code) + "</span><span class=\"option-copy\"><strong>" + ui.escapeHtml(title) +
-        "</strong><small>" + ui.escapeHtml(subtitle) + "</small></span><em>" + count + "</em></label>"
+        "</strong><small class=\"math-rich-text\">" + ui.renderMathText(subtitle) +
+        "</small></span><em>" + count + "</em></label>"
     ].join("");
   }
 
@@ -88,7 +89,7 @@
     state.major.forEach(function (code) { chips.push(filterChip(ui.getCategory(code), "major")); });
     state.tags.forEach(function (code) { chips.push(filterChip(ui.getTag(code), "tag")); });
     if (!chips.length) {
-      container.innerHTML = "<span class=\"all-papers-note\"><i aria-hidden=\"true\"></i> 未选择分类，显示全部论文</span>";
+      container.innerHTML = "<span class=\"all-papers-note\"><i aria-hidden=\"true\"></i> 全部论文</span>";
       return;
     }
     var relation = state.mode === "intersection" ? "且 · AND" : "或 · OR";
@@ -123,9 +124,9 @@
           }
         });
       }).join("")
-      : ui.emptyState("没有论文同时满足这些条件", state.mode === "intersection"
-        ? "交集条件可能过严；可以移除一个条件或改用并集。"
-        : "请修改筛选条件或清除搜索关键词。",
+      : ui.emptyState("没有匹配论文", state.mode === "intersection"
+        ? "当前交集没有匹配论文。"
+        : "当前并集与搜索条件没有匹配论文。",
         "<button class=\"button button-secondary\" type=\"button\" id=\"empty-clear\">清除全部条件</button>");
     var emptyClear = document.getElementById("empty-clear");
     if (emptyClear) emptyClear.addEventListener("click", clearAll);

@@ -40,7 +40,7 @@
     if (!item) {
       hero.innerHTML = "<div class=\"page-shell invalid-category\"><p class=\"section-index\">UNKNOWN CATEGORY</p>" +
         "<h1>找不到这个分类</h1><p>链接中的分类标识不存在，可能已经被数据维护者修改。</p>" +
-        "<a class=\"button button-primary\" href=\"index.html\">返回分类图谱</a></div>";
+        "<a class=\"button button-primary\" href=\"index.html\">论文索引</a></div>";
       return;
     }
 
@@ -53,7 +53,7 @@
         : item.name + " · " + item.zhName;
     }
     var description = kind === "major" ? item.description : item.description + "。";
-    var source = kind === "major" ? "大类别" : "研究标签";
+    var source = kind === "major" ? "宏观类别" : "子问题";
     var explorer = kind === "major"
       ? ui.explorerHref({ major: [item.code], mode: "intersection" })
       : ui.explorerHref({ tags: [item.code], mode: "intersection" });
@@ -63,19 +63,21 @@
     hero.style.setProperty("--detail-soft", item.softColor);
     hero.innerHTML = [
       "<div class=\"detail-hero__wash\" aria-hidden=\"true\"></div>",
-      "<div class=\"page-shell\"><nav class=\"breadcrumb\" aria-label=\"面包屑\"><a href=\"index.html\">分类图谱</a><span>/</span><span>" +
+      "<div class=\"page-shell\"><nav class=\"breadcrumb\" aria-label=\"面包屑\"><a href=\"index.html\">论文索引</a><span>/</span><span>" +
         ui.escapeHtml(item.code) + "</span></nav>",
       "<div class=\"detail-hero__grid\"><div class=\"detail-identity\">",
       "<p class=\"section-index\">" + ui.escapeHtml(source) + "</p>",
       "<div class=\"detail-title-row\"><span class=\"detail-code\">" + ui.escapeHtml(item.code) + "</span><div>",
       "<h1>" + ui.escapeHtml(title) + "</h1>",
-      (kind === "major" ? "<p class=\"detail-question\">" + ui.escapeHtml(item.question) + "</p>" : ""),
-      "</div></div><p class=\"detail-description\">" + ui.escapeHtml(description) + "</p>",
+      (kind === "major" ? "<p class=\"detail-question math-rich-text\">" +
+        ui.renderMathText(item.question) + "</p>" : ""),
+      "</div></div><p class=\"detail-description math-rich-text\">" +
+        ui.renderMathText(description) + "</p>",
       "<div class=\"detail-actions\"><a class=\"button button-primary\" href=\"" + explorer +
         "\">在组合筛选中打开</a><a class=\"text-link\" href=\"index.html\">返回总览</a></div></div>",
       "<aside class=\"detail-summary\"><div class=\"detail-count\"><strong>" + papers.length +
         "</strong><span>篇相关论文</span></div><div class=\"related-sets\"><span>同时涉及的" +
-        (kind === "major" ? "研究标签" : "大类别") + "</span>" + relatedLinks() + "</div></aside>",
+        (kind === "major" ? "子问题" : "宏观类别") + "</span>" + relatedLinks() + "</div></aside>",
       "</div></div>"
     ].join("");
   }
@@ -85,17 +87,17 @@
     var list = document.getElementById("paper-list");
     var resultLine = document.getElementById("result-line");
     if (!item) {
-      list.innerHTML = ui.emptyState("没有可展示的论文", "请返回图谱并选择一个现有分类。",
-        "<a class=\"button button-primary\" href=\"index.html\">返回分类图谱</a>");
+      list.innerHTML = ui.emptyState("没有可展示的论文", "该分类不存在。",
+        "<a class=\"button button-primary\" href=\"index.html\">论文索引</a>");
       resultLine.textContent = "";
       return;
     }
     resultLine.textContent = query
       ? "搜索“" + query + "” · 显示 " + result.length + " / " + papers.length + " 篇"
-      : "显示 " + result.length + " 篇论文；折叠状态便于横向比较，展开后可查看完整论文信息与详细贡献。";
+      : "共 " + result.length + " 篇论文";
     list.innerHTML = result.length
       ? result.map(function (paper) { return ui.paperCard(paper, { kind: kind, id: item.code }); }).join("")
-      : ui.emptyState("当前搜索没有结果", "换一个标题、简称、单位或标签关键词试试。",
+      : ui.emptyState("当前搜索没有结果", "没有匹配标题、简称、单位或子问题的论文。",
         "<button class=\"button button-secondary\" type=\"button\" id=\"reset-search\">清除搜索</button>");
     var reset = document.getElementById("reset-search");
     if (reset) reset.addEventListener("click", function () {

@@ -24,7 +24,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CATALOG_PATH = ROOT / "data" / "catalog.json"
 RUNTIME_CATALOG_PATH = ROOT / "assets" / "js" / "data.js"
 GLOSSARY_PATH = ROOT / "scripts" / "terminology.json"
-TAG_PATH = ROOT / "tag.txt"
+TAG_PATH = ROOT / "legacy" / "tag.txt"
 
 
 def load_catalog() -> dict:

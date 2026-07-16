@@ -11,8 +11,8 @@ window.SD_ATLAS_DATA = {
     "shortTitle": "SDAtlas",
     "subtitle": "投机解码研究方法图谱",
     "updated": "2026-07",
-    "sourceWorkbook": "speculative_decoding_papers_2026-07.xlsx",
-    "sourceTagFile": "tag.txt",
+    "sourceWorkbook": "legacy/speculative_decoding_papers_2026-07.xlsx",
+    "sourceTagFile": "legacy/tag.txt",
     "sourceSheet": "论文分类",
     "sourceColumns": [
       "序号",
@@ -28,12 +28,12 @@ window.SD_ATLAS_DATA = {
     "catalogFile": "data/catalog.json",
     "sourceFiles": [
       {
-        "path": "speculative_decoding_papers_2026-07.xlsx",
-        "role": "Excel A–I 列原始论文条目与大类别"
+        "path": "legacy/speculative_decoding_papers_2026-07.xlsx",
+        "role": "Excel A–I 列原始论文条目与宏观类别编码"
       },
       {
-        "path": "tag.txt",
-        "role": "D / Q / T / V / R / S / H 小标签及贡献说明"
+        "path": "legacy/tag.txt",
+        "role": "D / Q / T / V / R / S / H 子问题及贡献说明"
       }
     ],
     "institutionDataUpdated": "2026-07-16",
@@ -42,8 +42,7 @@ window.SD_ATLAS_DATA = {
         "共同一作 / 一作单位",
         "通讯或资深作者单位",
         "其他作者单位"
-      ],
-      "note": "论文通常不声明机构贡献比例，因此同层级单位只能近似排序。"
+      ]
     }
   },
   "categories": [
@@ -169,12 +168,12 @@ window.SD_ATLAS_DATA = {
         {
           "name": "卡内基梅隆大学",
           "order": 3,
-          "explanation": "其他作者所属单位；同层级单位的贡献比例未披露，顺序为近似排序。"
+          "explanation": "其他作者所属单位。"
         },
         {
           "name": "康涅狄格大学",
           "order": 4,
-          "explanation": "其他作者所属单位；同层级单位的贡献比例未披露，顺序为近似排序。"
+          "explanation": "其他作者所属单位。"
         }
       ],
       "institutionSource": "https://arxiv.org/pdf/2401.10774",
@@ -727,22 +726,22 @@ window.SD_ATLAS_DATA = {
         {
           "name": "华中科技大学软件学院",
           "order": 2,
-          "explanation": "其他作者所属单位；同层级单位的贡献比例未披露，顺序为近似排序。"
+          "explanation": "其他作者所属单位。"
         },
         {
           "name": "电子科技大学",
           "order": 3,
-          "explanation": "其他作者所属单位；同层级单位的贡献比例未披露，顺序为近似排序。"
+          "explanation": "其他作者所属单位。"
         },
         {
           "name": "复旦大学",
           "order": 4,
-          "explanation": "其他作者所属单位；同层级单位的贡献比例未披露，顺序为近似排序。"
+          "explanation": "其他作者所属单位。"
         },
         {
           "name": "华为",
           "order": 5,
-          "explanation": "其他作者所属单位；同层级单位的贡献比例未披露，顺序为近似排序。"
+          "explanation": "其他作者所属单位。"
         }
       ],
       "institutionSource": "https://arxiv.org/pdf/2605.29707",
@@ -844,27 +843,27 @@ window.SD_ATLAS_DATA = {
         {
           "name": "清华大学",
           "order": 2,
-          "explanation": "其他作者所属单位；同层级单位的贡献比例未披露，顺序为近似排序。"
+          "explanation": "其他作者所属单位。"
         },
         {
           "name": "斯坦福大学",
           "order": 3,
-          "explanation": "其他作者所属单位；同层级单位的贡献比例未披露，顺序为近似排序。"
+          "explanation": "其他作者所属单位。"
         },
         {
           "name": "上海交通大学",
           "order": 4,
-          "explanation": "其他作者所属单位；同层级单位的贡献比例未披露，顺序为近似排序。"
+          "explanation": "其他作者所属单位。"
         },
         {
           "name": "北京大学",
           "order": 5,
-          "explanation": "其他作者所属单位；同层级单位的贡献比例未披露，顺序为近似排序。"
+          "explanation": "其他作者所属单位。"
         },
         {
           "name": "加州大学圣迭戈分校",
           "order": 6,
-          "explanation": "其他作者所属单位；同层级单位的贡献比例未披露，顺序为近似排序。"
+          "explanation": "其他作者所属单位。"
         }
       ],
       "institutionSource": "https://arxiv.org/pdf/2305.09781",

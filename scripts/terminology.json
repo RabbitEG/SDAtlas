@@ -63,7 +63,7 @@
   "sourceExceptions": [
     "papers[].title：论文原始英文标题",
     "papers[].workbookTags：Excel F 列原始条目",
-    "tag.txt 中单独成行的 draft / verify：延迟公式下标",
+    "legacy/tag.txt 中单独成行的 draft / verify：延迟公式下标",
     "HTML 公式中的 T_draft / T_verify：数学变量",
     "代码标识符和 URL 查询值（例如 id=draft、id=verify）"
   ]

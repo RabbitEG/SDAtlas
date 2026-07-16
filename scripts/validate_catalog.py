@@ -22,8 +22,8 @@ from sync_catalog import render_runtime
 ROOT = Path(__file__).resolve().parents[1]
 CATALOG_PATH = ROOT / "data" / "catalog.json"
 RUNTIME_CATALOG_PATH = ROOT / "assets" / "js" / "data.js"
-WORKBOOK_PATH = ROOT / "speculative_decoding_papers_2026-07.xlsx"
-TAG_PATH = ROOT / "tag.txt"
+WORKBOOK_PATH = ROOT / "legacy" / "speculative_decoding_papers_2026-07.xlsx"
+TAG_PATH = ROOT / "legacy" / "tag.txt"
 XML_NS = {"x": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
 
 
@@ -109,10 +109,10 @@ def validate_catalog(catalog: dict, rows: List[List[str]]) -> Validation:
         "assets/js/data.js 未与 data/catalog.json 同步；请运行 scripts/sync_catalog.py",
     )
 
-    result.check(len(category_codes) == len(categories), "大类别 code 必须唯一")
-    result.check(len({item.get("id") for item in categories}) == len(categories), "大类别 id 必须唯一")
-    result.check(len(tag_codes) == len(tags), "小标签 code 必须唯一")
-    result.check(len({item.get("id") for item in tags}) == len(tags), "小标签 id 必须唯一")
+    result.check(len(category_codes) == len(categories), "宏观类别 code 必须唯一")
+    result.check(len({item.get("id") for item in categories}) == len(categories), "宏观类别 id 必须唯一")
+    result.check(len(tag_codes) == len(tags), "子问题 code 必须唯一")
+    result.check(len({item.get("id") for item in tags}) == len(tags), "子问题 id 必须唯一")
     result.check(len({paper.get("id") for paper in papers}) == len(papers), "论文 id 必须唯一")
     result.check(len({paper.get("index") for paper in papers}) == len(papers), "论文 index 必须唯一")
     result.check([paper.get("index") for paper in papers] == list(range(1, len(papers) + 1)),
@@ -121,7 +121,7 @@ def validate_catalog(catalog: dict, rows: List[List[str]]) -> Validation:
     tag_text = TAG_PATH.read_text(encoding="utf-8")
     source_codes = set(re.findall(r"^([A-Z])：", tag_text, re.M))
     result.check(source_codes == tag_codes,
-                 f"合并目录标签 {sorted(tag_codes)} 与 tag.txt 定义 {sorted(source_codes)} 不一致")
+                 f"合并目录子问题 {sorted(tag_codes)} 与 legacy/tag.txt 定义 {sorted(source_codes)} 不一致")
 
     result.check(len(rows) - 1 == len(papers),
                  f"Excel 有 {len(rows) - 1} 篇，合并目录有 {len(papers)} 篇")
@@ -133,9 +133,9 @@ def validate_catalog(catalog: dict, rows: List[List[str]]) -> Validation:
         category_notes = set(paper.get("categoryContributions", {}))
         tag_notes = set(paper.get("tagContributions", {}))
 
-        result.check(bool(paper_categories), f"{label}: 至少需要一个大类别")
-        result.check(paper_categories <= category_codes, f"{label}: 引用了不存在的大类别")
-        result.check(paper_tags <= tag_codes, f"{label}: 引用了不存在的小标签")
+        result.check(bool(paper_categories), f"{label}: 至少需要一个宏观类别")
+        result.check(paper_categories <= category_codes, f"{label}: 引用了不存在的宏观类别")
+        result.check(paper_tags <= tag_codes, f"{label}: 引用了不存在的子问题")
         result.check(category_notes == paper_categories,
                      f"{label}: categoryContributions 必须逐项对应 categoryCodes")
         result.check(tag_notes == paper_tags,
@@ -181,10 +181,10 @@ def validate_catalog(catalog: dict, rows: List[List[str]]) -> Validation:
         source = rows[index]
         comparisons = [
             (str(index), source[0], "序号"),
-            (paper.get("title"), source[1], "论文完整标题"),
+            (paper.get("title"), source[1], "标题"),
             (paper.get("shortName"), source[2], "简称"),
             (paper.get("workbookInstitutions"), source[3], "相关单位（Excel D 列原值）"),
-            ("+".join(paper.get("categoryCodes", [])), source[4], "大类别 E 列"),
+            ("+".join(paper.get("categoryCodes", [])), source[4], "宏观类别（Excel E 列）"),
             (paper.get("venue"), source[6], "会议 / 版本"),
             (paper.get("date"), source[7], "时间"),
             (paper.get("url"), source[8], "论文链接"),
@@ -218,8 +218,8 @@ def main() -> int:
 
     print(
         f"验证通过：{len(catalog['papers'])} 篇论文、"
-        f"{len(catalog['categories'])} 个大类别、{len(catalog['tags'])} 个小标签；"
-        "Excel 九列源值、tag.txt 标签、单位明细与运行文件均一致。"
+        f"{len(catalog['categories'])} 个宏观类别、{len(catalog['tags'])} 个子问题；"
+        "Excel 九列源值、legacy/tag.txt 子问题、单位明细与运行文件均一致。"
     )
     return 0
 
