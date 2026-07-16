@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="组合大类别和 D/Q/T/V/R/S/H 标签筛选推测解码论文。">
+  <title>组合筛选 · SDAtlas</title>
+  <link rel="stylesheet" href="assets/css/styles.css">
+  <script defer src="assets/js/data.js"></script>
+  <script defer src="assets/js/ui.js"></script>
+  <script defer src="assets/js/explorer.js"></script>
+</head>
+<body class="page-explorer">
+  <header class="site-header" id="site-header"></header>
+  <main id="main-content">
+    <section class="explorer-hero">
+      <div class="page-shell explorer-hero__grid">
+        <div>
+          <p class="eyebrow eyebrow--dark"><span>SET EXPLORER</span><span>BOOLEAN FILTER</span></p>
+          <h1>组合研究条件，<br>找到真正的交集。</h1>
+        </div>
+        <p>大类别与小标签可以混合多选。并集命中任意一项，交集要求论文同时满足所有已选条件；未选择条件时展示全部论文。</p>
+      </div>
+    </section>
+
+    <section class="explorer-layout page-shell">
+      <aside class="filter-panel" aria-label="筛选条件">
+        <div class="filter-panel__top">
+          <div><span>FILTERS</span><strong>筛选条件</strong></div>
+          <button id="clear-filters" class="plain-button" type="button">全部清除</button>
+        </div>
+
+        <fieldset class="mode-fieldset">
+          <legend>集合关系</legend>
+          <div class="mode-toggle">
+            <label><input type="radio" name="mode" value="union" checked><span><strong>并集</strong><small>满足任意条件</small></span></label>
+            <label><input type="radio" name="mode" value="intersection"><span><strong>交集</strong><small>满足全部条件</small></span></label>
+          </div>
+        </fieldset>
+
+        <fieldset class="filter-fieldset">
+          <legend><span>大类别</span><small>Excel E 列</small></legend>
+          <div id="major-options" class="filter-options"></div>
+        </fieldset>
+
+        <fieldset class="filter-fieldset">
+          <legend><span>小标签</span><small>tag.txt</small></legend>
+          <div id="tag-options" class="filter-options filter-options--tags"></div>
+        </fieldset>
+      </aside>
+
+      <section class="results-panel" aria-label="筛选结果">
+        <div class="results-toolbar">
+          <div>
+            <p class="section-index">RESULT SET</p>
+            <h2><span id="result-count">20</span> 篇论文</h2>
+          </div>
+          <div class="results-controls">
+            <label class="search-control">
+              <span class="sr-only">搜索结果</span>
+              <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"></circle><path d="m16 16 4 4"></path></svg>
+              <input id="result-search" type="search" autocomplete="off" placeholder="搜索标题、单位或标签…">
+            </label>
+            <label class="sort-control"><span class="sr-only">排序方式</span>
+              <select id="result-sort">
+                <option value="index">按源表顺序</option>
+                <option value="newest">时间从新到旧</option>
+                <option value="name">按简称排序</option>
+              </select>
+            </label>
+          </div>
+        </div>
+        <div class="active-filters" id="active-filters" aria-live="polite"></div>
+        <div class="paper-list paper-list--explorer" id="explorer-results"></div>
+      </section>
+    </section>
+  </main>
+  <footer class="site-footer" id="site-footer"></footer>
+</body>
+</html>

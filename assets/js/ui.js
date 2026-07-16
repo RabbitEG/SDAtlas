@@ -1,0 +1,356 @@
+/* Shared routing, rendering and accessibility helpers for every SDAtlas page. */
+(function () {
+  "use strict";
+
+  var data = window.SD_ATLAS_DATA;
+  if (!data) throw new Error("data.js must be loaded before ui.js");
+
+  function escapeHtml(value) {
+    return String(value == null ? "" : value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/\"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
+  function normalize(value) {
+    return String(value == null ? "" : value)
+      .trim()
+      .toLocaleLowerCase("zh-CN");
+  }
+
+  function getCategory(codeOrId) {
+    var key = normalize(codeOrId);
+    return data.categories.find(function (item) {
+      return normalize(item.code) === key || normalize(item.id) === key || normalize(item.name) === key;
+    }) || null;
+  }
+
+  function getTag(codeOrId) {
+    var key = normalize(codeOrId);
+    return data.tags.find(function (item) {
+      return normalize(item.code) === key || normalize(item.id) === key ||
+        normalize(item.name) === key || normalize(item.zhName) === key;
+    }) || null;
+  }
+
+  function categoryHref(code) {
+    return "category.html?kind=major&id=" + encodeURIComponent(code);
+  }
+
+  function tagHref(code) {
+    return "category.html?kind=tag&id=" + encodeURIComponent(code);
+  }
+
+  function explorerHref(options) {
+    var params = new URLSearchParams();
+    options = options || {};
+    if (options.major && options.major.length) params.set("major", options.major.join(","));
+    if (options.tags && options.tags.length) params.set("tag", options.tags.join(","));
+    if (options.mode) params.set("mode", options.mode);
+    var query = params.toString();
+    return "explorer.html" + (query ? "?" + query : "");
+  }
+
+  function itemStyle(item) {
+    return "--item-color:" + item.color + ";--item-soft:" + item.softColor;
+  }
+
+  function exactRegion(paper) {
+    return data.categories
+      .map(function (category) { return category.code; })
+      .filter(function (code) { return paper.categoryCodes.indexOf(code) !== -1; })
+      .join("");
+  }
+
+  function regionLabel(codes) {
+    return String(codes).split("").join(" ∩ ");
+  }
+
+  function papersForCategory(code) {
+    return data.papers.filter(function (paper) { return paper.categoryCodes.indexOf(code) !== -1; });
+  }
+
+  function papersForTag(code) {
+    return data.papers.filter(function (paper) { return paper.tagCodes.indexOf(code) !== -1; });
+  }
+
+  function categoryContribution(paper, code) {
+    return paper.categoryContributions[code] || "该论文没有此大类别的贡献说明。";
+  }
+
+  function tagContribution(paper, code) {
+    return paper.tagContributions[code] || "该论文没有此标签的贡献说明。";
+  }
+
+  function combinedCategoryContribution(paper) {
+    return paper.categoryCodes.map(function (code) {
+      var category = getCategory(code);
+      return category.shortName + "：" + categoryContribution(paper, code);
+    }).join("\n");
+  }
+
+  function categoryBadges(paper) {
+    return paper.categoryCodes.map(function (code) {
+      var category = getCategory(code);
+      return [
+        "<a class=\"category-badge\" style=\"" + itemStyle(category) + "\" href=\"" + categoryHref(code) + "\"",
+        " data-tooltip=\"" + escapeHtml(categoryContribution(paper, code)) + "\">",
+        "<span class=\"badge-code\">" + escapeHtml(code) + "</span>",
+        "<span>" + escapeHtml(category.shortName) + "</span></a>"
+      ].join("");
+    }).join("");
+  }
+
+  function researchTagLinks(paper, highlightedCode) {
+    return paper.tagCodes.map(function (code) {
+      var tag = getTag(code);
+      var matched = code === highlightedCode ? " is-matched" : "";
+      return [
+        "<a class=\"research-tag" + matched + "\" style=\"" + itemStyle(tag) + "\" href=\"" + tagHref(code) + "\"",
+        " data-tooltip=\"" + escapeHtml(tagContribution(paper, code)) + "\">",
+        "<strong>" + escapeHtml(code) + "</strong><span>" + escapeHtml(tag.name) + "</span></a>"
+      ].join("");
+    }).join("");
+  }
+
+  function workbookTagChips(paper) {
+    return paper.workbookTags.map(function (value) {
+      return "<span class=\"source-chip\">" + escapeHtml(value) + "</span>";
+    }).join("");
+  }
+
+  function categoryContributionPanels(paper, highlightedCode) {
+    return paper.categoryCodes.map(function (code) {
+      var category = getCategory(code);
+      var active = code === highlightedCode ? " is-highlighted" : "";
+      return [
+        "<article class=\"contribution-panel" + active + "\" style=\"" + itemStyle(category) + "\">",
+        "<a class=\"contribution-label\" href=\"" + categoryHref(code) + "\"><span>" +
+          escapeHtml(code) + "</span>" + escapeHtml(category.name) + "</a>",
+        "<p>" + escapeHtml(categoryContribution(paper, code)) + "</p>",
+        "</article>"
+      ].join("");
+    }).join("");
+  }
+
+  function tagContributionPanels(paper, highlightedCode) {
+    return paper.tagCodes.map(function (code) {
+      var tag = getTag(code);
+      var active = code === highlightedCode ? " is-highlighted" : "";
+      return [
+        "<article class=\"tag-contribution" + active + "\" style=\"" + itemStyle(tag) + "\">",
+        "<a href=\"" + tagHref(code) + "\"><strong>" + escapeHtml(code) + "</strong>",
+        "<span>" + escapeHtml(tag.name) + " · " + escapeHtml(tag.zhName) + "</span></a>",
+        "<p>" + escapeHtml(tagContribution(paper, code)) + "</p>",
+        "</article>"
+      ].join("");
+    }).join("");
+  }
+
+  /*
+   * A paper card includes every workbook column. tag.txt labels are rendered in
+   * a separate block so the two source taxonomies can never be confused.
+   */
+  function paperCard(paper, options) {
+    options = options || {};
+    var major = options.kind === "major" ? options.id : null;
+    var tagCode = options.kind === "tag" ? options.id : null;
+    var localLink = paper.localPdf
+      ? "<a class=\"button button-secondary\" href=\"" + escapeHtml(paper.localPdf) +
+        "\" target=\"_blank\" rel=\"noopener\">本地 PDF <span aria-hidden=\"true\">↗</span></a>"
+      : "";
+    var localNote = paper.localPdfNote
+      ? "<span class=\"source-note\" tabindex=\"0\" data-tooltip=\"" + escapeHtml(paper.localPdfNote) +
+        "\">本地文件说明</span>"
+      : "";
+
+    return [
+      "<article class=\"paper-card\" data-paper-id=\"" + escapeHtml(paper.id) + "\">",
+      "<header class=\"paper-card__header\">",
+      "<div class=\"paper-number\"><span>NO.</span>" + String(paper.index).padStart(2, "0") + "</div>",
+      "<div class=\"paper-heading\"><div class=\"paper-kicker\"><strong>" + escapeHtml(paper.shortName) +
+        "</strong><span>" + escapeHtml(paper.venue) + "</span><time datetime=\"" + escapeHtml(paper.date) +
+        "\">" + escapeHtml(paper.date) + "</time></div>",
+      "<h2><a href=\"" + escapeHtml(paper.url) + "\" target=\"_blank\" rel=\"noopener\">" +
+        escapeHtml(paper.title) + "</a></h2></div>",
+      "</header>",
+      "<div class=\"paper-taxonomy\"><div><span class=\"field-label\">tag.txt 小标签 · 悬停看贡献</span>",
+      "<div class=\"chip-row\">" + researchTagLinks(paper, tagCode) + "</div></div></div>",
+      "<section class=\"paper-data-grid\" aria-label=\"Excel 表格条目\">",
+      "<div class=\"paper-field paper-field--wide\"><span class=\"field-label\">相关单位</span><p>" +
+        escapeHtml(paper.institutions) + "</p></div>",
+      "<div class=\"paper-field\"><span class=\"field-label\">大类别 · Excel E 列</span><div class=\"chip-row\">" +
+        categoryBadges(paper) + "</div><small class=\"raw-value\">原值：" +
+        escapeHtml(paper.categoryCodes.join("+")) + "</small></div>",
+      "<div class=\"paper-field paper-field--wide\"><span class=\"field-label\">原始描述 · Excel F 列</span>",
+      "<div class=\"chip-row\">" + workbookTagChips(paper) + "</div><small class=\"raw-value\">仅展示，不参与小标签筛选</small></div>",
+      "<div class=\"paper-field\"><span class=\"field-label\">会议 / 版本</span><p>" + escapeHtml(paper.venue) + "</p></div>",
+      "<div class=\"paper-field\"><span class=\"field-label\">时间（YYYY-MM）</span><p>" + escapeHtml(paper.date) + "</p></div>",
+      "<div class=\"paper-field paper-field--full paper-field--link\"><span class=\"field-label\">论文链接</span><a href=\"" +
+        escapeHtml(paper.url) + "\" target=\"_blank\" rel=\"noopener\">" + escapeHtml(paper.url) + "</a></div>",
+      "</section>",
+      "<section class=\"paper-contributions\" aria-label=\"贡献说明\">",
+      "<div class=\"section-mini-title\"><span>MAJOR REGIONS</span><strong>大类别区域贡献</strong></div>",
+      "<div class=\"contribution-grid\">" + categoryContributionPanels(paper, major) + "</div>",
+      "<div class=\"section-mini-title section-mini-title--tags\"><span>TAG NOTES</span><strong>小标签对应贡献</strong></div>",
+      "<div class=\"tag-contribution-grid\">" + tagContributionPanels(paper, tagCode) + "</div>",
+      "</section>",
+      "<footer class=\"paper-card__footer\"><a class=\"button button-primary\" href=\"" + escapeHtml(paper.url) +
+        "\" target=\"_blank\" rel=\"noopener\">论文页面 <span aria-hidden=\"true\">↗</span></a>" +
+        localLink + localNote + "</footer>",
+      "</article>"
+    ].join("");
+  }
+
+  function paperMatchesText(paper, query) {
+    var q = normalize(query);
+    if (!q) return true;
+    var categoryNames = paper.categoryCodes.map(function (code) {
+      var item = getCategory(code);
+      return item.name + " " + item.shortName;
+    });
+    var tagNames = paper.tagCodes.map(function (code) {
+      var item = getTag(code);
+      return [code, item.name, item.zhName, item.description].join(" ");
+    });
+    return normalize([
+      paper.index, paper.title, paper.shortName, paper.institutions,
+      paper.venue, paper.date, paper.url, paper.categoryCodes.join(" "),
+      paper.workbookTags.join(" "), paper.tagCodes.join(" "),
+      categoryNames.join(" "), tagNames.join(" ")
+    ].join(" ")).indexOf(q) !== -1;
+  }
+
+  function emptyState(title, body, actionHtml) {
+    return [
+      "<div class=\"empty-state\"><div class=\"empty-state__mark\" aria-hidden=\"true\">∅</div>",
+      "<h2>" + escapeHtml(title) + "</h2><p>" + escapeHtml(body) + "</p>",
+      actionHtml || "", "</div>"
+    ].join("");
+  }
+
+  function siteHeader(active) {
+    function navLink(href, key, label) {
+      return "<a href=\"" + href + "\"" + (active === key ? " aria-current=\"page\"" : "") + ">" + label + "</a>";
+    }
+    return [
+      "<a class=\"skip-link\" href=\"#main-content\">跳到主要内容</a>",
+      "<div class=\"site-header__inner\"><a class=\"brand\" href=\"index.html\" aria-label=\"返回 SDAtlas 首页\">",
+      "<span class=\"brand-mark\" aria-hidden=\"true\"><i></i><i></i><i></i></span>",
+      "<span><strong>SDAtlas</strong><small>SPECULATIVE DECODING</small></span></a>",
+      "<nav class=\"site-nav\" aria-label=\"主导航\">",
+      navLink("index.html", "atlas", "分类图谱"),
+      navLink("explorer.html", "explorer", "组合筛选"),
+      "<a href=\"" + escapeHtml(data.meta.sourceWorkbook) + "\" download>源表格</a>",
+      "</nav></div>"
+    ].join("");
+  }
+
+  function siteFooter() {
+    return [
+      "<div class=\"footer-grid\"><a class=\"brand brand--footer\" href=\"index.html\">",
+      "<span class=\"brand-mark\" aria-hidden=\"true\"><i></i><i></i><i></i></span>",
+      "<span><strong>SDAtlas</strong><small>RESEARCH NAVIGATOR</small></span></a>",
+      "<p>大类别来自 Excel E 列；小标签及贡献说明来自 tag.txt。Excel F 列只作为原始条目展示。</p>",
+      "<p class=\"footer-meta\">DATASET · " + escapeHtml(data.meta.updated) + "<br>SCHEMA · v" +
+        escapeHtml(data.schemaVersion) + "</p></div>"
+    ].join("");
+  }
+
+  function mountChrome(active) {
+    var header = document.getElementById("site-header");
+    var footer = document.getElementById("site-footer");
+    if (header) header.innerHTML = siteHeader(active);
+    if (footer) footer.innerHTML = siteFooter();
+  }
+
+  function initTooltips() {
+    if (document.getElementById("atlas-tooltip")) return;
+    var tooltip = document.createElement("div");
+    var activeTarget = null;
+    tooltip.className = "atlas-tooltip";
+    tooltip.id = "atlas-tooltip";
+    tooltip.setAttribute("role", "tooltip");
+    tooltip.hidden = true;
+    document.body.appendChild(tooltip);
+
+    function position() {
+      if (!activeTarget || tooltip.hidden) return;
+      var rect = activeTarget.getBoundingClientRect();
+      var tooltipRect = tooltip.getBoundingClientRect();
+      var left = rect.left + rect.width / 2 - tooltipRect.width / 2;
+      left = Math.max(12, Math.min(left, window.innerWidth - tooltipRect.width - 12));
+      var top = rect.top - tooltipRect.height - 12;
+      if (top < 12) top = rect.bottom + 12;
+      tooltip.style.left = Math.round(left) + "px";
+      tooltip.style.top = Math.round(top) + "px";
+    }
+
+    function show(target) {
+      var content = target && target.getAttribute("data-tooltip");
+      if (!content) return;
+      activeTarget = target;
+      tooltip.textContent = content;
+      tooltip.hidden = false;
+      target.setAttribute("aria-describedby", tooltip.id);
+      requestAnimationFrame(position);
+    }
+
+    function hide(target) {
+      if (target && activeTarget !== target) return;
+      if (activeTarget) activeTarget.removeAttribute("aria-describedby");
+      activeTarget = null;
+      tooltip.hidden = true;
+    }
+
+    document.addEventListener("mouseover", function (event) {
+      var target = event.target.closest && event.target.closest("[data-tooltip]");
+      if (target && !target.contains(event.relatedTarget)) show(target);
+    });
+    document.addEventListener("mouseout", function (event) {
+      var target = event.target.closest && event.target.closest("[data-tooltip]");
+      if (target && !target.contains(event.relatedTarget)) hide(target);
+    });
+    document.addEventListener("focusin", function (event) {
+      var target = event.target.closest && event.target.closest("[data-tooltip]");
+      if (target) show(target);
+    });
+    document.addEventListener("focusout", function (event) {
+      var target = event.target.closest && event.target.closest("[data-tooltip]");
+      if (target) hide(target);
+    });
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") hide();
+    });
+    window.addEventListener("resize", position);
+    window.addEventListener("scroll", position, true);
+  }
+
+  window.SDAtlasUI = {
+    data: data,
+    escapeHtml: escapeHtml,
+    normalize: normalize,
+    getCategory: getCategory,
+    getTag: getTag,
+    categoryHref: categoryHref,
+    tagHref: tagHref,
+    explorerHref: explorerHref,
+    itemStyle: itemStyle,
+    exactRegion: exactRegion,
+    regionLabel: regionLabel,
+    papersForCategory: papersForCategory,
+    papersForTag: papersForTag,
+    categoryContribution: categoryContribution,
+    tagContribution: tagContribution,
+    combinedCategoryContribution: combinedCategoryContribution,
+    categoryBadges: categoryBadges,
+    researchTagLinks: researchTagLinks,
+    paperCard: paperCard,
+    paperMatchesText: paperMatchesText,
+    emptyState: emptyState,
+    mountChrome: mountChrome,
+    initTooltips: initTooltips
+  };
+})();

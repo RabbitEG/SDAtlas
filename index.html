@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="按大类别与 D/Q/T/V/R/S/H 标签浏览推测解码论文。">
+  <title>SDAtlas · 推测解码研究图谱</title>
+  <link rel="stylesheet" href="assets/css/styles.css">
+  <script defer src="assets/js/data.js"></script>
+  <script defer src="assets/js/ui.js"></script>
+  <script defer src="assets/js/index.js"></script>
+</head>
+<body class="page-home">
+  <header class="site-header" id="site-header"></header>
+
+  <main id="main-content">
+    <section class="hero hero--home">
+      <div class="hero-grid page-shell">
+        <div class="hero-copy">
+          <p class="eyebrow"><span>RESEARCH NAVIGATOR</span><span>2024—2026</span></p>
+          <h1>把推测解码的<br><em>优化位置</em>画出来</h1>
+          <p class="hero-lede">从草稿生成、候选组织到验证与系统协同，以两套互不混用的分类维度浏览 20 篇论文。</p>
+          <div class="hero-actions">
+            <a class="button button-light" href="#major-categories">浏览大类别</a>
+            <a class="text-link text-link--light" href="explorer.html">进入组合筛选 <span aria-hidden="true">↗</span></a>
+          </div>
+        </div>
+        <div class="hero-side">
+          <div class="formula-card" aria-label="投机解码每 token 延迟近似公式">
+            <span class="formula-label">OPTIMIZATION LENS</span>
+            <div class="formula"><i>t</i><sub>token</sub><span>≈</span><span class="fraction"><b><i>T</i><sub>draft</sub> + <i>T</i><sub>verify</sub> + <i>T</i><sub>system</sub></b><b>τ</b></span></div>
+            <p>标签关注一次解码周期里究竟优化了哪一项，而非简单区分“扩散 / 非扩散”。</p>
+          </div>
+          <dl class="hero-stats" id="hero-stats" aria-label="数据集统计"></dl>
+        </div>
+      </div>
+    </section>
+
+    <section class="source-rule">
+      <div class="page-shell source-rule__inner">
+        <strong>分类口径</strong>
+        <p><span>A / B / C</span> 来自 Excel E 列</p>
+        <i aria-hidden="true"></i>
+        <p><span>D / Q / T / V / R / S / H</span> 来自 tag.txt</p>
+        <i aria-hidden="true"></i>
+        <p>Excel F 列仅保留展示</p>
+      </div>
+    </section>
+
+    <section class="section page-shell" id="major-categories">
+      <header class="section-heading section-heading--split">
+        <div>
+          <p class="section-index">01 / MAJOR CATEGORIES</p>
+          <h2>大类别与交叠区域</h2>
+          <p>论文可以同时属于多个大类。将鼠标移到论文名上，可查看它在当前所属区域的贡献。</p>
+        </div>
+        <div class="view-switch" role="group" aria-label="切换大类别视图">
+          <button class="is-active" type="button" data-view="venn" aria-pressed="true"><span aria-hidden="true">◉</span> 韦恩图</button>
+          <button type="button" data-view="table" aria-pressed="false"><span aria-hidden="true">▦</span> 表格</button>
+        </div>
+      </header>
+
+      <div class="category-legend" id="category-legend"></div>
+      <div class="view-panel" id="venn-view"></div>
+      <div class="view-panel" id="table-view" hidden></div>
+    </section>
+
+    <section class="section section--tinted" id="research-tags">
+      <div class="page-shell">
+        <header class="section-heading section-heading--split">
+          <div>
+            <p class="section-index">02 / OPTIMIZATION TAGS</p>
+            <h2>小标签：它究竟优化了什么？</h2>
+            <p>标签完全取自 tag.txt。每张卡片是一块可点击区域，论文名悬停后显示该论文在这一标签下的具体贡献。</p>
+          </div>
+          <a class="text-link" href="explorer.html">组合这些标签 <span aria-hidden="true">↗</span></a>
+        </header>
+        <div class="tag-grid" id="tag-grid"></div>
+      </div>
+    </section>
+
+    <section class="section page-shell">
+      <div class="explorer-callout">
+        <div>
+          <p class="section-index">03 / SET EXPLORER</p>
+          <h2>提出一个跨分类的问题</h2>
+          <p>同时选择任意大类别和小标签，再用并集或交集寻找论文。例如：<strong>“候选组织 B” ∩ “硬件 H”</strong>。</p>
+        </div>
+        <a class="button button-primary button-large" href="explorer.html">打开组合筛选 <span aria-hidden="true">→</span></a>
+        <div class="callout-orbit" aria-hidden="true"><i>A</i><i>T</i><i>H</i></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer" id="site-footer"></footer>
+</body>
+</html>

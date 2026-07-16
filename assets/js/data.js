@@ -1,0 +1,582 @@
+/*
+ * SDAtlas canonical catalog.
+ *
+ * The object below deliberately uses strict JSON syntax after the assignment.
+ * That keeps it readable by a browser opened through file:// and also allows
+ * scripts/validate_catalog.py to validate it without a JavaScript toolchain.
+ */
+window.SD_ATLAS_DATA = {
+  "schemaVersion": 2,
+  "meta": {
+    "title": "Speculative Decoding Atlas",
+    "shortTitle": "SDAtlas",
+    "subtitle": "推测解码研究方法图谱",
+    "updated": "2026-07",
+    "sourceWorkbook": "speculative_decoding_papers_2026-07.xlsx",
+    "sourceTagFile": "tag.txt",
+    "sourceSheet": "论文分类",
+    "sourceColumns": [
+      "序号",
+      "论文完整标题",
+      "简称",
+      "相关单位",
+      "大类别（Excel E 列）",
+      "原始描述（Excel F 列，仅展示）",
+      "会议 / 版本",
+      "时间（YYYY-MM）",
+      "论文链接"
+    ]
+  },
+  "categories": [
+    {
+      "code": "A",
+      "id": "draft-generation",
+      "name": "草稿生成与建模",
+      "shortName": "草稿生成",
+      "question": "怎样更快、更准地产生候选 Token？",
+      "description": "关注 Drafter 的结构、训练、特征注入与并行生成方式，核心权衡是草稿质量与生成开销。",
+      "color": "#d95f45",
+      "softColor": "#f8ddd4"
+    },
+    {
+      "code": "B",
+      "id": "candidate-organization",
+      "name": "候选组织与树搜索",
+      "shortName": "候选组织",
+      "question": "怎样把有限预算放到更可能命中的路径上？",
+      "description": "关注候选序列、Token Tree、路径搜索、扩树与剪枝，让一次验证覆盖更多高价值分支。",
+      "color": "#238077",
+      "softColor": "#d6ece8"
+    },
+    {
+      "code": "C",
+      "id": "verification-systems",
+      "name": "验证调度与系统协同",
+      "shortName": "验证与系统",
+      "question": "怎样把接受收益转化成真实的端到端加速？",
+      "description": "关注并行验证、动态长度、节点预算、硬件成本与 Serving 负载，使算法收益适配运行时。",
+      "color": "#3c5fa5",
+      "softColor": "#dce4f5"
+    }
+  ],
+  "tags": [
+    {
+      "code": "D",
+      "id": "draft",
+      "name": "Draft",
+      "zhName": "草稿效率",
+      "description": "降低草稿生成成本",
+      "color": "#d95f45",
+      "softColor": "#f8ddd4"
+    },
+    {
+      "code": "Q",
+      "id": "quality",
+      "name": "Quality",
+      "zhName": "草稿质量",
+      "description": "提高草稿质量和接受长度 τ",
+      "color": "#a86b18",
+      "softColor": "#f4e5c7"
+    },
+    {
+      "code": "T",
+      "id": "tree",
+      "name": "Tree",
+      "zhName": "候选结构",
+      "description": "优化候选路径、树结构和节点预算",
+      "color": "#238077",
+      "softColor": "#d6ece8"
+    },
+    {
+      "code": "V",
+      "id": "verify",
+      "name": "Verify",
+      "zhName": "验证效率",
+      "description": "减少无效验证、动态决定验多少",
+      "color": "#3c5fa5",
+      "softColor": "#dce4f5"
+    },
+    {
+      "code": "R",
+      "id": "training",
+      "name": "Training",
+      "zhName": "训练方法",
+      "description": "优化训练目标、数据或训练稳定性",
+      "color": "#8255a2",
+      "softColor": "#eadff0"
+    },
+    {
+      "code": "S",
+      "id": "serving",
+      "name": "Serving",
+      "zhName": "服务系统",
+      "description": "流水线、Batch、调度和正确性",
+      "color": "#2f708c",
+      "softColor": "#d9eaf0"
+    },
+    {
+      "code": "H",
+      "id": "hardware",
+      "name": "Hardware",
+      "zhName": "硬件适配",
+      "description": "KV Cache、长上下文及设备侧硬件适配",
+      "color": "#545a66",
+      "softColor": "#e5e7ea"
+    }
+  ],
+  "papers": [
+    {
+      "id": "medusa",
+      "index": 1,
+      "title": "Medusa: Simple LLM Inference Acceleration Framework with Multiple Decoding Heads",
+      "shortName": "Medusa",
+      "institutions": "美国卡内基梅隆大学（CMU）、Meta",
+      "categoryCodes": ["A", "B"],
+      "workbookTags": ["并行多头", "Draft 质量", "候选树", "Tree Attention", "训练"],
+      "tagCodes": ["D", "Q", "T", "R"],
+      "venue": "ICML 2024",
+      "date": "2024-07",
+      "url": "https://proceedings.mlr.press/v235/cai24b.html",
+      "localPdf": "../Reference/Medusa.pdf",
+      "categoryContributions": {
+        "A": "在目标模型骨干上增加多个并行解码头，一次预测多个未来位置，并以两级微调方案改善 Draft 质量。",
+        "B": "把多头候选组织为树，并用 Tree Attention 在一次目标模型前向中同时验证多条延续。"
+      },
+      "tagContributions": {
+        "D": "多个预测头一次提出多个未来 Token，降低逐位置草稿生成开销。",
+        "Q": "用专门的未来位置预测头提升候选命中率与可接受长度。",
+        "T": "将不同位置、不同候选组合为预构造候选树。",
+        "R": "采用冻结骨干训练 Heads 与联合微调两类训练方案。"
+      }
+    },
+    {
+      "id": "mtp",
+      "index": 2,
+      "title": "Better & Faster Large Language Models via Multi-token Prediction",
+      "shortName": "MTP",
+      "institutions": "Meta FAIR",
+      "categoryCodes": ["A"],
+      "workbookTags": ["多 Token 预测", "并行 Draft", "辅助训练目标"],
+      "tagCodes": ["D", "Q", "T", "R"],
+      "venue": "ICML 2024",
+      "date": "2024-07",
+      "url": "https://proceedings.mlr.press/v235/gloeckle24a.html",
+      "localPdf": "../Reference/MTP.pdf",
+      "categoryContributions": {
+        "A": "在共享主干上配置多个独立输出头，把多 Token 预测作为辅助目标训练，使未来 Token 可被并行提出。"
+      },
+      "tagContributions": {
+        "D": "共享一次主干计算并行预测多个未来位置，减少逐 Token 提案成本。",
+        "Q": "多 Token 辅助目标让模型显式学习未来位置，提高并行候选质量。",
+        "T": "多位置预测结果可组成供一次验证使用的结构化候选。",
+        "R": "将多 Token 预测加入预训练目标，改善模型表征与训练信号。"
+      }
+    },
+    {
+      "id": "eagle",
+      "index": 3,
+      "title": "EAGLE: Speculative Sampling Requires Rethinking Feature Uncertainty",
+      "shortName": "EAGLE",
+      "institutions": "清华大学、美国加州大学圣塔芭芭拉分校（UCSB）",
+      "categoryCodes": ["A"],
+      "workbookTags": ["特征级 Draft", "自回归 Draft", "Target 特征利用", "训练"],
+      "tagCodes": ["Q", "R"],
+      "venue": "ICML 2024",
+      "date": "2024-07",
+      "url": "https://proceedings.mlr.press/v235/li24bt.html",
+      "localPdf": null,
+      "localPdfNote": "Reference/EAGLE.pdf 实际是 Fused3S 论文，与本条标题不一致，因此不提供错误的本地链接。",
+      "categoryContributions": {
+        "A": "把草稿自回归从 Token 空间转到目标模型特征空间，并显式利用目标特征以提高候选命中率。"
+      },
+      "tagContributions": {
+        "Q": "在目标模型特征空间预测未来 Feature，比普通小模型更贴近 Target 分布。",
+        "R": "围绕特征不确定性设计训练目标，让 Feature Drafter 学习目标模型的未来状态。"
+      }
+    },
+    {
+      "id": "eagle-2",
+      "index": 4,
+      "title": "EAGLE-2: Faster Inference of Language Models with Dynamic Draft Trees",
+      "shortName": "EAGLE-2",
+      "institutions": "清华大学、美国加州大学圣塔芭芭拉分校（UCSB）",
+      "categoryCodes": ["A", "B"],
+      "workbookTags": ["特征级 Draft", "动态候选树", "置信度扩树", "节点预算"],
+      "tagCodes": ["Q", "T", "V"],
+      "venue": "EMNLP 2024",
+      "date": "2024-11",
+      "url": "https://aclanthology.org/2024.emnlp-main.422/",
+      "localPdf": "../Reference/EAGLE2.pdf",
+      "categoryContributions": {
+        "A": "延续 EAGLE 的特征级 Drafter，并利用其较可靠的置信度估计候选接受概率。",
+        "B": "依据上下文置信度动态扩展 Draft Tree，在固定节点预算下把容量分配给更可能被接受的分支。"
+      },
+      "tagContributions": {
+        "Q": "用特征级 Drafter 的置信度评估候选质量，保留更可能命中的分支。",
+        "T": "把固定树改为逐轮按概率动态扩展的 Draft Tree。",
+        "V": "在固定验证节点预算内重排树容量，减少低收益节点进入验证。"
+      }
+    },
+    {
+      "id": "eagle-3",
+      "index": 5,
+      "title": "EAGLE-3: Scaling up Inference Acceleration of Large Language Models via Training-Time Test",
+      "shortName": "EAGLE-3",
+      "institutions": "清华大学",
+      "categoryCodes": ["A"],
+      "workbookTags": ["Token 级 Draft", "多层特征融合", "Training-Time Test", "训练对齐"],
+      "tagCodes": ["Q", "R"],
+      "venue": "NeurIPS 2025",
+      "date": "2025-12",
+      "url": "https://proceedings.neurips.cc/paper_files/paper/2025/hash/c7b5a35ea98b62512a869c19ea7b03cb-Abstract-Conference.html",
+      "localPdf": "../Reference/EAGLE3.pdf",
+      "categoryContributions": {
+        "A": "改为直接预测 Token，融合目标模型浅、中、深层特征，并用 Training-Time Test 缩小训练与多步推理的差异。"
+      },
+      "tagContributions": {
+        "Q": "融合 Target 多层特征并直接预测 Token，增强自回归 Drafter 的候选质量。",
+        "R": "用 Training-Time Test 模拟推理时的多步 Rollout，缓解训练—推理错位。"
+      }
+    },
+    {
+      "id": "beagle",
+      "index": 6,
+      "title": "Cross-Attention Speculative Decoding",
+      "shortName": "Beagle / Budget EAGLE",
+      "institutions": "清华大学",
+      "categoryCodes": ["A"],
+      "workbookTags": ["Cross-Attention", "Draft 质量", "结构简化", "训练稳定性", "训练显存"],
+      "tagCodes": ["Q", "R", "D"],
+      "venue": "arXiv",
+      "date": "2025-05",
+      "url": "https://arxiv.org/abs/2505.24544",
+      "localPdf": "../Reference/BEAGLE.pdf",
+      "categoryContributions": {
+        "A": "用简洁的 Cross-Attention Drafter 取代紧耦合自注意力与融合层，并以两阶段 Block-Attention 训练稳定收敛和显存。"
+      },
+      "tagContributions": {
+        "Q": "Cross-Attention 让 Drafter 直接读取 Target 上下文特征以维持草稿质量。",
+        "R": "两阶段 Block-Attention 训练改善稳定性并降低训练显存。",
+        "D": "简化 EAGLE 式紧耦合结构，减少 Drafter 结构与训练成本。"
+      }
+    },
+    {
+      "id": "pard",
+      "index": 7,
+      "title": "PARD: Accelerating LLM Inference with Low-Cost PARallel Draft Model Adaptation",
+      "shortName": "PARD",
+      "institutions": "香港中文大学（深圳）、其他合作单位",
+      "categoryCodes": ["A"],
+      "workbookTags": ["并行 Draft", "Mask 预测", "低成本适配", "训练加速", "跨 Target 复用"],
+      "tagCodes": ["D", "R", "Q"],
+      "venue": "ICLR 2026",
+      "date": "2026-04",
+      "url": "https://openreview.net/forum?id=XbOyv7iVGL",
+      "localPdf": "../Reference/PARD.pdf",
+      "categoryContributions": {
+        "A": "以单次前向并行预测多个未来 Token，并通过低成本适配，使一个 Drafter 可跨同系列 Target 复用。"
+      },
+      "tagContributions": {
+        "D": "把现成 AR 小模型改造成一次预测多个 Mask 位置的并行 Drafter。",
+        "R": "以低成本适配训练缩短改造周期，并支持同系列 Target 复用。",
+        "Q": "继承预训练 AR 小模型能力，在低成本改造下保持多位置候选质量。"
+      }
+    },
+    {
+      "id": "diffuspec",
+      "index": 8,
+      "title": "DiffuSpec: Unlocking Diffusion Language Models for Speculative Decoding",
+      "shortName": "DiffuSpec",
+      "institutions": "香港中文大学（深圳）、其他合作单位",
+      "categoryCodes": ["A", "C"],
+      "workbookTags": ["预训练扩散 Drafter", "单次并行 Draft", "因果路径搜索", "动态 Draft 长度"],
+      "tagCodes": ["D", "Q", "V"],
+      "venue": "Findings of ACL 2026",
+      "date": "2026-07",
+      "url": "https://aclanthology.org/2026.findings-acl.1048/",
+      "localPdf": "../Reference/DiffuSpec.pdf",
+      "categoryContributions": {
+        "A": "复用预训练扩散语言模型，在单次前向中生成多位置 Token Lattice，消除自回归 Draft 的逐步开销。",
+        "C": "以因果一致路径搜索提取可验证序列，并根据在线接受反馈动态调节 Draft 长度。"
+      },
+      "tagContributions": {
+        "D": "直接复用预训练 Diffusion LM，一次前向并行生成 Token Lattice。",
+        "Q": "用因果一致路径搜索从并行 Lattice 中选择与 AR Target 兼容的序列。",
+        "V": "根据在线接受反馈自适应 Proposal Length，避免固定长度造成浪费。"
+      }
+    },
+    {
+      "id": "specdiff-2",
+      "index": 9,
+      "title": "SpecDiff-2: Scaling Diffusion Drafter Alignment For Faster Speculative Decoding",
+      "shortName": "SpecDiff-2",
+      "institutions": "美国加州大学圣塔芭芭拉分校（UCSB）等",
+      "categoryCodes": ["A"],
+      "workbookTags": ["离散扩散 Drafter", "并行生成", "Draft–Target 分布对齐", "训练校准"],
+      "tagCodes": ["D", "Q", "R"],
+      "venue": "MLSys 2026",
+      "date": "2026-05",
+      "url": "https://arxiv.org/abs/2511.00606",
+      "localPdf": "../Reference/SpecDiff2.pdf",
+      "categoryContributions": {
+        "A": "采用离散扩散进行非自回归并行 Draft，并通过训练与测试校准缓解扩散 Drafter 和自回归 Verifier 的分布错位。"
+      },
+      "tagContributions": {
+        "D": "离散扩散模型非自回归地产生整段候选，利用位置并行性降低 Draft 成本。",
+        "Q": "专门对齐 Diffusion Drafter 与 AR Verifier 的分布以提高接受率。",
+        "R": "通过训练和测试校准解决两类模型的分布错位。"
+      }
+    },
+    {
+      "id": "dflash",
+      "index": 10,
+      "title": "DFlash: Block Diffusion for Flash Speculative Decoding",
+      "shortName": "DFlash",
+      "institutions": "中国科学院计算技术研究所、其他合作单位",
+      "categoryCodes": ["A"],
+      "workbookTags": ["Block Diffusion", "单次并行 Draft", "Target 多层特征", "KV Injection", "位置加权训练"],
+      "tagCodes": ["D", "Q", "R"],
+      "venue": "ICML 2026",
+      "date": "2026-07",
+      "url": "https://arxiv.org/abs/2602.06036",
+      "localPdf": "../Reference/DFlash.pdf",
+      "categoryContributions": {
+        "A": "用轻量 Block Diffusion 一次生成整段草稿，并通过目标模型多层特征、KV Injection 与位置加权训练提升接受率。"
+      },
+      "tagContributions": {
+        "D": "轻量 Block-Diffusion Drafter 用一次并行前向替代多次串行 Draft。",
+        "Q": "融合 Target 多层 Hidden State，并通过 KV Injection 补偿小 Drafter 容量。",
+        "R": "采用多层特征融合与位置加权损失，强化较难的后缀位置。"
+      }
+    },
+    {
+      "id": "dflare",
+      "index": 11,
+      "title": "DFlare: Scaling Up Draft Capacity for Block Diffusion Speculative Decoding",
+      "shortName": "DFlare",
+      "institutions": "北京大学、腾讯",
+      "categoryCodes": ["A"],
+      "workbookTags": ["Draft 容量扩展", "逐层特征融合", "异构 KV Projection", "深度扩展", "渐进位置损失"],
+      "tagCodes": ["Q", "R", "D"],
+      "venue": "arXiv",
+      "date": "2026-06",
+      "url": "https://arxiv.org/abs/2606.02091",
+      "localPdf": "../Reference/DFlare.pdf",
+      "categoryContributions": {
+        "A": "让每个 Draft 层融合不同的目标多层特征，并以异构 KV Projection 打开条件瓶颈，从而稳定扩展 Drafter 深度与容量。"
+      },
+      "tagContributions": {
+        "Q": "逐 Draft 层学习不同 Target 层融合权重，解除共享特征造成的容量瓶颈。",
+        "R": "扩充训练数据并采用渐进式位置加权损失，稳定训练更深 Drafter。",
+        "D": "保留 DFlash 的单次 Block-Diffusion 并行流程，同时提升可用模型容量。"
+      }
+    },
+    {
+      "id": "domino",
+      "index": 12,
+      "title": "Domino: Decoupling Causal Modeling from Autoregressive Drafting in Speculative Decoding",
+      "shortName": "Domino",
+      "institutions": "未知（arXiv作者团队）",
+      "categoryCodes": ["A"],
+      "workbookTags": ["并行 Backbone", "轻量因果 Head", "Prefix 条件修正", "课程训练", "Suffix Decay"],
+      "tagCodes": ["D", "Q", "R"],
+      "venue": "arXiv",
+      "date": "2026-05",
+      "url": "https://arxiv.org/abs/2605.29707",
+      "localPdf": "../Reference/Domino.pdf",
+      "categoryContributions": {
+        "A": "先由并行 Backbone 产生整块分布，再用轻量 Causal Head 注入 Prefix 依赖；课程训练缓解并行草稿的 Suffix Decay。"
+      },
+      "tagContributions": {
+        "D": "把昂贵的块级 Backbone 并行化，只让轻量 Causal Head 顺序修正。",
+        "Q": "根据已经选择的 Prefix 修正后续 Logits，补回纯并行 Drafter 缺失的块内因果依赖。",
+        "R": "使用 Base-Anchored Curriculum 稳定并行基础分布与顺序修正头的协同训练。"
+      }
+    },
+    {
+      "id": "dspark",
+      "index": 13,
+      "title": "DSpark: Confidence-Scheduled Speculative Decoding with Semi-Autoregressive Generation",
+      "shortName": "DSpark",
+      "institutions": "未知（arXiv作者团队）",
+      "categoryCodes": ["A", "C"],
+      "workbookTags": ["半自回归 Draft", "Markov/RNN Head", "置信度预测", "动态 Verify 长度", "负载感知调度"],
+      "tagCodes": ["D", "Q", "V", "S", "R"],
+      "venue": "arXiv",
+      "date": "2026-07",
+      "url": "https://arxiv.org/abs/2607.05147",
+      "localPdf": "../Reference/DSpark.pdf",
+      "categoryContributions": {
+        "A": "用并行 Backbone 搭配轻量 Markov/RNN 顺序模块，在保留吞吐的同时补充块内依赖、减缓尾部质量衰减。",
+        "C": "预测 Prefix 存活置信度，并结合引擎吞吐曲线和负载为每个请求动态选择 Verify 长度。"
+      },
+      "tagContributions": {
+        "D": "DFlash 式并行 Backbone 配合便宜的 Markov/RNN 顺序头，形成半自回归 Draft。",
+        "Q": "顺序头利用已选 Prefix 缓解块后部的 Suffix Decay。",
+        "V": "Confidence Head 预测逐位置条件接受率，按请求动态决定 Verify Length。",
+        "S": "结合实时 SPS 曲线和当前 Batch 负载分配验证预算。",
+        "R": "联合训练并行 Backbone、顺序头与置信度头以支持生成和调度。"
+      }
+    },
+    {
+      "id": "specinfer",
+      "index": 14,
+      "title": "SpecInfer: Accelerating Large Language Model Serving with Tree-based Speculative Inference and Verification",
+      "shortName": "SpecInfer",
+      "institutions": "美国加州大学圣迭戈分校（UCSD）、其他合作单位",
+      "categoryCodes": ["B", "C"],
+      "workbookTags": ["Token Tree", "多模型候选", "Tree Attention", "并行验证", "Serving 系统"],
+      "tagCodes": ["T", "V", "S"],
+      "venue": "ASPLOS 2024",
+      "date": "2024-04",
+      "url": "https://dl.acm.org/doi/10.1145/3620666.3651335",
+      "localPdf": null,
+      "localPdfNote": "Reference 目录中没有与 SpecInfer 对应的本地 PDF。",
+      "categoryContributions": {
+        "B": "把一个或多个 Draft 模型提出的候选合并成 Token Tree，减少重复前缀并扩大候选覆盖。",
+        "C": "以树形注意力和并行验证在一次 Target 前向中处理整棵候选树，面向 Serving 场景降低延迟。"
+      },
+      "tagContributions": {
+        "T": "将多个小模型或候选序列合并、扩展成共享前缀的 Token Tree。",
+        "V": "用 Tree Attention 在一次 Target 前向中并行验证整棵树。",
+        "S": "围绕大模型 Serving 组织多模型推测、树构建与验证流水线。"
+      }
+    },
+    {
+      "id": "opt-tree",
+      "index": 15,
+      "title": "OPT-Tree: Speculative Decoding with Adaptive Draft Tree Structure",
+      "shortName": "OPT-Tree",
+      "institutions": "未知（arXiv作者团队）",
+      "categoryCodes": ["B", "C"],
+      "workbookTags": ["自适应候选树", "期望接受长度", "节点预算", "概率驱动扩树"],
+      "tagCodes": ["T", "V"],
+      "venue": "TACL 2025",
+      "date": "2025-02",
+      "url": "https://aclanthology.org/2025.tacl-1.8/",
+      "localPdf": "../Reference/OPTTree.pdf",
+      "categoryContributions": {
+        "B": "基于自回归 Drafter 的概率搜索可扩展树结构，目标是直接最大化期望接受长度。",
+        "C": "在每个解码步内按当前概率重新分配节点预算，使验证规模随上下文自适应。"
+      },
+      "tagContributions": {
+        "T": "在固定节点预算下搜索最大化期望接受长度的自适应树结构。",
+        "V": "按上下文概率配置有限验证节点，避免固定树对所有样本一刀切。"
+      }
+    },
+    {
+      "id": "dart",
+      "index": 16,
+      "title": "DART: Diffusion-Inspired Speculative Decoding for Fast LLM Inference",
+      "shortName": "DART",
+      "institutions": "未知（arXiv作者团队）",
+      "categoryCodes": ["A", "B"],
+      "workbookTags": ["单次并行 Logits", "Target Hidden State", "N-gram 连贯性", "候选树剪枝"],
+      "tagCodes": ["D", "Q", "T"],
+      "venue": "arXiv",
+      "date": "2026-01",
+      "url": "https://arxiv.org/abs/2601.19278",
+      "localPdf": "../Reference/DART.pdf",
+      "categoryContributions": {
+        "A": "基于 Target Hidden State 在一次轻量前向中并行预测多个未来 Mask 位置的 Logits，避免自回归 Rollout。",
+        "B": "用 N-gram 连贯性约束和高效剪枝，从并行 Logits 中构造质量更高的 Draft Token Tree。"
+      },
+      "tagContributions": {
+        "D": "从 Target Hidden State 一次并行预测多个未来位置的 Logits。",
+        "Q": "外部 N-gram Trie 约束并行位置之间的语义连续性。",
+        "T": "从多位置 Logits 剪枝并组织为候选树，同时控制分支规模。"
+      }
+    },
+    {
+      "id": "ddtree",
+      "index": 17,
+      "title": "Accelerating Speculative Decoding with Block Diffusion Draft Trees",
+      "shortName": "DDTree",
+      "institutions": "未知（arXiv作者团队）",
+      "categoryCodes": ["B", "C"],
+      "workbookTags": ["Diffusion Draft Tree", "边缘概率", "Best-First Search", "节点预算", "Tree Attention"],
+      "tagCodes": ["T", "V"],
+      "venue": "arXiv",
+      "date": "2026-04",
+      "url": "https://arxiv.org/abs/2604.12989",
+      "localPdf": "../Reference/DDTree.pdf",
+      "categoryContributions": {
+        "B": "从 Block Diffusion 的逐位置分布出发，在固定节点预算下用 Best-First Search 选择最可能匹配的延续。",
+        "C": "用仅祖先可见的 Tree Attention Mask，在一次 Target 前向中高效验证整棵 Diffusion Draft Tree。"
+      },
+      "tagContributions": {
+        "T": "用 Best-First Heap 按逐位置边缘概率，在固定预算内选择概率质量最高的前缀节点。",
+        "V": "通过 Tree Attention 一次验证整棵树，并用节点预算限制验证成本。"
+      }
+    },
+    {
+      "id": "taps",
+      "index": 18,
+      "title": "TAPS: Target-Aware Prefix Tree Selection for Diffusion-Drafted Speculative Decoding",
+      "shortName": "TAPS",
+      "institutions": "未知（arXiv作者团队）",
+      "categoryCodes": ["B", "C"],
+      "workbookTags": ["Prefix Survival", "路径条件评分", "Target-Aware Scorer", "紧凑树剪枝"],
+      "tagCodes": ["T", "V", "Q"],
+      "venue": "arXiv",
+      "date": "2026-05",
+      "url": "https://arxiv.org/abs/2606.00487",
+      "localPdf": "../Reference/TAPS.pdf",
+      "categoryContributions": {
+        "B": "把扩散边缘概率转换为路径条件的 Prefix Survival 估计，并选择紧凑、前缀闭合的子树。",
+        "C": "用 Target-Aware Scorer 在固定验证预算下权衡接受收益与成本，避免验证不可达后代。"
+      },
+      "tagContributions": {
+        "T": "按 Prefix-Conditioned Acceptance 选择前缀闭合的紧凑子树。",
+        "V": "避免为前缀已经失败的后代分配验证节点，减少无效验证。",
+        "Q": "Target-Aware Scorer 估计真实路径存活率，而非只看逐位置边缘概率。"
+      }
+    },
+    {
+      "id": "smart",
+      "index": 19,
+      "title": "SMART: When is it Actually Worth Expanding a Speculative Tree?",
+      "shortName": "SMART",
+      "institutions": "未知（arXiv作者团队）",
+      "categoryCodes": ["B", "C"],
+      "workbookTags": ["系统感知扩树", "硬件成本模型", "边际收益–成本", "动态节点预算", "Batch 感知"],
+      "tagCodes": ["T", "V", "S", "H"],
+      "venue": "ECCV 2026",
+      "date": "2026-09",
+      "url": "https://arxiv.org/abs/2604.09731",
+      "localPdf": "../Reference/SMART.pdf",
+      "categoryContributions": {
+        "B": "在运行时以边际收益—成本规则决定是否继续扩展节点，把树结构直接对齐端到端加速目标。",
+        "C": "引入硬件与 Batch 感知成本模型，动态控制节点预算，避免大树在计算饱和时产生负加速。"
+      },
+      "tagContributions": {
+        "T": "以边际接受收益和扩树成本决定是否添加下一节点。",
+        "V": "不盲目最大化接受长度，只验证预计能够带来端到端收益的节点。",
+        "S": "随 Batch 状态和运行时负载调整树规模，面向真实 Serving 吞吐。",
+        "H": "显式建模硬件验证成本与计算饱和，避免理论收益转化为负加速。"
+      }
+    },
+    {
+      "id": "ptd",
+      "index": 20,
+      "title": "Unlocking Parallelism in Autoregressive Language Models via Speculative Decoding with Progressive Tree Drafting",
+      "shortName": "PTD",
+      "institutions": "未知（arXiv作者团队）",
+      "categoryCodes": ["B"],
+      "workbookTags": ["Target 自投机", "渐进候选树", "单次并行探索", "逐步剪枝", "Training-Free"],
+      "tagCodes": ["D", "T", "V"],
+      "venue": "COLM 2026",
+      "date": "2026-10",
+      "url": "https://arxiv.org/abs/2607.10661",
+      "localPdf": "../Reference/PTD.pdf",
+      "categoryContributions": {
+        "B": "由 Target 模型自身在一次前向中并行探索渐进树，并逐步剪枝以保持分支多样性和连贯性；无需训练额外 Drafter。"
+      },
+      "tagContributions": {
+        "D": "不附加独立 Drafter，由 Target 自身在一次前向中产生结构化候选。",
+        "T": "渐进构造多条路径，在单次并行探索中保持分支多样性。",
+        "V": "边构造边剪枝，避免把低价值路径带入后续验证。"
+      }
+    }
+  ]
+};
