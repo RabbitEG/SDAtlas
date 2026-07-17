@@ -4513,6 +4513,10 @@ window.SD_ATLAS_DATA = {
           "answer": "理论上会受影响，但在固定生产部署中，这个近似通常合理。\n\n模型、设备、并行策略、Kernel 和资源分配在上线前基本固定，无关负载也通常被隔离；上下文长度等变量则通过 Decode Load Balance 尽量拉平。此时，调度器真正会大幅改变、且直接影响一轮 Verify 成本的主要变量，就是总 Verify Token 数：\n\nB=Σᵣ(1+ℓᵣ)\n\n因此，离线 Profiling 得到的 SPS(B) 并不是完整性能模型，而是受控环境下的主导变量代理。它不要求精确预测每次延迟，只要能正确刻画“继续增加 Verify Token 后，吞吐大致如何变化”，就足以辅助选择 Verify 长度。\n\n适用边界也很明确：若存在超长上下文严重失衡、动态模型共置、频繁降频或通信拥塞，就需要把 SPS 扩展成包含 Context Bucket 和运行时状态的多维或在线模型。"
         },
         {
+          "question": "为什么动态 Draft Length 会破坏 CUDA Graph，而动态 Verify Length 却可以支持？",
+          "answer": "动态 Verify 其实也会破坏固定 Shape，只是 DSpark 专门把它规整化了。\n\nDSpark 将不同请求的变长 Verify Token 全部 Flatten 成一个总长度为 K 的平坦 Batch，再通过 Marker Tensor 表达请求归属和 Attention 关系。这样每个请求的逻辑长度可变，但物理执行仍是规则 Tensor；而且 K 会提前预测，便于选择预先准备好的执行路径。\n\n动态 Draft 若想真正节省计算，则必须改变 Drafter Backbone 实际处理的 Token 数，直接影响：\n\n* Attention Query Length；\n* Hidden State 和 Logits Shape；\n* Buffer 与 Kernel 配置；\n* Sequential Head 的执行次数。\n\n当然也可以把所有请求 Padding 到最大 Draft Length 来保住 CUDA Graph，但这样被截掉的位置仍会完整计算，无法省下 Draft Backbone 成本。\n\n核心区别是：\n\n动态 Verify 是从已生成的候选中少拿一些去算，可以通过 Flatten 规整；动态 Draft 要改变 Backbone 本身算多少，不能仅靠逻辑裁剪获得收益。"
+        },
+        {
           "question": "为什么生产调度要用两轮前的置信度来预测当前轮容量 (K)？当前轮或上一轮的信息不能直接用吗？",
           "answer": "根本原因是 ZOS 要提前准备下一轮，不能等置信度出来后再停下来调度。\n\n普通同步实现可以直接使用当前轮置信度：\n\n当前轮 Draft\n→ 得到当前 Confidence\n→ 计算 K\n→ 组织 Verify Batch\n→ 执行 Verify\n\n但这样 GPU 必须等待容量搜索和 Batch 重组，会产生调度气泡。\n\nZOS 希望第 t 轮结束后，第 t+1 轮立刻启动。因此在第 t 轮执行期间，Kₜ₊₁ 就必须已经确定并完成准备。可第 t 轮的置信度通常要到该轮接近结束时才完整可用，已经来不及参与准备；所以它使用更早、已经稳定可用的信息：\n\ncₜ₋₂ → Kₜ\n\n可以理解为：\n\n第 t−2 轮 Confidence 已就绪\n        ↓\n第 t−1 轮执行期间，异步计算并准备 Kₜ\n        ↓\n第 t 轮直接启动\n\n所以“两轮滞后”主要来自当前生产流水线的提前准备窗口，并非算法数学上必然要求两轮：\n\n用当前轮信息：可以，但会同步停顿；\n用上一轮信息：理论上可能，但在该实现中来得太晚，无法完全隐藏调度；\n用三轮前信息：也能运行，但信息更旧，没必要。\n\n生产方案通常让两轮前的信息只决定总容量 K，再用当前置信度选择本轮具体保留的 Top-K 候选。代价是负载或候选难度突然变化时，容量调整会存在两轮滞后。"
         }
