@@ -1,4 +1,4 @@
-/* Interactive, display-pruned paper-relation graph component. */
+/* Interactive citation-predecessor graph with display-only pruning. */
 
 .citation-graph {
   box-sizing: border-box;
@@ -215,6 +215,16 @@
   vector-effect: non-scaling-stroke;
 }
 
+.citation-graph__bus {
+  fill: none;
+  stroke: #315f57;
+  stroke-linecap: square;
+  stroke-width: 2.7;
+  opacity: 0.92;
+  pointer-events: none;
+  vector-effect: non-scaling-stroke;
+}
+
 .citation-graph__edge.is-outer-route {
   opacity: 0.66;
 }
@@ -349,6 +359,12 @@
   border-color: var(--brand, #164c45);
 }
 
+.citation-graph__node.is-current:not(.is-focused) {
+  background: #f1f7f4;
+  border-color: #4d766d;
+  box-shadow: 0 0 0 2px rgba(22, 76, 69, 0.11), 0 3px 9px rgba(18, 45, 40, 0.08);
+}
+
 .citation-graph__node.is-focused time {
   color: rgba(255, 255, 255, 0.76);
 }
@@ -369,7 +385,7 @@
   .citation-graph__stats {
     box-sizing: border-box;
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     width: 100%;
   }
 

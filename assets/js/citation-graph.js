@@ -1,17 +1,17 @@
 /*
- * Interactive paper-relation graph shared by every SDAtlas result page.
+ * Interactive citation graph shared by every SDAtlas result page.
  *
- * Source relations are never rewritten here. For each visible result set, the
- * component performs a display-only, relation-aware transitive reduction:
- * when A -> C is already implied by an A -> B -> ... -> C path of the same
- * relation type, the direct A -> C stroke is omitted. The remaining graph is
- * layered so relation sources sit to the right of their targets.
+ * The papers supplied by a page are graph roots. The component recursively
+ * follows only their outgoing citations, so later papers that merely cite a
+ * root are never pulled into the graph. Transitive citation edges are removed
+ * at display time across paths of any depth; source JSON remains untouched.
  */
 (function () {
   "use strict";
 
   var graphSequence = 0;
   var RELATION_DEFINITIONS = [
+    { key: "citation", label: "引用" },
     { key: "extends", label: "直接扩展" },
     { key: "comparesAgainst", label: "实验比较" },
     { key: "related", label: "相关工作" },
@@ -82,7 +82,52 @@
     }).slice().sort(comparePapers);
   }
 
-  function pathExists(adjacency, startId, targetId, skippedEdge, relationType) {
+  function citationTargetIds(paper) {
+    return (Array.isArray(paper && paper.citations) ? paper.citations : [])
+      .map(referenceId).filter(Boolean);
+  }
+
+  function relationTypesForCitation(paper, targetId) {
+    var relations = paper && paper.relations && typeof paper.relations === "object"
+      ? paper.relations : {};
+    var types = RELATION_DEFINITIONS.filter(function (definition) {
+      return definition.key !== "citation" && Array.isArray(relations[definition.key]) &&
+        relations[definition.key].some(function (reference) {
+          return referenceId(reference) === targetId;
+        });
+    }).map(function (definition) { return definition.key; });
+    return types.length ? types : ["citation"];
+  }
+
+  function citationPredecessorClosure(roots, universe) {
+    var paperById = new Map();
+    normalizePapers(universe).forEach(function (paper) {
+      paperById.set(String(paper.id), paper);
+    });
+    var included = new Set();
+    var pending = [];
+    normalizePapers(roots).forEach(function (paper) {
+      var id = String(paper.id);
+      if (!paperById.has(id)) paperById.set(id, paper);
+      if (!included.has(id)) {
+        included.add(id);
+        pending.push(id);
+      }
+    });
+    while (pending.length) {
+      var current = paperById.get(pending.pop());
+      if (!current) continue;
+      citationTargetIds(current).forEach(function (targetId) {
+        if (!paperById.has(targetId) || included.has(targetId)) return;
+        included.add(targetId);
+        pending.push(targetId);
+      });
+    }
+    return Array.from(included).map(function (id) { return paperById.get(id); })
+      .filter(Boolean).sort(comparePapers);
+  }
+
+  function pathExists(adjacency, startId, targetId, skippedEdge) {
     var stack = [startId];
     var visited = new Set([startId]);
     while (stack.length) {
@@ -91,7 +136,6 @@
       for (var index = 0; index < nextEdges.length; index += 1) {
         var edge = nextEdges[index];
         if (edge === skippedEdge) continue;
-        if (relationType && edge.relationTypes.indexOf(relationType) === -1) continue;
         var nextId = String(edge.target.id);
         if (nextId === targetId) return true;
         if (!visited.has(nextId)) {
@@ -117,30 +161,8 @@
        * Cyclic graphs have no unique transitive reduction. Preserve edges
        * whose endpoints are mutually reachable and reduce the acyclic part.
        */
-      return edge.relationTypes.some(function (relationType) {
-        if (pathExists(adjacency, targetId, sourceId, null, relationType)) return true;
-        return !pathExists(adjacency, sourceId, targetId, edge, relationType);
-      });
-    });
-  }
-
-  function collapseReciprocalRelatedEdges(rawEdges) {
-    var edgeByKey = new Map();
-    rawEdges.forEach(function (edge) { edgeByKey.set(edge.key, edge); });
-    return rawEdges.filter(function (edge) {
-      /*
-       * `related` is symmetric in meaning. If both source files record the
-       * same pure relation, draw it once so the display graph remains
-       * layerable from right to left. The stable paper order only chooses
-       * the visible arrow direction; neither source relation is rewritten.
-       */
-      if (edge.relationTypes.length !== 1 || edge.relationTypes[0] !== "related") {
-        return true;
-      }
-      var reverse = edgeByKey.get(String(edge.target.id) + "->" + String(edge.source.id));
-      if (!reverse || reverse.relationTypes.length !== 1 ||
-          reverse.relationTypes[0] !== "related") return true;
-      return comparePapers(edge.source, edge.target) > 0;
+      if (pathExists(adjacency, targetId, sourceId, null)) return true;
+      return !pathExists(adjacency, sourceId, targetId, edge);
     });
   }
 
@@ -152,55 +174,25 @@
 
     papers.forEach(function (paper) {
       var sourceId = String(paper.id);
-      var edgeByTarget = new Map();
-      var relations = paper.relations && typeof paper.relations === "object"
-        ? paper.relations : null;
-      var hasStructuredRelations = relations && RELATION_DEFINITIONS.some(function (definition) {
-        return Array.isArray(relations[definition.key]);
-      });
-      var definitions = hasStructuredRelations
-        ? RELATION_DEFINITIONS
-        : [{ key: "related", label: "相关工作", fallback: true }];
-
-      definitions.forEach(function (definition) {
-        var references = definition.fallback
-          ? (Array.isArray(paper.citations) ? paper.citations : [])
-          : relations[definition.key];
-        if (!Array.isArray(references)) return;
-        references.forEach(function (reference) {
-          var targetId = referenceId(reference);
-          if (!targetId || targetId === sourceId) return;
-          var edge = edgeByTarget.get(targetId);
-          if (!edge) {
-            edge = {
-              source: paper,
-              targetId: targetId,
-              relationTypes: [],
-              key: sourceId + "->" + targetId
-            };
-            edgeByTarget.set(targetId, edge);
-          }
-          if (edge.relationTypes.indexOf(definition.key) === -1) {
-            edge.relationTypes.push(definition.key);
-          }
-        });
-      });
-
-      edgeByTarget.forEach(function (edge, targetId) {
+      citationTargetIds(paper).forEach(function (targetId) {
+        if (targetId === sourceId) return;
         if (!paperById.has(targetId)) {
           externalCount += 1;
           return;
         }
-        edge.target = paperById.get(targetId);
-        rawEdges.push(edge);
+        rawEdges.push({
+          source: paper,
+          target: paperById.get(targetId),
+          relationTypes: relationTypesForCitation(paper, targetId),
+          key: sourceId + "->" + targetId
+        });
       });
     });
 
     rawEdges.sort(function (left, right) {
       return comparePapers(left.source, right.source) || comparePapers(left.target, right.target);
     });
-    var directionalEdges = collapseReciprocalRelatedEdges(rawEdges);
-    var edges = transitiveReduction(papers, directionalEdges);
+    var edges = transitiveReduction(papers, rawEdges);
     var outgoing = new Map();
     var incoming = new Map();
     edges.forEach(function (edge) {
@@ -442,19 +434,43 @@
         });
       });
     }
-    var bySource = new Map();
     var byTarget = new Map();
     graph.edges.forEach(function (edge) {
-      var sourceId = String(edge.source.id);
       var targetId = String(edge.target.id);
-      if (!bySource.has(sourceId)) bySource.set(sourceId, []);
       if (!byTarget.has(targetId)) byTarget.set(targetId, []);
-      bySource.get(sourceId).push(edge);
       byTarget.get(targetId).push(edge);
     });
-    apply(bySource, "source");
     apply(byTarget, "target");
     return result;
+  }
+
+  function sourceBuses(graph, positions, columnGap) {
+    var bySource = new Map();
+    graph.edges.forEach(function (edge) {
+      var sourceId = String(edge.source.id);
+      if (!bySource.has(sourceId)) bySource.set(sourceId, []);
+      bySource.get(sourceId).push(edge);
+    });
+    var buses = new Map();
+    bySource.forEach(function (edges, sourceId) {
+      if (edges.length < 2) return;
+      var source = positions.get(sourceId);
+      if (!source) return;
+      var leftward = edges.filter(function (edge) {
+        var target = positions.get(String(edge.target.id));
+        return target && target.column < source.column;
+      }).length >= Math.ceil(edges.length / 2);
+      var boundaryX = leftward ? source.x : source.x + source.width;
+      var trunkLength = Math.min(18, Math.max(10, columnGap * 0.46));
+      buses.set(sourceId, {
+        boundaryX: boundaryX,
+        junctionX: boundaryX + (leftward ? -trunkLength : trunkLength),
+        y: source.y + source.height / 2,
+        direction: leftward ? -1 : 1,
+        count: edges.length
+      });
+    });
+    return buses;
   }
 
   function layoutGraph(graph, options) {
@@ -493,12 +509,14 @@
     var width = paddingX * 2 + Math.max(1, layers.length) * nodeWidth +
       Math.max(0, layers.length - 1) * columnGap;
     var height = paddingTop + contentHeight + paddingBottom;
+    var buses = sourceBuses(graph, positions, columnGap);
     return {
       layers: layers,
       positions: positions,
       rankById: rankById,
       outerRoutes: outer.routes,
       ports: portOffsets(graph, positions, nodeHeight),
+      buses: buses,
       width: Math.max(420, width),
       height: Math.max(230, height),
       nodeWidth: nodeWidth,
@@ -521,7 +539,8 @@
     var target = layout.positions.get(String(edge.target.id));
     if (!source || !target) return [];
     var offsets = layout.ports.get(edge) || { source: 0, target: 0 };
-    var sourceY = source.y + source.height / 2 + offsets.source;
+    var bus = layout.buses.get(String(edge.source.id));
+    var sourceY = bus ? bus.y : source.y + source.height / 2 + offsets.source;
     var targetY = target.y + target.height / 2 + offsets.target;
     if (source.column === target.column) {
       var sideX = source.x + source.width + Math.min(46, layout.columnGap * 0.42);
@@ -533,7 +552,7 @@
       ];
     }
     var sourceIsRight = source.column > target.column;
-    var sourceX = sourceIsRight ? source.x : source.x + source.width;
+    var sourceX = bus ? bus.junctionX : (sourceIsRight ? source.x : source.x + source.width);
     var targetX = sourceIsRight ? target.x + target.width : target.x;
     var span = Math.abs(source.column - target.column);
     if (span === 1) {
@@ -546,9 +565,9 @@
       ];
     }
     var route = layout.outerRoutes.get(edge) || { side: "top", lane: 0 };
-    var sourceLaneX = sourceIsRight
+    var sourceLaneX = bus ? bus.junctionX : (sourceIsRight
       ? source.x - Math.min(40, layout.columnGap * 0.36)
-      : source.x + source.width + Math.min(40, layout.columnGap * 0.36);
+      : source.x + source.width + Math.min(40, layout.columnGap * 0.36));
     var targetLaneX = sourceIsRight
       ? target.x + target.width + Math.min(40, layout.columnGap * 0.36)
       : target.x - Math.min(40, layout.columnGap * 0.36);
@@ -595,8 +614,21 @@
   function relationTypeText(edge, detailed) {
     return edge.relationTypes.map(function (type) {
       var definition = relationDefinition(type);
+      if (definition.key === "citation") {
+        return detailed ? "citations（引用）" : "citation";
+      }
       return detailed ? "relations." + definition.key + "（" + definition.label + "）" : definition.key;
     }).join(detailed ? "、" : " / ");
+  }
+
+  function busesMarkup(layout) {
+    var markup = [];
+    layout.buses.forEach(function (bus, sourceId) {
+      markup.push("<path class=\"citation-graph__bus\" data-source=\"" +
+        escapeHtml(sourceId) + "\" d=\"M " + bus.boundaryX + " " + bus.y +
+        " L " + bus.junctionX + " " + bus.y + "\"></path>");
+    });
+    return markup.join("");
   }
 
   function edgesMarkup(graph, layout, markerId) {
@@ -637,13 +669,15 @@
 
   function nodesMarkup(graph, layout, options) {
     var focusId = options && options.focusId != null ? String(options.focusId) : "";
+    var rootIds = options && options.rootIds instanceof Set ? options.rootIds : new Set();
     return graph.nodes.map(function (paper) {
       var id = String(paper.id);
       var position = layout.positions.get(id);
       var shortName = paperLabel(paper);
       var fullTitle = String(paper.title || shortName);
       var degree = (graph.outgoing.get(id) || 0) + (graph.incoming.get(id) || 0);
-      var className = "citation-graph__node" + (focusId === id ? " is-focused" : "") +
+      var className = "citation-graph__node" + (rootIds.has(id) ? " is-current" : "") +
+        (focusId === id ? " is-focused" : "") +
         (degree === 0 ? " is-isolated" : "");
       var aria = shortName + "，" + paperDate(paper) + "。进入论文详情";
       return [
@@ -864,58 +898,64 @@
     }
     if (typeof target._citationGraphCleanup === "function") target._citationGraphCleanup();
     options = options || {};
-    var normalized = normalizePapers(papers);
+    var roots = normalizePapers(papers);
+    var universe = Array.isArray(options.allPapers) ? options.allPapers : roots;
+    var normalized = options.expandCitations === false
+      ? roots : citationPredecessorClosure(roots, universe);
+    options.rootIds = new Set(roots.map(function (paper) { return String(paper.id); }));
     var graph = buildGraph(normalized);
     var layout = layoutGraph(graph, options);
     graphSequence += 1;
     var titleId = "citation-graph-title-" + graphSequence;
     var markerId = "citation-arrow-" + graphSequence;
-    var title = options.title || "当前集合的论文关系";
+    var title = options.title || "当前论文的引用脉络";
     var emptyMessage = normalized.length
-      ? "当前集合中暂无已记录的内部论文关系。"
+      ? "当前论文没有已收录的站内引用。"
       : "当前集合没有可展示的论文。";
     var viewport = normalized.length ? [
       "<div class=\"citation-graph__interactionbar\"><div class=\"citation-graph__controls\" " +
-        "role=\"group\" aria-label=\"论文关系图缩放控制\">",
-      "<button type=\"button\" data-graph-action=\"zoom-out\" aria-label=\"缩小论文关系图\">−</button>",
+        "role=\"group\" aria-label=\"引用图缩放控制\">",
+      "<button type=\"button\" data-graph-action=\"zoom-out\" aria-label=\"缩小引用图\">−</button>",
       "<output class=\"citation-graph__zoom-value\" aria-live=\"polite\">100%</output>",
-      "<button type=\"button\" data-graph-action=\"zoom-in\" aria-label=\"放大论文关系图\">＋</button>",
+      "<button type=\"button\" data-graph-action=\"zoom-in\" aria-label=\"放大引用图\">＋</button>",
       "<button class=\"citation-graph__fit\" type=\"button\" data-graph-action=\"fit\">适配</button>",
       "</div></div>",
       "<div class=\"citation-graph__viewport\" tabindex=\"0\"",
-      " aria-label=\"论文关系图；拖动可平移，滚轮、加减键或按钮可缩放，方向键可移动；悬停或聚焦连线可查看关系类型\">",
+      " aria-label=\"引用图；拖动可平移，滚轮、加减键或按钮可缩放，方向键可移动；悬停或聚焦连线可查看关系类型\">",
       "<div class=\"citation-graph__world\" style=\"width:" + layout.width +
         "px;height:" + layout.height + "px\">",
       "<svg class=\"citation-graph__svg\" viewBox=\"0 0 " + layout.width + " " + layout.height +
         "\" width=\"" + layout.width + "\" height=\"" + layout.height +
-        "\" role=\"group\" aria-label=\"论文关系连线\">",
+        "\" role=\"group\" aria-label=\"论文引用连线\">",
       "<defs><marker id=\"" + markerId +
         "\" markerWidth=\"5\" markerHeight=\"5\" refX=\"4.6\" refY=\"2.5\" orient=\"auto\" markerUnits=\"strokeWidth\">",
       "<path class=\"citation-graph__arrow\" d=\"M 0 0 L 5 2.5 L 0 5 z\"></path></marker></defs>",
-      edgesMarkup(graph, layout, markerId), "</svg>",
+      busesMarkup(layout), edgesMarkup(graph, layout, markerId), "</svg>",
       nodesMarkup(graph, layout, options),
       "</div><div class=\"citation-graph__edge-tooltip\" role=\"tooltip\" hidden></div></div>"
     ].join("") : "";
     target.innerHTML = [
       "<section class=\"citation-graph\" aria-labelledby=\"" + titleId + "\">",
-      "<header class=\"citation-graph__header\"><div><p>PRUNED RELATION GRAPH</p><h2 id=\"" +
+      "<header class=\"citation-graph__header\"><div><p>PRUNED CITATION GRAPH</p><h2 id=\"" +
         titleId + "\">" + escapeHtml(title) + "</h2></div>",
-      "<dl class=\"citation-graph__stats\"><div><dt>论文</dt><dd>" + normalized.length +
+      "<dl class=\"citation-graph__stats\"><div><dt>当前论文</dt><dd>" + roots.length +
+        "</dd></div><div><dt>图中论文</dt><dd>" + normalized.length +
         "</dd></div><div><dt>显示边</dt><dd>" + graph.edges.length +
-      "</dd></div><div><dt>已约简</dt><dd>" + graph.prunedCount + "</dd></div></dl></header>",
+        "</dd></div><div><dt>已约简</dt><dd>" + graph.prunedCount + "</dd></div></dl></header>",
       "<p class=\"citation-graph__legend\"><span aria-hidden=\"true\">右 → 左</span> " +
-        "右侧论文指向左侧论文；同类型 relation 的传递边与双向 related 重复边仅在显示层省略。</p>",
+        "从当前论文向被引用论文递归展开；可由任意深度引用路径表达的直接边仅在显示层省略。</p>",
       graph.edges.length ? "" : "<p class=\"citation-graph__notice\">" +
         escapeHtml(emptyMessage) + "</p>",
       viewport,
       graph.externalCount ? "<p class=\"citation-graph__outside\">另有 <strong>" +
-        graph.externalCount + "</strong> 条已记录关系指向当前集合之外。</p>" : "",
+        graph.externalCount + "</strong> 条引用指向当前图谱之外。</p>" : "",
       "</section>"
     ].join("");
     target._citationGraphCleanup = normalized.length
       ? initializeInteraction(target, layout, options)
       : function () {};
     return {
+      rootCount: roots.length,
       nodeCount: normalized.length,
       rawEdgeCount: graph.rawEdges.length,
       edgeCount: graph.edges.length,
