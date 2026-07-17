@@ -25,21 +25,57 @@
   "institutionSource": "https://arxiv.org/html/2505.24544v3",
   "methodOverview": "让 Drafter 通过 Cross-Attention 读取固定的 Target 上下文，而不是依赖紧耦合的 Self-Attention 或逐层 Feature 融合。两阶段 Block-Attention Training 降低多步模拟的显存开销。",
   "problemStatement": {
-    "background": null,
-    "priorLimitation": null,
-    "goal": null
+    "background": "高性能投机解码通常训练一个与 Target 紧密对齐的轻量 Drafter，并通过自回归候选生成与树形并行验证提高每轮接受长度。其端到端收益同时取决于 Drafter 的预测准确度、Draft 开销和 Verify 开销。",
+    "priorLimitation": "EAGLE 等主流方法使用 Self-Attention 同时处理低层 Token Embedding 与高层 Target Hidden State，需要额外的 Pooling、Feature Fusion、复制和拼接操作；非标准组件增加模型集成复杂度和显存移动。仅用一步 NTP 又无法覆盖 Drafter 在推理中反复依赖自身预测状态造成的分布偏移，而完整 Training-Time Test 会随模拟步数增加训练时间和显存。",
+    "goal": "以最小化的 Cross-Attention Drafter 取代紧耦合 Self-Attention 结构，在不使用辅助 Pooling 或 Fusion 层的情况下达到与 EAGLE-v2 同量级的接受长度和速度，并通过两阶段训练降低多步推理模拟的训练成本与显存需求。"
   },
-  "methodComponents": [],
+  "methodComponents": [
+    {
+      "name": "Minimal Cross-Attention Drafter",
+      "stage": "Draft modeling",
+      "purpose": "用标准且更易集成的注意力结构连接 Token 输入与 Target 高层表示。",
+      "mechanism": "Drafter 仅包含一层 Cross-Attention 和一个 MLP。当前 Token Embedding 产生 Query，Target 顶层 Hidden State 或 Drafter 已预测的高层状态产生 Key/Value；注意力掩码同时遮蔽对角线和未来位置，使位置 i 只能读取 j<i 的状态。输出再通过共享词表空间的 LM Head 预测下一 Token。",
+      "differenceFromPrior": "EAGLE 使用 Self-Attention 处理异质的 Token Embedding 与 Target Feature，并依赖额外 Pooling、复制和拼接；Beagle 通过分离 Q 与 K/V 的来源直接处理两类表示，移除这些辅助组件和约一半注意力参数。"
+    },
+    {
+      "name": "Append-Only Cross-Attention KV Cache",
+      "stage": "Autoregressive drafting",
+      "purpose": "降低逐步 Draft 时的状态复制、拼接和内存移动。",
+      "mechanism": "推理时复用历史 Cross-Attention K/V；每预测一个新高层状态，只向 Drafter KV Cache 追加对应 K/V，而无需重新生成全部 Query 或复制完整 Target Feature。当前投机轮结束后，丢弃未被 Target 确认的预测状态，将 Cache 恢复为仅含真实 Target 状态。",
+      "differenceFromPrior": "EAGLE 在每个 Draft Step 复制并拼接高层状态作为下一步输入；Beagle 采用追加式 K/V 更新，改善内存局部性。"
+    },
+    {
+      "name": "Early-Stage Inverse Block-Attention",
+      "stage": "Training epochs 1–10",
+      "purpose": "以一次并行训练覆盖多个未来位置，并将更远 Token 信息压入 Drafter 表示。",
+      "mechanism": "把序列按带随机 Offset 的固定窗口划分；窗口内每个 Query 都遮蔽该窗口的全部局部未来 Key，因此同一上下文状态需并行预测未来 1 到 k 个位置。所有 Query 均参与反向传播，Early Loss 对各 Lookahead Token 的 Target 分布交叉熵求和。",
+      "differenceFromPrior": "一步 NTP 只优化即时下一 Token；逐步 TTT 则需要为每个模拟步骤展开计算。该阶段用 Block-Attention 一次处理多个未来目标，训练吞吐更高。"
+    },
+    {
+      "name": "Late-Stage In-Place Simulation",
+      "stage": "Training epochs 11–20",
+      "purpose": "对齐真实自回归 Draft 中依赖自身预测状态的推理轨迹。",
+      "mechanism": "在窗口内将上一步预测的高层状态原位写入 Key/Value，并扩展注意力掩码，使后续预测读取已生成状态；Cross-Attention 不需要随模拟步数新增 Query，训练显存近似保持常量。Late Loss 仅监督每个模拟步骤的即时下一 Token，并按该步骤对期望接受长度的贡献赋予 k−i+1 权重。",
+      "differenceFromPrior": "Self-Attention TTT 通常同时展开 Query 和 Hidden State，显存随步数增长；Beagle 只原位追加预测 Key，三步模拟可在单张 24 GiB GPU 上训练 7B Target 的 Drafter。"
+    },
+    {
+      "name": "EAGLE-2 Dynamic Draft Tree",
+      "stage": "Candidate construction and verification",
+      "purpose": "在固定 Verify 节点预算内组织多条高概率候选路径。",
+      "mechanism": "推理阶段沿用 EAGLE-2 的动态 Draft Tree 与 Tree Attention；论文对齐配置为最大深度 1+6、Top-k=10、每轮最多 60 个候选节点，再由 Target 在一次前向中并行验证。",
+      "differenceFromPrior": "该组件直接复用 EAGLE-2 的候选组织与验证策略，不是 Beagle 的主要结构创新；论文创新集中在 Cross-Attention Drafter 和两阶段训练。"
+    }
+  ],
   "characteristics": {
-    "requiresTraining": null,
-    "drafterType": null,
-    "draftGeneration": null,
-    "candidateStructure": null,
-    "verificationStrategy": null,
-    "usesTargetFeatures": null,
-    "dynamicDraftLength": null,
-    "dynamicVerifyLength": null,
-    "lossless": null
+    "requiresTraining": true,
+    "drafterType": "cross-attention-transformer",
+    "draftGeneration": "autoregressive",
+    "candidateStructure": "dynamic-tree",
+    "verificationStrategy": "tree-attention",
+    "usesTargetFeatures": true,
+    "dynamicDraftLength": false,
+    "dynamicVerifyLength": false,
+    "lossless": true
   },
   "subproblemContributions": {
     "A": {
@@ -52,23 +88,153 @@
     }
   },
   "training": {
-    "summary": "前 10 个 Epoch 以局部未来 Key 全遮蔽的 Block-Attention 并行优化多 Token 目标，后 10 个 Epoch 原位更新自预测 Key 并按接受长度对逐步损失加权；两阶段还保留隐状态蒸馏正则以稳定收敛。",
-    "data": null,
-    "objective": null
+    "summary": "在 ShareGPT 上训练 20 个 Epoch：前 10 个 Epoch 使用并行多 Token 的 Early-Stage Inverse Block-Attention，后 10 个 Epoch 使用原位回灌预测 Key 的 Late-Stage Simulation。正式配置采用 Context Length 2048、Batch Size 16、TF32 权重训练、AdamW、3e-5 恒定学习率、2000 Step Warmup 和 0.5 Gradient Norm；Target Hidden States 预先离线生成并以半精度保存。",
+    "data": "仅使用 ShareGPT，包含 6 万余条 ChatGPT 与用户的多轮对话，以便和 EAGLE、Medusa、Clover-2 等相近数据规模的基线公平比较。训练所需 Target Hidden States 离线预计算，以减少训练时间和显存。",
+    "objective": "Early Loss 在随机 Offset 的长度 k 窗口内，让每个上下文状态并行匹配未来 1…k 个 Target Token 分布；Late Loss 按真实自回归路径原位模拟多个步骤，仅优化各步即时下一 Token，并以 k−i+1 近似其对期望接受长度的贡献。两阶段均加入 Target Hidden State 的 Gaussian Noise N(0,0.2) 和系数 10 的 Hidden-State Distillation/Regression Loss；正式配置 Early Window k=5、Late Simulation Steps s=4。"
   },
   "evaluation": {
-    "targetModels": [],
-    "benchmarks": [],
-    "baselines": [],
-    "metrics": [],
-    "hardware": [],
-    "frameworks": []
+    "targetModels": [
+      "Vicuna-7B",
+      "LLaMA-2-7B",
+      "LLaMA-3-7B（按论文标注）"
+    ],
+    "benchmarks": [
+      "MT-Bench",
+      "GSM8K",
+      "CNN/DailyMail（1000-sample subset）"
+    ],
+    "baselines": [
+      "Autoregressive Decoding",
+      "HuggingFace TGI + LLaMA/Vicuna-68M Drafter",
+      "Medusa",
+      "Self-Speculative Decoding",
+      "Clover-2",
+      "EAGLE-v1",
+      "EAGLE-v2"
+    ],
+    "metrics": [
+      "Tokens per Second",
+      "End-to-end Speedup",
+      "Average Acceptance Length",
+      "Per-position Acceptance Rate",
+      "GPU Peak Memory"
+    ],
+    "hardware": [
+      "NVIDIA A6000 Ada",
+      "NVIDIA A10G on Amazon AWS",
+      "Single 24 GiB GPU for three-step training feasibility"
+    ],
+    "frameworks": [
+      "HuggingFace Transformers",
+      "PyTorch Eager Mode",
+      "HuggingFace Text Generation Inference",
+      "pytorch:2.6.0-cuda11.8-cudnn9-runtime"
+    ]
   },
-  "mainResults": [],
-  "limitations": [],
+  "mainResults": [
+    {
+      "condition": "Vicuna-7B，NVIDIA A6000 Ada，MT-Bench，Batch Size 1 Greedy Decoding",
+      "metric": "Speed / Speedup / Acceptance Length / Peak Memory",
+      "result": "104.6 tokens/s / 3.0× / 4.1 / 13.5 GiB",
+      "comparison": "EAGLE-v2 为 103.4 tokens/s / 2.9× / 4.0 / 14.5 GiB；该任务上 Beagle 略快且少用约 1.0 GiB 显存。",
+      "source": "Table 1"
+    },
+    {
+      "condition": "LLaMA-2-7B，NVIDIA A6000 Ada，MT-Bench 与 GSM8K",
+      "metric": "End-to-end Speedup and Peak Memory",
+      "result": "MT-Bench 3.0×、GSM8K 3.2×；峰值显存分别为 13.5 GiB 和 13.2 GiB",
+      "comparison": "EAGLE-v2 的速度同为 3.0× 和 3.2×，但峰值显存为 15.5 GiB 和 15.4 GiB；Beagle 在相同速度下节省约 2 GiB。",
+      "source": "Table 1"
+    },
+    {
+      "condition": "LLaMA-3，NVIDIA A6000 Ada，三个基准",
+      "metric": "End-to-end Speedup and Peak Memory",
+      "result": "MT-Bench/GSM8K/CNN-Daily 分别为 2.5×/2.6×/2.0×，峰值显存 15.7/15.5/16.0 GiB",
+      "comparison": "EAGLE-v2 分别为 2.5×/2.6×/2.1×，峰值显存 17.8/17.7/18.1 GiB；速度基本持平，Beagle 少用约 2.1–2.2 GiB。",
+      "source": "Table 1"
+    },
+    {
+      "condition": "LLaMA-2-7B，NVIDIA A10G，GSM8K",
+      "metric": "Speed / Speedup / Acceptance Length / Peak Memory",
+      "result": "43.5 tokens/s / 3.3× / 4.4 / 13.2 GiB",
+      "comparison": "EAGLE-v2 为 42.8 tokens/s / 3.2× / 4.4 / 15.4 GiB；低档 GPU 上仍保持相同接受长度和更低显存。",
+      "source": "Table 2"
+    },
+    {
+      "condition": "A6000 Ada 与 A10G 的总体评测",
+      "metric": "GPU Peak Memory",
+      "result": "Beagle 的峰值显存通常接近无投机解码 Target Baseline",
+      "comparison": "论文总结 EAGLE-v2 相对 Target 额外消耗约 10%–15% GPU Memory，而 Beagle 的额外显存较小。",
+      "source": "Section 5.2; Tables 1–2"
+    },
+    {
+      "condition": "MT-Bench，训练目标消融",
+      "metric": "Average Acceptance Length",
+      "result": "由单步 NTP 改为 Early-Stage Multi-token Prediction 后约增加 0.3；再加入 Late-Stage Exact Simulation 后再增加约 0.3",
+      "comparison": "两阶段对接受长度的收益近似叠加；更多模拟步骤主要改善中后部 Draft Token。",
+      "source": "Figure 10; Appendix A.4"
+    },
+    {
+      "condition": "MT-Bench，Early-Stage Window Size 从 1 调至 5",
+      "metric": "Inference Speed and Position-wise Acceptance",
+      "result": "Window=3 在该消融中取得最高最终推理速度",
+      "comparison": "增大窗口能减缓后部 Token 接受率衰减，但过大的窗口会牺牲最关键的第一 Token 准确率。",
+      "source": "Figure 4; Section 5.3"
+    },
+    {
+      "condition": "Draft Runtime Decomposition，动态树配置",
+      "metric": "End-to-end Speed",
+      "result": "关闭新预测 Hidden State 的显式 Concatenation，速度最多下降约 3%",
+      "comparison": "在内存搬移代价高的设备上，可用轻微速度损失换取更简单的追加式实现。",
+      "source": "Figure 11; Appendix A.4"
+    }
+  ],
+  "limitations": [
+    {
+      "type": "modeling-assumption",
+      "description": "Late Loss 的理论解释假设并行预测的第 i 个未来 Token 准确率按几何规律衰减；论文承认该假设不一定严格符合真实观测，因此其接受长度代理的理论推导更接近解释性近似，而非严格的数据生成模型。",
+      "sourceType": "paper"
+    },
+    {
+      "type": "evaluation-scope",
+      "description": "实验限定为 Batch Size 1 的 Greedy、Lossless Decoding；高并发吞吐、Sampling 模式和生产级 Serving 优化均未评估，并被明确留作后续工作。",
+      "sourceType": "paper"
+    },
+    {
+      "type": "comparison",
+      "description": "为保持训练数据规模一致，论文没有比较使用约 8 倍数据的 EAGLE-v3，也没有比较全程采用更昂贵 Training-Time Test 的方法，因此结论只能支持“同数据预算下的架构替代”，不能代表当时绝对最强速度。",
+      "sourceType": "paper"
+    },
+    {
+      "type": "scaling",
+      "description": "受计算资源和公开 Checkpoint 限制，Target 仅覆盖约 7B 级 Vicuna、LLaMA-2 和 LLaMA-3；没有验证更大 Dense/MoE 模型、长上下文或多模态模型上的扩展性。",
+      "sourceType": "paper"
+    },
+    {
+      "type": "latency",
+      "description": "Beagle 在推理阶段仍是逐 Token 自回归 Drafter，Draft 延迟会随树深和步数增长；它主要减少结构与内存开销，并未消除 EAGLE 路线的串行 Draft 瓶颈。",
+      "sourceType": "analysis"
+    },
+    {
+      "type": "evidence",
+      "description": "Beagle 并非在所有任务上都优于 EAGLE-v2：例如 A6000 Ada 的 Vicuna-GSM8K 和 CNN-Daily 上分别为 3.1×、2.4×，低于 EAGLE-v2 的 3.4×、2.6×。论文证据更准确地支持“性能同档且显存更低”，而不是全面提速。",
+      "sourceType": "observed-data"
+    },
+    {
+      "type": "configuration",
+      "description": "Figure 4 的 MT-Bench 消融显示 Early Window=3 的最终速度最佳，但 Appendix A.3 的正式训练配置使用 k=5；论文没有充分解释为何主配置没有采用该消融最优值，跨模型超参数稳健性仍不清楚。",
+      "sourceType": "observed-data"
+    }
+  ],
   "relations": {
-    "extends": [],
-    "comparesAgainst": [],
+    "extends": [
+      "eagle-2"
+    ],
+    "comparesAgainst": [
+      "medusa",
+      "eagle",
+      "eagle-2"
+    ],
     "related": [
       "medusa",
       "eagle",
@@ -89,11 +255,65 @@
     "codeUrl": null,
     "modelUrl": null,
     "projectPage": null,
-    "officialImplementation": null,
+    "officialImplementation": false,
     "status": "not-checked",
-    "notes": []
+    "notes": [
+      "论文未提供公开代码仓库、模型权重或独立项目页。",
+      "论文给出了主要软件环境与训练超参数：HuggingFace Transformers、PyTorch Eager Mode、pytorch:2.6.0-cuda11.8-cudnn9-runtime、Context Length 2048、AdamW 和两阶段训练配置，但仍不足以替代官方实现。"
+    ]
   },
-  "evidence": [],
+  "evidence": [
+    {
+      "claim": "Beagle 用单层 Cross-Attention + MLP 取代 EAGLE 的 Self-Attention、Pooling 与复制拼接结构。",
+      "location": "Figure 1; Section 4.1, Pages 4–5",
+      "type": "method"
+    },
+    {
+      "claim": "Cross-Attention 的 Query 来自 Token Embedding，Key/Value 来自 Target 真实状态或 Drafter 自预测状态，并使用遮蔽对角线及未来位置的因果掩码。",
+      "location": "Equations 1–2; Section 4.1, Page 4",
+      "type": "method"
+    },
+    {
+      "claim": "推理时只追加预测状态的 K/V，并在一轮投机解码结束后把 Drafter Cache 恢复为 Target 真实状态。",
+      "location": "Section 4.1, Page 5",
+      "type": "system"
+    },
+    {
+      "claim": "训练前半程使用 Inverse Block-Attention 并行预测多个未来 Token，后半程原位回灌预测 Key 进行自回归模拟，后者无需随步数展开新 Query。",
+      "location": "Section 4.2; Figure 2, Pages 5–6",
+      "type": "training"
+    },
+    {
+      "claim": "正式训练使用 ShareGPT、20 个 Epoch、前后各 10 个 Epoch；Target States 离线生成，推理使用 BF16，训练权重使用 TF32。",
+      "location": "Section 5.1, Page 7",
+      "type": "training"
+    },
+    {
+      "claim": "主要训练超参数包括 Context Length 2048、Batch Size 16、AdamW Betas=(0.9,0.95)、Learning Rate=3e-5、Warmup=2000 Steps、Gradient Norm=0.5、Early Window k=5 和 Simulation Steps s=4。",
+      "location": "Appendix A.3, Pages 13–14",
+      "type": "configuration"
+    },
+    {
+      "claim": "A6000 Ada 上，Beagle 在三个 Target 和三个数据集上总体达到与 EAGLE-v2 相同量级的速度与接受长度，同时显著降低峰值显存。",
+      "location": "Table 1; Section 5.2, Pages 7–8",
+      "type": "result"
+    },
+    {
+      "claim": "A10G 上的补充实验同样显示 Beagle 与 EAGLE-v2 速度接近，而峰值显存通常低约 1–2 GiB。",
+      "location": "Appendix A.1, Table 2, Page 12",
+      "type": "result"
+    },
+    {
+      "claim": "两阶段训练分别带来约 0.3 的平均接受长度增益，增加模拟步数主要改善更远的候选位置。",
+      "location": "Appendix A.4; Figure 10, Pages 14–15",
+      "type": "ablation"
+    },
+    {
+      "claim": "论文明确限制在单 Batch 贪心解码和小规模 Target，并未比较数据规模更大的 EAGLE-v3。",
+      "location": "Section 5.1, Page 6; Section 7, Pages 9–10",
+      "type": "limitation"
+    }
+  ],
   "notes": [],
   "provenance": {
     "legacyWorkbookRow": 6,

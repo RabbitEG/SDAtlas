@@ -24,21 +24,64 @@
   "institutionSource": "https://arxiv.org/pdf/2603.03383",
   "methodOverview": "将 Medusa 风格的轻量多 Head 预测改造成适合 NPU 静态图的固定 Token Tree 与 Tree Attention，并配合零拷贝检索；重点解决长序列推理中的显存与带宽瓶颈。",
   "problemStatement": {
-    "background": null,
-    "priorLimitation": null,
-    "goal": null
+    "background": "投机解码可以让轻量 Drafter 一次预测多个未来 Token，再由 Target 模型并行验证，从而减少大型自回归模型的串行 Decode 次数。Medusa 进一步复用 Target 模型的 Hidden State，通过多个轻量预测 Head 和 Token Tree 避免部署独立 Drafter，适合资源受限的推理环境。",
+    "priorLimitation": "原始 Medusa 实现依赖运行时生成候选树、动态 Attention Mask、可变 Shape、Host 侧路径重建和频繁的 CPU–Device 同步。这些动态控制流与 NPU 强调静态 Shape、整图编译和显式内存管理的执行模式不匹配，容易触发图重编译、CPU 回退、额外数据搬运和算子碎片化。随着序列长度增加，Tree Verification 还会受到 KV Cache 访问和内存带宽增长的制约。",
+    "goal": "在不改变 OpenPangu 输出质量的前提下，将 Medusa 式多 Token 投机解码完整迁移到 NPU，使用固定候选树、静态 Tree Attention 和设备侧零拷贝路径提取消除动态执行开销，并评估不同上下文长度下 NPU 与 GPU 的端到端加速表现。"
   },
-  "methodComponents": [],
+  "methodComponents": [
+    {
+      "name": "Lightweight Medusa Heads",
+      "stage": "Draft generation",
+      "purpose": "在不引入独立 Drafter 模型的情况下并行预测多个未来 Token。",
+      "mechanism": "在 OpenPangu 最后一层 Transformer 的 Hidden State 后附加 K 个并行 Medusa Head。每个 Head 由轻量残差 MLP 和共享词表投影构成，分别预测当前位置之后不同偏移量的 Token；Target Backbone 在训练期间保持冻结，最终配置使用 5 个预测 Head。",
+      "differenceFromPrior": "相比使用独立小模型逐 Token 自回归生成草稿，该设计直接复用 OpenPangu 已计算出的 Target Hidden State，并在一次 Head 前向中产生多个未来位置的分布。"
+    },
+    {
+      "name": "Self-Distilled Multi-Head Training",
+      "stage": "Training",
+      "purpose": "让多个预测 Head 与 OpenPangu 自身的输出分布对齐，并避免特殊控制 Token 缺失造成的训练–推理偏差。",
+      "mechanism": "使用 ShareGPT Query 驱动 OpenPangu 生成 Response 和监督信号，并以位置衰减的多 Head 交叉熵联合训练各预测 Head。论文依次扩展至 2K、10K 和 50K 样本；最终版本保留 OpenPangu 使用的特殊控制 Token，并训练 5 个 Head。",
+      "differenceFromPrior": "直接使用通用对话数据中的原始 Response 容易与 Target 模型分布不一致，且移除特殊 Token 会破坏 OpenPangu 的模板和状态控制；自蒸馏改为学习 Target 自己产生的序列。"
+    },
+    {
+      "name": "Offline Static Token Tree",
+      "stage": "Candidate organization",
+      "purpose": "将运行时动态候选树转换为 NPU 可提前编译的固定计算图。",
+      "mechanism": "离线确定候选树拓扑，并预计算固定的 Tree Indices、节点深度、父子关系和祖先可见关系。推理初始化时直接加载这些常量 Tensor，后续各轮仅替换候选 Token 值，不改变树节点数量和 Tensor Shape。",
+      "differenceFromPrior": "原始 Medusa 会根据各 Head 的实时概率和 Top-k 组合动态生成候选树，树结构、节点数和索引可能逐轮变化，难以在 NPU 上保持单一静态图。"
+    },
+    {
+      "name": "Static Tree Attention",
+      "stage": "Verification",
+      "purpose": "在一次 Target 前向中并行验证固定候选树，同时满足 NPU 的静态 Shape 要求。",
+      "mechanism": "预计算形状固定的 medusa_attn_mask，使每个候选节点只能访问历史上下文、树根、自己的祖先和自身；Tree Indices 将展平后的树节点映射至正确的 Position ID 与 KV Cache 位置。Target 模型由此可在一个静态图中同时计算所有候选分支。",
+      "differenceFromPrior": "避免在每轮推理中根据候选树重新构造 Attention Mask、Position ID 和可变长度输入，也减少动态图分支和图重编译。"
+    },
+    {
+      "name": "Zero-Copy Path Retrieval",
+      "stage": "Acceptance and cache update",
+      "purpose": "消除验证完成后由 CPU 重建接受路径所造成的同步和数据搬运。",
+      "mechanism": "为所有候选路径预计算固定的 retrieve_indices，形状为候选路径数乘以最大路径长度。验证后直接在 NPU 内存中使用 Gather 类操作提取各路径的 Target Logits、匹配结果和最终接受路径，不将中间树结构传回 Host。",
+      "differenceFromPrior": "传统实现通常在 CPU 上遍历树节点、处理指针和重排路径，再将结果传回加速器；零拷贝路径将该过程改为设备侧固定索引操作。"
+    },
+    {
+      "name": "NPU Operator and Graph Adaptation",
+      "stage": "System integration",
+      "purpose": "使完整 Medusa Draft–Verify 流程在 NPU PyTorch 生态中稳定执行。",
+      "mechanism": "围绕静态 Shape、算子支持、设备驻留 Tensor、固定索引和图编译约束改写 Medusa 推理路径，避免不受支持的动态操作触发 CPU 回退，并将候选生成、Tree Attention、路径提取和 KV Cache 更新串联为端到端 NPU 流程。",
+      "differenceFromPrior": "原始实现主要面向 CUDA/GPU 的动态图执行习惯，没有针对 NPU 的图编译、Host–Device 同步成本和静态内存布局进行专门设计。"
+    }
+  ],
   "characteristics": {
-    "requiresTraining": null,
-    "drafterType": null,
-    "draftGeneration": null,
-    "candidateStructure": null,
-    "verificationStrategy": null,
-    "usesTargetFeatures": null,
-    "dynamicDraftLength": null,
-    "dynamicVerifyLength": null,
-    "lossless": null
+    "requiresTraining": true,
+    "drafterType": "multi-head",
+    "draftGeneration": "parallel",
+    "candidateStructure": "tree",
+    "verificationStrategy": "tree-verification",
+    "usesTargetFeatures": true,
+    "dynamicDraftLength": false,
+    "dynamicVerifyLength": false,
+    "lossless": true
   },
   "subproblemContributions": {
     "B": {
@@ -51,22 +94,117 @@
     }
   },
   "training": {
-    "summary": null,
-    "data": null,
-    "objective": null
+    "summary": "冻结 OpenPangu Backbone，仅训练附加的 Medusa Heads。最终配置使用 5 个 Head，以 AdamW、1e-3 学习率、Global Batch Size 64 和 FP16 训练，并通过位置衰减权重联合优化不同预测距离的 Token 预测任务。",
+    "data": "以 ShareGPT Query 为输入，由 OpenPangu-7B 自行生成 Response 和蒸馏监督。论文比较了 2K、10K 和 50K 三种数据规模；最终 50K 配置保留模型所需的特殊控制 Token，以降低模板和输出分布偏差。",
+    "objective": "对第 k 个 Medusa Head 的未来 Token 预测计算交叉熵，并按预测距离赋予递减权重后求和。优化目标是在优先保证前部 Head 准确率的同时，让较远位置的 Head 学习 OpenPangu 自身的未来 Token 分布。"
   },
   "evaluation": {
-    "targetModels": [],
-    "benchmarks": [],
-    "baselines": [],
-    "metrics": [],
-    "hardware": [],
-    "frameworks": []
+    "targetModels": [
+      "openPangu-Embedded-7B-V1.1"
+    ],
+    "benchmarks": [
+      "Decode-length sweep (128, 256, 384, 512, 1024)"
+    ],
+    "baselines": [
+      "Standard Autoregressive Decoding",
+      "Same Medusa design on NVIDIA RTX A6000"
+    ],
+    "metrics": [
+      "End-to-end Speedup",
+      "Accept Rate",
+      "Overhead Ratio",
+      "Medusa Head Top-1 Accuracy",
+      "Training Time"
+    ],
+    "hardware": [
+      "Ascend 910B NPU",
+      "Kunpeng 920 CPU",
+      "NVIDIA RTX A6000"
+    ],
+    "frameworks": [
+      "NPU PyTorch",
+      "Transformers",
+      "CUDA 11.8"
+    ]
   },
-  "mainResults": [],
-  "limitations": [],
+  "mainResults": [
+    {
+      "condition": "OpenPangu-7B Medusa Head 训练，2K 数据、3 Heads、无自蒸馏且不保留特殊 Token",
+      "metric": "Head Top-1 Accuracy",
+      "result": "Head 1 为 62.40%，Head 2 为 42.00%",
+      "comparison": "作为小规模基础配置，训练耗时为 7.45 小时。",
+      "source": "Table 2"
+    },
+    {
+      "condition": "OpenPangu-7B Medusa Head 训练，50K 自蒸馏数据、5 Heads，并保留特殊 Token",
+      "metric": "Head Top-1 Accuracy",
+      "result": "Head 1 为 74.60%，Head 2 为 54.10%",
+      "comparison": "相较 2K 配置分别提高 12.20 和 12.10 个百分点；相较 10K 自蒸馏配置的 67.80% 和 49.30% 也继续提高。完整训练耗时为 65.70 小时。",
+      "source": "Table 2"
+    },
+    {
+      "condition": "openPangu-Embedded-7B-V1.1，Ascend 910B，Decode Step 分别为 128、256、384、512 和 1024",
+      "metric": "End-to-end Speedup",
+      "result": "1.35×、1.26×、1.12×、1.10×、0.95×",
+      "comparison": "同一 Medusa 方案在 NVIDIA RTX A6000 上分别为 0.97×、0.90×、0.89×、0.85× 和 0.79×；NPU 在短序列上取得正加速，但到 1024 时已低于自回归基线。",
+      "source": "Figure 3"
+    },
+    {
+      "condition": "openPangu-Embedded-7B-V1.1，Ascend 910B，Decode Step 从 128 增加至 1024",
+      "metric": "Accept Rate and Overhead Ratio",
+      "result": "Accept Rate 仅从约 1.78 降至 1.65，而 Overhead Ratio 从约 1.32 增至 1.77",
+      "comparison": "接受长度下降有限，但每轮 Tree Verification 成本随上下文增长明显上升，使速度从 1.35× 下降到 0.95×，说明主要瓶颈转向 KV Cache 访问和内存带宽。",
+      "source": "Figures 3–4; Section 4.3"
+    },
+    {
+      "condition": "短序列 NPU 推理，Decode Step=128",
+      "metric": "Peak Reported Speedup",
+      "result": "1.35×",
+      "comparison": "论文将该结果作为 OpenPangu-7B 在 NPU 上相对标准自回归解码的主要端到端加速结果。",
+      "source": "Abstract; Figure 3"
+    }
+  ],
+  "limitations": [
+    {
+      "type": "long-context",
+      "description": "加速随序列长度快速衰减：Decode Step 从 128 增长至 1024 时，NPU Speedup 从 1.35× 降至 0.95×。接受长度变化不大，主要问题是长 KV Cache 下 Tree Attention 和多候选验证的内存访问成本非线性增长。",
+      "sourceType": "paper"
+    },
+    {
+      "type": "candidate-rigidity",
+      "description": "为了适配静态图，候选树拓扑、节点预算和 Attention Mask 均被固定，无法根据当前 Head 概率、Prompt 难度或实时负载动态调整树宽、树深和验证预算，可能浪费验证计算。",
+      "sourceType": "analysis"
+    },
+    {
+      "type": "evaluation",
+      "description": "实验主要覆盖一个 7B OpenPangu 模型和序列长度扫描，没有报告标准 NLP 基准上的输出一致性、不同采样温度、并发 Serving、Batch Size 扩展或其他模型规模，因此结论的模型与工作负载覆盖面有限。",
+      "sourceType": "analysis"
+    },
+    {
+      "type": "comparison",
+      "description": "跨硬件比较使用 NVIDIA RTX A6000 上的同类实现，但没有与经过深度优化的 CUDA Medusa、EAGLE 系列、SpecInfer 或主流 Serving 框架中的实现进行等硬件对照，不能据此判断 NPU 相对最新 GPU 系统的绝对竞争力。",
+      "sourceType": "analysis"
+    },
+    {
+      "type": "training-cost",
+      "description": "方案需要为 OpenPangu 单独训练 Target-Specific Medusa Heads。最终 50K 自蒸馏配置耗时约 65.7 小时，且训练数据必须正确保留模型的特殊控制 Token；迁移至其他 Target 模型时通常需要重新蒸馏和训练。",
+      "sourceType": "paper"
+    },
+    {
+      "type": "reproducibility",
+      "description": "论文未完整给出 Ascend 软件栈版本、精确 NPU 数量、Tree Topology 配置、各 Head Top-k、评测 Prompt 集和图编译参数，这些设置会明显影响静态树的验证开销和实际速度。",
+      "sourceType": "observed-data"
+    },
+    {
+      "type": "evidence",
+      "description": "论文 Figure 3 报告 Decode Step=128 和 256 时 NPU Speedup 为 1.35× 和 1.26×，而官方仓库 README 当前表格给出 1.32× 和 1.13×，并额外报告 Decode Length=64 时为 1.43×。两组结果可能来自不同代码版本或测试口径，不能直接混合使用。",
+      "sourceType": "observed-data"
+    }
+  ],
   "relations": {
-    "extends": [],
+    "extends": [
+      "medusa"
+    ],
     "comparesAgainst": [],
     "related": [
       "medusa",
@@ -81,15 +219,70 @@
     "specinfer"
   ],
   "reproducibility": {
-    "codeUrl": null,
-    "modelUrl": null,
+    "codeUrl": "https://github.com/wujing215/OpenPangu7B-with-Medusa",
+    "modelUrl": "https://huggingface.co/Ivy0525/openPangu7B-with-Medusa",
     "projectPage": null,
-    "officialImplementation": null,
-    "status": "not-checked",
-    "notes": []
+    "officialImplementation": true,
+    "status": "not-reproduced",
+    "notes": [
+      "官方仓库包含 OpenPangu–Medusa 模型兼容层、Medusa Head 训练脚本、DeepSpeed 配置和 NPU 推理 Benchmark。",
+      "官方 README 提供从 Hugging Face 加载 OpenPangu7B-with-Medusa 权重的方式；模型仓库同时包含基础模型分片和独立 Medusa LM Head 权重。",
+      "仓库针对 NPU 预计算固定 Attention Mask、Tree Index 和路径索引，以减少运行时 Host–Device 交互。",
+      "官方 README 的部分速度数字与论文 Figure 3 不完全一致；本条目的 mainResults 以论文 arXiv v1 图表为主，README 数字仅作为复现版本差异记录。"
+    ]
   },
-  "evidence": [],
-  "notes": [],
+  "evidence": [
+    {
+      "claim": "NPU 的静态 Shape、整图编译和显式内存管理模式与原始 Medusa 的动态树构造、动态控制流和 Host 侧路径处理存在冲突。",
+      "location": "Sections 1 and 2.3, Pages 1–3",
+      "type": "problem"
+    },
+    {
+      "claim": "方法在冻结的 OpenPangu Backbone 后附加多个轻量 Medusa Head，并以位置衰减的多 Head Token 预测损失进行训练。",
+      "location": "Section 3.1, Page 3",
+      "type": "method"
+    },
+    {
+      "claim": "候选树拓扑、medusa_attn_mask 和 tree_indices 被离线预计算并作为固定 Tensor 加载，使 Tree Attention 能在静态图中执行。",
+      "location": "Section 3.2, Figure 2, Page 4",
+      "type": "method"
+    },
+    {
+      "claim": "固定 retrieve_indices 配合设备侧 Gather 操作完成接受路径提取，避免 CPU 指针遍历和额外 Host–Device 数据复制。",
+      "location": "Section 3.2, Page 4",
+      "type": "system"
+    },
+    {
+      "claim": "实验模型为 openPangu-Embedded-7B-V1.1，NPU 服务器由 Kunpeng 920 主机承载，并使用 NVIDIA RTX A6000 作为跨架构对照。",
+      "location": "Section 4.1, Pages 4–5",
+      "type": "configuration"
+    },
+    {
+      "claim": "最终 50K 自蒸馏、5-Head、保留特殊 Token 的配置取得 74.60% 和 54.10% 的前两个 Head Top-1 Accuracy。",
+      "location": "Section 4.2, Table 2, Page 5",
+      "type": "training"
+    },
+    {
+      "claim": "Ascend 910B 在 Decode Step=128 时达到 1.35× 端到端加速，但随着长度增加，在 1024 时下降至 0.95×。",
+      "location": "Figure 3, Page 6",
+      "type": "result"
+    },
+    {
+      "claim": "长序列下 Accept Rate 仅小幅下降，而 Overhead Ratio 明显增加，论文将其归因于长 KV Cache 带来的内存带宽和访问开销。",
+      "location": "Section 4.3, Figure 4, Pages 6–7",
+      "type": "analysis"
+    },
+    {
+      "claim": "论文公开了官方实现，仓库同时提供训练、NPU 推理和 Hugging Face 模型权重入口。",
+      "location": "Abstract, Page 1; Official GitHub README",
+      "type": "reproducibility"
+    }
+  ],
+  "notes": [
+    "该工作的主要贡献是将已有 Medusa 算法重构为 NPU 友好的静态执行形式，而不是提出新的投机接受规则或新的 Drafter 建模范式。",
+    "论文结果表明静态图改造能消除明显的软件执行障碍，但并未解决长上下文下多候选验证本身带来的内存流量增长。",
+    "主结果采用论文 arXiv v1 的 Figure 3 数值；官方仓库 README 中不同测试口径的结果未并入主结果。"
+  ],
   "provenance": {
     "legacyWorkbookRow": null,
     "workbookInstitutions": "中国科学技术大学软件学院"

@@ -261,7 +261,7 @@ def validate_explanation_page(paper: Dict[str, Any], label: str, result: Validat
     result.check(not path.is_absolute(), f"{label}: explanationPage 必须相对于 SDAtlas/")
     result.check(path.suffix.lower() == ".html", f"{label}: explanationPage 必须指向 HTML")
     result.check(inside_root, f"{label}: explanationPage 不能指向 SDAtlas/ 之外")
-    result.check(resolved.is_file(), f"{label}: 论文解读页不存在：{value}")
+    result.check(resolved.is_file(), f"{label}: 论文解读专题页不存在：{value}")
 
 
 def validate_nullable_text(value: Any, label: str, result: Validation) -> None:

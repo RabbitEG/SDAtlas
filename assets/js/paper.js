@@ -82,7 +82,7 @@
     return [
       "<section class=\"paper-record-section\" id=\"" + ui.escapeHtml(id) + "\">",
       "<header class=\"paper-record-section__header\"><p class=\"section-index\">" +
-        ui.escapeHtml(kicker) + "</p><h2>" + ui.escapeHtml(title) + "</h2>",
+      ui.escapeHtml(kicker) + "</p><h2>" + ui.escapeHtml(title) + "</h2>",
       description ? "<p>" + ui.escapeHtml(description) + "</p>" : "",
       "</header>", body, "</section>"
     ].join("");
@@ -99,11 +99,11 @@
   function actions() {
     var links = [
       "<a class=\"button button-primary\" href=\"" + ui.escapeHtml(paper.url) +
-        "\" target=\"_blank\" rel=\"noopener\">论文页面 <span aria-hidden=\"true\">↗</span></a>"
+      "\" target=\"_blank\" rel=\"noopener\">论文页面 <span aria-hidden=\"true\">↗</span></a>"
     ];
     if (paper.explanationPage) {
       links.push("<a class=\"button button-secondary\" href=\"" +
-        ui.escapeHtml(paper.explanationPage) + "\">论文解读 <span aria-hidden=\"true\">→</span></a>");
+        ui.escapeHtml(paper.explanationPage) + "\">论文解读专题页 <span aria-hidden=\"true\">→</span></a>");
     }
     if (paper.localPdf) {
       links.push("<a class=\"button button-secondary\" href=\"" +
@@ -223,8 +223,8 @@
     function externalLink(url, label) {
       return hasText(url)
         ? "<a class=\"record-external-link\" href=\"" + ui.escapeHtml(url) +
-          "\" target=\"_blank\" rel=\"noopener\">" + ui.escapeHtml(label) +
-          " <span aria-hidden=\"true\">↗</span></a>"
+        "\" target=\"_blank\" rel=\"noopener\">" + ui.escapeHtml(label) +
+        " <span aria-hidden=\"true\">↗</span></a>"
         : missingMarkup();
     }
     var reproductionNotes = Array.isArray(reproducibility.notes) && reproducibility.notes.length
@@ -264,7 +264,7 @@
     }).join("") : missingMarkup();
     var source = paper.institutionSource
       ? "<a class=\"record-external-link\" href=\"" + ui.escapeHtml(paper.institutionSource) +
-        "\" target=\"_blank\" rel=\"noopener\">单位信息来源 <span aria-hidden=\"true\">↗</span></a>"
+      "\" target=\"_blank\" rel=\"noopener\">单位信息来源 <span aria-hidden=\"true\">↗</span></a>"
       : missingMarkup("单位来源未记录");
     return "<div class=\"institution-record-list\">" + cards + "</div><div class=\"institution-record-source\">" +
       source + "</div>";

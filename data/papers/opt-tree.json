@@ -33,21 +33,57 @@
   "institutionSource": "https://aclanthology.org/2025.tacl-1.8/",
   "methodOverview": "将一条路径上 Drafter 的条件概率连乘，得到节点被接受的近似概率；随后在节点预算内选择使概率总和最大的前缀闭合树，使目标直接对应预期接受 Token 数。",
   "problemStatement": {
-    "background": null,
-    "priorLimitation": null,
-    "goal": null
+    "background": "投机解码让低成本 Drafter 生成多个候选 Token，再由 Target 在一次前向中并行验证。将多条候选序列组织为共享 Prefix 的树，可以减少重复节点，并在固定 Verify Token 数下覆盖更多可能的生成路径。",
+    "priorLimitation": "已有方法主要采用单条或多条候选序列，以及 Binary Tree、EAGLE Tree 等人工设定的固定树形。序列候选会重复计算公共 Prefix；固定树虽然消除了部分重复，却不会根据当前上下文和 Drafter 的概率分布调整宽度与深度，因此在有限节点预算下通常不能最大化本轮的接受长度。",
+    "goal": "为任意自回归 Drafter 构造逐解码轮变化的自适应候选树，在固定节点预算内最大化近似期望接受长度，并通过停止阈值平衡更深 Draft 带来的接受收益与额外 Drafter 前向开销。"
   },
-  "methodComponents": [],
+  "methodComponents": [
+    {
+      "name": "Prefix Acceptance Probability Surrogate",
+      "stage": "Candidate scoring",
+      "purpose": "把一棵候选树的结构质量转化为可由 Drafter 输出直接计算的期望接受长度目标。",
+      "mechanism": "对于树中节点 v，将从 Root 到该节点路径上的 Drafter 条件概率连乘，得到 Prefix Probability p̂(v)。论文用 p̂(v) 近似该 Prefix 能通过 Target 验证的概率，并证明近似期望接受长度可写为 E(A)=Σv∈T p̂(v)，即树中全部节点 Prefix Probability 的总和。",
+      "differenceFromPrior": "固定树结构不利用当前轮的 Token Probability；OPT-Tree 将候选节点的路径概率直接纳入树结构优化，使树形能够随输入上下文和 Drafter 分布逐轮变化。"
+    },
+    {
+      "name": "Global Probability-Guided Tree Expansion",
+      "stage": "Draft-tree construction",
+      "purpose": "在不枚举完整指数级候选空间的情况下，搜索高概率的候选 Prefix。",
+      "mechanism": "以当前输入最后一个 Token 作为 Root。每个 Draft Step 对当前最深层节点执行一次 Drafter 推理，从所有叶节点的后继分布中按完整路径概率 p̂ 全局选择最多 n 个高分节点加入下一层。树的深度逐步增加，而每层只保留最可能贡献期望接受长度的候选。",
+      "differenceFromPrior": "Binary Tree 或 EAGLE Tree预先固定每层分支数；OPT-Tree 不固定宽度分配，而是在所有现有分支之间按完整 Prefix Probability 竞争节点预算。"
+    },
+    {
+      "name": "Prefix-Closed Top-n Subtree Selection",
+      "stage": "Candidate pruning",
+      "purpose": "从累计搜索树中提取固定节点预算下使 E(A) 最大的有效候选树。",
+      "mechanism": "Draft 结束后，从累计树中选择 p̂ 最大的 n 个非 Root 节点。由于任意父节点的 p̂ 不小于其子节点，若子节点进入 Top-n，其父节点也必然进入，因此最终节点天然构成包含 Root 的前缀闭合子树。论文据此给出：在搜索深度固定时，完整候选树中 p̂ 最大的 n 个节点组成目标 Topt。",
+      "differenceFromPrior": "常规剪枝往往需要额外连通性修复或预定义树模板；该选择规则利用路径概率的单调性，使全局 Top-n 排序自动满足树的前缀闭合约束。"
+    },
+    {
+      "name": "Gain-Aware Dynamic Draft Depth",
+      "stage": "Draft stopping",
+      "purpose": "避免为了很小的期望接受长度增益继续执行昂贵的自回归 Drafter 前向。",
+      "mechanism": "随着 Draft Step 增加，固定预算最优子树的 Esub(T,n) 单调不减。算法仅当本次扩深带来的 Esub 增量超过阈值 δ 时继续 Draft；δ 应设置在 μ 与 1 之间，其中 μ 为一次 Drafter Step 时间与一次 Target Decoding Step 时间之比。实验中不同 Drafter 的最佳 δ 不同，例如 LLaMA-2-68M 和 EAGLE 分别在约 0.2 与 0.8 时取得最高速度。",
+      "differenceFromPrior": "仅最大化接受长度会偏向过深的树，却忽略自回归 Draft 成本；OPT-Tree 将边际期望收益与实际 Draft 时间比例结合，动态决定本轮树深。"
+    },
+    {
+      "name": "Tree-Attention Parallel Verification",
+      "stage": "Target verification",
+      "purpose": "在一次 Target 前向中验证整棵自适应候选树，同时保持原始 Target 解码结果。",
+      "mechanism": "为最终 Topt 生成对应的 Tree Attention Mask；同层节点共享 Position Index，每个节点只能访问 Root 和自身祖先。Target 一次并行计算所有节点的后继分布，验证阶段沿 Target 的实际输出查找最长命中分支，并在已接受 Draft Prefix 后额外提交一个 Target 生成的 Token。",
+      "differenceFromPrior": "Verify 机制沿用无损 Tree Verification，但输入树不再是固定模板，而是根据当前 Drafter 概率即时构造的 OPT-Tree。"
+    }
+  ],
   "characteristics": {
-    "requiresTraining": null,
-    "drafterType": null,
-    "draftGeneration": null,
-    "candidateStructure": null,
-    "verificationStrategy": null,
-    "usesTargetFeatures": null,
-    "dynamicDraftLength": null,
-    "dynamicVerifyLength": null,
-    "lossless": null
+    "requiresTraining": false,
+    "drafterType": "autoregressive",
+    "draftGeneration": "autoregressive-tree-search",
+    "candidateStructure": "adaptive-tree",
+    "verificationStrategy": "tree-attention-longest-prefix",
+    "usesTargetFeatures": false,
+    "dynamicDraftLength": true,
+    "dynamicVerifyLength": false,
+    "lossless": true
   },
   "subproblemContributions": {
     "B": {
@@ -60,42 +96,229 @@
     }
   },
   "training": {
-    "summary": null,
-    "data": null,
-    "objective": null
+    "summary": "OPT-Tree 本身是 Training-Free 的推理时树构造算法，不新增模型参数，也不要求为树选择器准备训练数据。它直接复用现有自回归 Drafter 的下一 Token 分布；实验覆盖普通小型 LLaMA/Vicuna Drafter 和已训练的 EAGLE Drafter。",
+    "data": "无需 OPT-Tree 专用训练数据。主实验直接使用已有 Target 与 Drafter Checkpoint。仅 Sequoia 对照组额外使用 200 条 C4 样本离线确定固定树结构，该数据不属于 OPT-Tree 的训练或校准流程。",
+    "objective": "没有可学习损失函数。推理时的组合优化目标是在节点预算 n 下最大化 E(A)=Σv∈T p̂(v)，其中 p̂(v) 是 Root 到节点 v 的 Drafter 条件概率乘积；Draft 深度则由 Esub 的边际增益是否超过阈值 δ 决定。"
   },
   "evaluation": {
-    "targetModels": [],
-    "benchmarks": [],
-    "baselines": [],
-    "metrics": [],
-    "hardware": [],
-    "frameworks": []
+    "targetModels": [
+      "LLaMA-2-7B",
+      "LLaMA-2-13B",
+      "LLaMA-2-70B",
+      "Vicuna-33B"
+    ],
+    "benchmarks": [
+      "MT-Bench",
+      "GSM8K"
+    ],
+    "baselines": [
+      "Autoregressive Decoding",
+      "Binary Tree",
+      "EAGLE Tree",
+      "Sequoia"
+    ],
+    "metrics": [
+      "Mean Acceptance Length",
+      "Tokens per Second",
+      "End-to-end Speedup",
+      "Expected–Actual Acceptance Correlation",
+      "Tree-operation Wall-clock Overhead"
+    ],
+    "hardware": [
+      "NVIDIA GeForce RTX 4090",
+      "NVIDIA L20",
+      "4× NVIDIA A100 PCIe 40GB"
+    ],
+    "frameworks": [
+      "论文未明确说明具体软件框架"
+    ]
   },
-  "mainResults": [],
-  "limitations": [],
+  "mainResults": [
+    {
+      "condition": "LLaMA-2-70B Target、LLaMA-2-7B Drafter，MT-Bench，Temperature=0",
+      "metric": "Mean Acceptance Length / Tokens per Second / Speedup",
+      "result": "7.74 / 11.65 tokens/s / 1.85×",
+      "comparison": "Binary Tree 为 4.84 / 11.05 tokens/s / 1.76×；EAGLE Tree 为 4.97 / 11.35 tokens/s / 1.80×。OPT-Tree 在相同模型组合下显著提高接受长度。",
+      "source": "Table 1"
+    },
+    {
+      "condition": "LLaMA-2-70B Target、LLaMA-2-7B Drafter，GSM8K，Temperature=0",
+      "metric": "Mean Acceptance Length / Tokens per Second / Speedup",
+      "result": "7.62 / 12.10 tokens/s / 1.90×",
+      "comparison": "Binary Tree 为 4.85 / 11.20 tokens/s / 1.76×；EAGLE Tree 为 4.98 / 11.51 tokens/s / 1.80×。",
+      "source": "Table 2"
+    },
+    {
+      "condition": "LLaMA-2-13B Target、LLaMA-2-1B Drafter，MT-Bench，Temperature=0",
+      "metric": "Mean Acceptance Length / Tokens per Second / Speedup",
+      "result": "5.20 / 43.40 tokens/s / 1.62×",
+      "comparison": "Binary Tree 为 3.95 / 37.37 tokens/s / 1.39×；EAGLE Tree 为 4.25 / 40.12 tokens/s / 1.50×。",
+      "source": "Table 1"
+    },
+    {
+      "condition": "LLaMA-2-70B Target、EAGLE Drafter，GSM8K，Temperature=0",
+      "metric": "Maximum reported End-to-end Speedup",
+      "result": "3.21×，Mean Acceptance Length 为 4.55，生成速度为 20.50 tokens/s",
+      "comparison": "Vanilla Autoregressive Decoding 为 6.38 tokens/s；固定 EAGLE Tree 为 3.20×、3.91 Mean Acceptance Length 和 20.42 tokens/s。该组合取得论文报告的最高约 3.2× 加速，但相对固定 EAGLE Tree 的速度增量较小。",
+      "source": "Table 2"
+    },
+    {
+      "condition": "约 8000 个解码步骤，四组 Target–Drafter 组合",
+      "metric": "Correlation between E(A) and Actual Acceptance Length",
+      "result": "近似期望 E(A) 与实际接受长度 A 呈明显正相关",
+      "comparison": "高密度区域基本沿对角线分布；Drafter 越强，分布越向高 E(A)、高 A 区域移动。LLaMA-2-70B + LLaMA-2-7B 中可观察到 E(A)=14、A=15 等长接受样本。",
+      "source": "Figure 5"
+    },
+    {
+      "condition": "LLaMA-2-70B Target、LLaMA-2-7B Drafter，扩大候选树节点预算",
+      "metric": "Tree-size Scaling",
+      "result": "500 节点时 Mean Acceptance Length 达到约 10，并在超过 500 节点时仍呈增长趋势",
+      "comparison": "Sequoia 的接受长度在约 150 节点后趋于稳定；OPT-Tree 在更大节点预算下继续增长。不过，500 节点在论文使用的 A100 PCIe 40GB 平台上 Verify 成本过高，未能带来端到端加速。",
+      "source": "Figure 6; Section 4.3"
+    },
+    {
+      "condition": "四组模型，50 节点，A100 GPU，Temperature=0",
+      "metric": "Tree-operation Overhead",
+      "result": "最小模型组合中，树初始化、更新、Top-n 选择和 Attention Mask 构造合计占单轮时间的 6.3%",
+      "comparison": "树操作成本基本不随 Target 与 Drafter 参数规模增长，因此在 LLaMA-2-70B + LLaMA-2-7B 等大模型组合中占比接近可忽略。",
+      "source": "Figure 7; Section 4.4"
+    },
+    {
+      "condition": "LLaMA-2-7B Target、EAGLE Drafter，MT-Bench，Temperature=1",
+      "metric": "Non-greedy Mean Acceptance Length / Tokens per Second / Speedup",
+      "result": "4.07 / 125.79 tokens/s / 2.42×",
+      "comparison": "使用固定 EAGLE Tree 时为 3.37 / 101.63 tokens/s / 1.96×。随机采样会削弱 Drafter 概率与接受事件的相关性，但 OPT-Tree 仍保持明显加速。",
+      "source": "Table 3; Figure 9"
+    }
+  ],
+  "limitations": [
+    {
+      "type": "surrogate-objective",
+      "description": "OPT-Tree 用 Drafter 的路径概率乘积近似 Prefix 被 Target 接受的概率，但两者并不完全相等。论文只能通过统计相关性支持该代理目标，而不能保证最大化 Σp̂ 必然最大化真实 Target 接受长度。",
+      "sourceType": "paper"
+    },
+    {
+      "type": "sampling",
+      "description": "算法优先扩展 Drafter 概率最高的节点，因此主要优势建立在高 Drafter Probability 与 Target Acceptance 正相关之上。Temperature 升高后随机采样扩大低概率 Token 的影响，Mean Acceptance Length 和 Tokens/s 整体下降。",
+      "sourceType": "paper"
+    },
+    {
+      "type": "draft-latency",
+      "description": "OPT-Tree 面向自回归 Drafter，每增加一层树深都需要额外执行一次 Drafter 前向。树通常比 Binary Tree 和 EAGLE Tree 更深，因此接受长度的大幅提升不一定等比例转化为 Tokens/s，需要针对模型和硬件调节 δ。",
+      "sourceType": "paper"
+    },
+    {
+      "type": "verification-cost",
+      "description": "节点预算 n 在一轮内仍是固定超参数，论文从 25、50 和 60 中按模型与 GPU 选择。扩大节点数会增加 Target Verify 成本；500 节点虽然让 LLaMA-2-70B 的接受长度达到约 10，但在 4×A100 PCIe 40GB 上无法获得实际加速。",
+      "sourceType": "paper"
+    },
+    {
+      "type": "applicability",
+      "description": "树构造依赖自回归 Drafter 为不同 Prefix 分别输出条件分布，并需要按树深执行多轮 Draft。它不能直接利用一次前向只给出各位置边缘分布的并行或 Block-Diffusion Drafter；这类 Drafter 需要 DDTree 等后续适配方法。",
+      "sourceType": "analysis"
+    },
+    {
+      "type": "system-integration",
+      "description": "部署需要实现动态树输入、Position ID、Tree Attention Mask、分支 KV Cache 管理及 Verify 后缓存裁剪。普通仅支持单条 Candidate Chain 的投机解码接口不能直接运行 OPT-Tree。",
+      "sourceType": "analysis"
+    },
+    {
+      "type": "evaluation",
+      "description": "实验集中于 LLaMA-2、Vicuna、MT-Bench 和 GSM8K，主要采用单请求离线解码；没有评估现代 Serving 场景中的动态 Batch、并发吞吐、长上下文或请求间节点预算分配，因此最高 3.2× 不能直接外推到生产负载。",
+      "sourceType": "analysis"
+    },
+    {
+      "type": "evidence",
+      "description": "论文报告的最大 3.21× 速度来自 OPT-Tree 配合 EAGLE Drafter，但相同组合的固定 EAGLE Tree 已达到 3.20×。这说明某些高性能组合中，OPT-Tree 对接受长度的提升可能被额外 Draft 深度和树构造成本几乎完全抵消。",
+      "sourceType": "observed-data"
+    }
+  ],
   "relations": {
     "extends": [],
-    "comparesAgainst": [],
-    "related": [
-      "medusa",
+    "comparesAgainst": [
       "eagle"
     ],
-    "compatibleWith": []
+    "related": [
+      "medusa",
+      "eagle",
+      "eagle-2",
+      "specinfer",
+      "ddtree",
+      "taps"
+    ],
+    "compatibleWith": [
+      "eagle"
+    ]
   },
   "citations": [
     "medusa",
     "eagle"
   ],
   "reproducibility": {
-    "codeUrl": null,
+    "codeUrl": "https://github.com/Jikai0Wang/OPT-Tree",
     "modelUrl": null,
     "projectPage": null,
-    "officialImplementation": null,
-    "status": "not-checked",
-    "notes": []
+    "officialImplementation": true,
+    "status": "not-reproduced",
+    "notes": [
+      "论文摘要提供作者维护的官方 OPT-Tree 代码仓库。",
+      "OPT-Tree 本身不需要重新训练模型，但复现实验需要准备对应的 LLaMA-2、Vicuna 或 EAGLE Target–Drafter Checkpoint。",
+      "论文未在正文中明确记录完整的软件框架、依赖版本和端到端运行命令。",
+      "本站尚未记录一组严格复现 Table 1–3 与 Figure 5–9 的完整环境和数值。"
+    ]
   },
-  "evidence": [],
+  "evidence": [
+    {
+      "claim": "已有候选序列会重复计算公共 Prefix，而固定启发式树不能针对每轮输入最大化接受长度。",
+      "location": "Section 1 and Figure 1, Pages 1–2",
+      "type": "motivation"
+    },
+    {
+      "claim": "节点 Prefix Probability p̂ 等于 Root 路径上的 Drafter 条件概率乘积，近似期望接受长度可化简为全树节点 p̂ 之和。",
+      "location": "Section 3, Equations 2–4 and Figure 4, Pages 3–4",
+      "type": "method"
+    },
+    {
+      "claim": "固定搜索深度下，p̂ 最大的 n 个节点天然构成包含 Root 的前缀闭合最优子树。",
+      "location": "Algorithm 1 and Theorem 3.1, Page 4",
+      "type": "method"
+    },
+    {
+      "claim": "Esub 随 Draft Step 单调不减，并通过 δ∈[μ,1] 的停止条件权衡接受收益与额外 Drafter 时间。",
+      "location": "Theorem 3.2 and Algorithm 1, Page 4; Section 4.5, Page 7",
+      "type": "method"
+    },
+    {
+      "claim": "最终候选树通过 Tree Attention 在一次 Target 前向中验证，并返回最长命中分支加一个 Target Token。",
+      "location": "Algorithm 2 and Figure 2, Pages 2 and 4",
+      "type": "verification"
+    },
+    {
+      "claim": "主实验使用 LLaMA-2-7B、13B、70B 和 Vicuna-33B，在 MT-Bench 与 GSM8K 上比较 Binary、EAGLE 和 OPT-Tree。",
+      "location": "Section 4.1 and Tables 1–2, Pages 5–6",
+      "type": "evaluation"
+    },
+    {
+      "claim": "论文最高报告约 3.2× 无损加速，且 OPT-Tree 在所有主实验模型组合中取得最高 Mean Acceptance Length。",
+      "location": "Tables 1–2 and Section 4.1, Pages 5–6",
+      "type": "result"
+    },
+    {
+      "claim": "LLaMA-2-70B + LLaMA-2-7B 在 500 节点时达到约 10 的 Mean Acceptance Length，但当前 A100 平台上的 Verify 成本使其不能加速。",
+      "location": "Section 4.3 and Figure 6, Page 7",
+      "type": "result"
+    },
+    {
+      "claim": "最小模型组合中的树操作时间占比为 6.3%，并随 Target 与 Drafter 规模增大而降低。",
+      "location": "Section 4.4 and Figure 7, Page 7",
+      "type": "system"
+    },
+    {
+      "claim": "Temperature=1 时接受长度和速度普遍下降，但 OPT-Tree 仍能相对自回归解码和固定 EAGLE Tree 保持加速。",
+      "location": "Section 4.6, Table 3 and Figure 9, Pages 7–8",
+      "type": "result"
+    }
+  ],
   "notes": [],
   "provenance": {
     "legacyWorkbookRow": 15,

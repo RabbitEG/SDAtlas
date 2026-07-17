@@ -30,21 +30,50 @@
   "institutionSource": "https://arxiv.org/pdf/2504.18583",
   "methodOverview": "把已有小型自回归模型低成本改造成一次预测多个位置的并行 Drafter，使同一个 Drafter 可以服务一族 Target。Conditional Drop-token 在 Training 时跳过部分不必要 Token，同时维持 KV Prefix 的完整性。",
   "problemStatement": {
-    "background": null,
-    "priorLimitation": null,
-    "goal": null
+    "background": "自回归 LLM 每次前向通常只生成一个 Token，解码过程受模型权重和 KV Cache 的重复读取限制，容易成为 Memory-bound 瓶颈。投机解码使用较小的 Drafter 提前提出多个候选，再由 Target 一次并行验证，在保持 Target 输出分布不变的前提下减少昂贵的 Target 前向次数。",
+    "priorLimitation": "Target-dependent 方法如 Medusa 和 EAGLE 利用 Target Hidden State、输出特征或内部层，虽然能提高 Draft 准确率，但每个 Target 变体通常都需要单独训练和部署 Drafter。Vanilla Speculative Decoding 的独立小模型可以跨同系列 Target 复用，但生成 K 个候选需要执行 K 次自回归前向，Draft 延迟和显存带宽开销随 K 线性增长。直接采用 Mask-Predict 又会把长度 N 的训练样本扩展为约 K·N 个训练 Token，使低成本适配失去意义。",
+    "goal": "将已有的高质量小型自回归模型低成本适配为 Target-independent Parallel Drafter，使其通过一次前向并行预测多个未来 Token，并能复用于同一模型系列的不同规模 Target；同时通过保持 Prefix KV 完整性的稀疏训练机制，将 Mask 适配成本从 O(NK) 压缩到近似 O(N)。"
   },
-  "methodComponents": [],
+  "methodComponents": [
+    {
+      "name": "Family-Level Target-Independent Draft Model",
+      "stage": "Draft model selection and deployment",
+      "purpose": "避免为每个 Target 规模分别训练一套 Drafter，降低模型适配、权重管理和部署成本。",
+      "mechanism": "从目标模型系列中选择能力较强的最小自回归模型作为基础 Drafter，例如使用 LLaMA3.2-1B 服务 LLaMA3 系列、Qwen2.5-0.5B 服务 Qwen 系列。适配过程不读取特定 Target 的 Hidden State、Logits 或中间层参数，因此训练后的 Drafter 可以在共享 Tokenizer 和词表的同系列 Target 之间复用。",
+      "differenceFromPrior": "Medusa、EAGLE 和 ParallelSpec 等方法把 Drafter 与某个具体 Target 的参数或特征绑定，需要随 Target 重新训练；PARD 保留 Vanilla Speculative Decoding 的模型解耦性，但进一步消除了其自回归 Draft 的顺序开销。"
+    },
+    {
+      "name": "Shared-Mask Parallel Drafting",
+      "stage": "Draft generation",
+      "purpose": "将生成 K 个候选所需的 Drafter 前向次数从 K 次降低为一次，使 Draft 延迟和权重带宽开销基本不再随 K 线性增加。",
+      "mechanism": "在已知上下文后放置多个共享同一 Token ID 的 Mask Placeholder。第 k 个预测位置只条件于原始已知前缀以及其前面的 Mask Token，而不依赖同一轮其他位置实际采样出的候选。所有位置的 Logits 在一次 Drafter 前向中同时计算，形成一条长度为 K 的候选链。",
+      "differenceFromPrior": "Vanilla Speculative Decoding 必须用小模型逐 Token 自回归 Draft；PARD 采用与 Mask-Predict 类似的并行因子分解，但 Drafter 是独立的小模型，不需要把 Target 本身改造成并行预测模型。"
+    },
+    {
+      "name": "Inference-Consistent Mask-Token Training",
+      "stage": "Training",
+      "purpose": "让普通自回归模型学习不同预测距离的 Next-k Token 分布，并确保训练时的可见上下文与推理时一致。",
+      "mechanism": "将每条长度为 N 的训练序列展开为 K 个独立子任务：第一个子任务执行标准 Next-token Prediction，后续第 k 个子任务用 k−1 个 Mask Token 替代最近的未来依赖，并预测第 k 个未来 Token。通过专门构造 Input ID、Position ID、Label 和 Attention Mask，使每个监督位置只能访问推理阶段实际可用的前缀和 Mask Placeholder；各子任务均使用交叉熵训练。",
+      "differenceFromPrior": "普通自回归训练只覆盖 Next-token Prediction；直接复制序列进行完整 Mask 训练虽然能获得并行预测能力，但输入 Token 数会由 N 上升到约 K·N，训练开销过高。"
+    },
+    {
+      "name": "Conditional Drop-token",
+      "stage": "Training data processing",
+      "purpose": "在不破坏每个监督位置 Prefix KV 上下文的条件下，减少后部 Next-k 子任务中的冗余 Token，从而压缩训练计算量。",
+      "mechanism": "第 i 个预测子任务按 max(r^(i−1), r_min) 的比例保留 Token，越远期的预测保留比例越低。候选 Token 只有在其所有必要 Prefix Key/Value 均被保留时才允许进入训练，随后重新压紧 Input ID、Label、Position ID 和 Attention Mask。默认设置为 K=8、r=0.7、r_min=0.2。",
+      "differenceFromPrior": "无约束的随机 Drop-token 可能删除某个监督位置依赖的 Prefix KV，造成训练与推理条件不一致；COD 将 Prefix 完整性作为保留约束，并把理论训练复杂度从 O(NK) 降低到 O(N)。"
+    }
+  ],
   "characteristics": {
-    "requiresTraining": null,
-    "drafterType": null,
-    "draftGeneration": null,
-    "candidateStructure": null,
-    "verificationStrategy": null,
-    "usesTargetFeatures": null,
-    "dynamicDraftLength": null,
-    "dynamicVerifyLength": null,
-    "lossless": null
+    "requiresTraining": true,
+    "drafterType": "adapted-autoregressive-small-lm",
+    "draftGeneration": "parallel",
+    "candidateStructure": "chain",
+    "verificationStrategy": "fixed-prefix",
+    "usesTargetFeatures": false,
+    "dynamicDraftLength": false,
+    "dynamicVerifyLength": false,
+    "lossless": true
   },
   "subproblemContributions": {
     "A": {
@@ -58,22 +87,184 @@
   },
   "training": {
     "summary": "Mask 训练原本要把长度 N 的样本展开为 K 个预测子任务；COD 对第 i 个子任务按 max(r^(i−1), r_min) 保留位置，且只保留拥有完整前缀 Key/Value 的 Token，将训练量压到小于 N/(1−r)。",
-    "data": null,
-    "objective": null
+    "data": "不同模型系列采用对应的指令与推理数据。LLaMA3 使用 Magpie-Llama-3.1-Pro-1M 和 Evol-CodeAlpaca；Qwen2.5 使用 Magpie-Qwen2-Pro-1M 和 Evol-CodeAlpaca；DeepSeek-R1-Qwen 使用 OpenR1-Math-220K、OpenThoughts-114K 和 Chinese-DeepSeek-R1-Distill-Data-110K。LLaMA3 与 Qwen 配置会使用对应模型重新生成部分或全部 Answer，以提高训练数据与模型系列输出分布的一致性。训练在 8 张 AMD Instinct MI250X 上通过 TRL 执行 4 个 Epoch；LLaMA3、DeepSeek-R1-Qwen 和 Qwen 的最大序列长度分别为 512、1024 和 512。",
+    "objective": "将训练拆成 K 个 Next-k Token Prediction 子任务，并对每个有效监督位置使用交叉熵。第一个子任务沿用标准自回归 Next-token Loss；第 k>1 个子任务将最近的 k−1 个真实未来 Token 替换为共享 Mask Token，使监督条件与并行推理一致。COD 按 max(r^(k−1), r_min) 稀疏保留各子任务 Token，并保证每个保留监督位置拥有完整 Prefix KV。主实验使用 K=8、r=0.7、r_min=0.2；优化器为 AdamW，LLaMA3、DeepSeek-R1-Qwen 和 Qwen 的学习率分别为 1e−5、3e−5 和 8e−5。"
   },
   "evaluation": {
-    "targetModels": [],
-    "benchmarks": [],
-    "baselines": [],
-    "metrics": [],
-    "hardware": [],
-    "frameworks": []
+    "targetModels": [
+      "Qwen2-7B",
+      "Qwen2.5-3B",
+      "Qwen2.5-7B",
+      "Qwen2.5-14B",
+      "LLaMA3-8B",
+      "LLaMA3.1-8B",
+      "LLaMA3.3-70B",
+      "DeepSeek-R1-Distill-Qwen-7B",
+      "DeepSeek-R1-Distill-Qwen-14B"
+    ],
+    "benchmarks": [
+      "HumanEval",
+      "GSM8K",
+      "MATH500",
+      "SpecBench"
+    ],
+    "baselines": [
+      "Autoregressive Decoding",
+      "Vanilla Speculative Decoding",
+      "EAGLE",
+      "EAGLE-3"
+    ],
+    "metrics": [
+      "Tokens Per Second",
+      "End-to-end Speedup",
+      "Acceptance Rate",
+      "Draft Memory Bandwidth Consumption",
+      "Training Time",
+      "Training Cost in PFLOPs per 1M Tokens"
+    ],
+    "hardware": [
+      "8× AMD Instinct MI250X for training",
+      "NVIDIA A100-40GB for evaluation"
+    ],
+    "frameworks": [
+      "TRL",
+      "vLLM",
+      "Hugging Face Transformers",
+      "Transformers+ with torch.compile and static KV cache"
+    ]
   },
-  "mainResults": [],
-  "limitations": [],
+  "mainResults": [
+    {
+      "condition": "LLaMA3.1-8B，HumanEval，vLLM，单张 A100-40GB",
+      "metric": "Tokens Per Second / End-to-end Speedup",
+      "result": "264.88 tokens/s，3.63×",
+      "comparison": "Vanilla Speculative Decoding 为 155.47 tokens/s、2.13×；EAGLE 为 136.05 tokens/s、1.86×；EAGLE-3 为 233.43 tokens/s、3.19×。PARD 吞吐约为 EAGLE 的 1.95 倍、EAGLE-3 的 1.13–1.15 倍。",
+      "source": "Table 1"
+    },
+    {
+      "condition": "LLaMA3.1-8B，HumanEval、GSM8K 与 SpecBench 宏平均，vLLM",
+      "metric": "Average Tokens Per Second / Average Speedup",
+      "result": "219.15 tokens/s，3.00×",
+      "comparison": "EAGLE-3 为 193.86 tokens/s、2.65×；Vanilla Speculative Decoding 为 134.28 tokens/s、1.84×。",
+      "source": "Table 1"
+    },
+    {
+      "condition": "Qwen2.5-14B，HumanEval、GSM8K 与 SpecBench 宏平均，vLLM",
+      "metric": "Average Tokens Per Second / Average Speedup",
+      "result": "151.59 tokens/s，3.71×",
+      "comparison": "Vanilla Speculative Decoding 为 121.05 tokens/s、2.97×。PARD 在 HumanEval 和 GSM8K 上分别达到 4.44× 与 4.45×。",
+      "source": "Table 1"
+    },
+    {
+      "condition": "LLaMA3.3-70B，HumanEval、GSM8K 与 SpecBench 宏平均，vLLM",
+      "metric": "Average Tokens Per Second / Average Speedup",
+      "result": "84.29 tokens/s，3.49×",
+      "comparison": "EAGLE-3 为 77.88 tokens/s、3.22×；Vanilla Speculative Decoding 为 70.31 tokens/s、2.91×。同一个 LLaMA 系列 PARD Drafter 可同时用于 8B 和 70B Target。",
+      "source": "Table 1"
+    },
+    {
+      "condition": "DeepSeek-R1-Distill-Qwen 系列，HumanEval、GSM8K 与 MATH500 宏平均",
+      "metric": "Average Tokens Per Second / Average Speedup",
+      "result": "7B 为 190.75 tokens/s、2.51×；14B 为 122.50 tokens/s、3.01×",
+      "comparison": "对应 Vanilla Speculative Decoding 分别为 116.54 tokens/s、1.54×和 91.34 tokens/s、2.24×。",
+      "source": "Appendix Table 6"
+    },
+    {
+      "condition": "LLaMA3.1-8B，比较 PARD、EAGLE 与 EAGLE-3",
+      "metric": "Acceptance Rate",
+      "result": "HumanEval 的 1-token/4-token Acceptance Rate 为 0.93/0.90；GSM8K 为 0.88/0.85",
+      "comparison": "EAGLE-3 对应为 HumanEval 0.87/0.85、GSM8K 0.82/0.79；EAGLE 对应为 0.83/0.72 和 0.79/0.66。",
+      "source": "Table 2"
+    },
+    {
+      "condition": "LLaMA3.1-8B，BF16，Draft Length k=4、6、8",
+      "metric": "Draft Memory Bandwidth Consumption",
+      "result": "PARD 始终为 2.48 GB",
+      "comparison": "EAGLE 和 EAGLE-3 分别随 k 从 5.94 GB 增长到 8.90 GB 和 11.88 GB；PARD 一次并行前向使模型权重读取量基本不随 Draft Length 增长。",
+      "source": "Table 3"
+    },
+    {
+      "condition": "以 LLaMA3-70B 为 Target，按每 100 万训练 Token 估算适配成本",
+      "metric": "Total Training Cost",
+      "result": "PARD 为 20.22 PFLOPs",
+      "comparison": "EAGLE 为 149.20 PFLOPs，EAGLE-3 为 204.40 PFLOPs；论文据此估算 PARD 的训练效率约为 EAGLE 的 7 倍、EAGLE-3 的 10 倍。",
+      "source": "Appendix A"
+    },
+    {
+      "condition": "DeepSeek-R1-Qwen-7B 消融，OpenR1-Math-220K 的 93K 子集训练一轮，MATH500 测试",
+      "metric": "Conditional Drop-token Training Efficiency",
+      "result": "r=0.7、r_min=0.2 时训练速度提高约 3 倍，同时保持近似相同的最终解码吞吐",
+      "comparison": "进一步降低保留率可以缩短训练时间，但过度 Drop 会降低推理性能。",
+      "source": "Figure 5(a)"
+    },
+    {
+      "condition": "LLaMA3.1-8B，HumanEval，vLLM，Batch Size 从 1 增长到 16",
+      "metric": "End-to-end Speedup",
+      "result": "Batch Size 1/2/4/8/16 时分别为 3.63×、3.16×、2.59×、1.90×和 1.33×",
+      "comparison": "并发增大后系统由 Memory-bound 转向 Compute-bound，PARD 的相对收益持续下降，但在 Batch Size 16 时仍保留 1.33× 加速。",
+      "source": "Appendix Table 5"
+    },
+    {
+      "condition": "Shared Mask Token 与不同训练/推理 K 的消融",
+      "metric": "Draft-length Extrapolation",
+      "result": "共享 Mask ID 的吞吐为 221.97 tokens/s，高于位置专属 Mask ID 的 218.05 tokens/s；K_train≥8 后结果趋于稳定，最佳 K_infer 为 12",
+      "comparison": "共享 Mask ID 允许推理时使用大于训练值的 K，但论文仍通过离线搜索手动选择 K，并未实现按请求动态调度。",
+      "source": "Section 4.3 and Figure 5(b)"
+    }
+  ],
+  "limitations": [
+    {
+      "type": "algorithmic",
+      "description": "同一块内的候选位置只条件于共享前缀和 Mask Placeholder，不会基于该轮已经实际采样出的前部候选重新条件化。一次并行前向因此消除了顺序延迟，但也放弃了显式的块内 Token Dependency Modeling，后部候选可能出现一致性下降。",
+      "sourceType": "analysis"
+    },
+    {
+      "type": "generalization",
+      "description": "论文中的 Target Independence 是模型系列级复用，而不是任意 Target 通用。Drafter 与 Target 仍需共享兼容的 Tokenizer、词表和语言建模分布；LLaMA、Qwen 与 DeepSeek-R1-Qwen 分别训练了不同的 PARD 模型。",
+      "sourceType": "paper"
+    },
+    {
+      "type": "training-cost",
+      "description": "PARD 不是 Training-free 方法。每个模型系列仍需对一个完整的小型自回归模型进行 Fine-tuning，并准备与该系列匹配的指令数据；LLaMA3 和 Qwen 配置还会使用 Target 系列模型重新生成训练 Answer。",
+      "sourceType": "paper"
+    },
+    {
+      "type": "training-stability",
+      "description": "COD 的保留率需要在训练速度和候选质量之间调节。论文消融明确显示，保留率过低虽然进一步减少训练时间，但会降低最终推理性能，因此 3 倍加速依赖于 r=0.7、r_min=0.2 这一经验折中。",
+      "sourceType": "paper"
+    },
+    {
+      "type": "scheduling",
+      "description": "主方法使用链式候选和预先选择的固定 K，没有根据请求难度、接受概率或当前系统负载动态调整 Draft/Verify Length。虽然共享 Mask ID 支持 K_infer>K_train，但最佳 K=12 来自离线笛卡尔积搜索，而不是在线调度器。",
+      "sourceType": "paper"
+    },
+    {
+      "type": "system",
+      "description": "PARD 的优势主要来自减少 Memory-bound Draft 的权重读取。当 Batch Size 从 1 增加到 16、系统逐渐转为 Compute-bound 时，LLaMA3.1-8B HumanEval 加速从 3.63×下降到 1.33×，峰值单请求数据不能直接代表高并发 Serving 收益。",
+      "sourceType": "observed-data"
+    },
+    {
+      "type": "evaluation",
+      "description": "主实验集中在代码、数学和 SpecBench，并主要使用单张 A100-40GB；没有系统评估长上下文、持续动态 Batch、真实线上请求分布或多 GPU Serving。训练最大序列长度也仅为 512或1024。",
+      "sourceType": "observed-data"
+    },
+    {
+      "type": "baseline",
+      "description": "论文没有对 ParallelSpec、BiTA 和 PaSS 进行同框实验，附录说明原因是实现约束，只给出了概念性对比。因此 PARD 相对其他 Target-dependent Parallel Drafter 的端到端优势缺乏直接实验控制。",
+      "sourceType": "paper"
+    },
+    {
+      "type": "candidate-structure",
+      "description": "所有论文实验均采用 Chain Attention。论文指出 Tree Attention 与 PARD 正交并可组合，但没有实现或测量树结构带来的接受长度增益及额外 Verify 成本。",
+      "sourceType": "paper"
+    }
+  ],
   "relations": {
     "extends": [],
-    "comparesAgainst": [],
+    "comparesAgainst": [
+      "eagle",
+      "eagle-3"
+    ],
     "related": [
       "medusa",
       "mtp",
@@ -82,7 +273,9 @@
       "eagle-3",
       "specinfer"
     ],
-    "compatibleWith": []
+    "compatibleWith": [
+      "specinfer"
+    ]
   },
   "citations": [
     "medusa",
@@ -93,15 +286,90 @@
     "specinfer"
   ],
   "reproducibility": {
-    "codeUrl": null,
-    "modelUrl": null,
-    "projectPage": null,
-    "officialImplementation": null,
-    "status": "not-checked",
-    "notes": []
+    "codeUrl": "https://github.com/AMD-AGI/PARD",
+    "modelUrl": "https://huggingface.co/collections/amd/pard",
+    "projectPage": "https://www.amd.com/en/developer/resources/technical-articles/accelerating-generative-llms-interface-with-parallel-draft-model-pard.html",
+    "officialImplementation": true,
+    "status": "not-reproduced",
+    "notes": [
+      "官方 GitHub 仓库提供 PARD-1 的训练代码、Transformers+ 推理配置以及 vLLM 使用说明，许可证为 MIT。",
+      "官方 Hugging Face Collection 已发布 LLaMA3、LLaMA4、DeepSeek-R1-Qwen、Qwen2.5 和 Qwen3 系列的 PARD-1 Drafter 权重。",
+      "论文训练使用 AMD MI250X，最终主表使用 NVIDIA A100-40GB；严格复现时需要区分训练硬件、论文 vLLM 版本以及当前仓库更新后的 vLLM V1 结果。",
+      "本站尚未记录一组从数据处理、COD 训练到 Table 1 和 Table 6 全部数值均严格对齐的本地复现实验，因此状态标记为 not-reproduced。"
+    ]
   },
-  "evidence": [],
-  "notes": [],
+  "evidence": [
+    {
+      "claim": "PARD 将 Target-independent 小型自回归 Drafter 适配为一次前向预测多个未来 Token 的 Parallel Drafter。",
+      "location": "Abstract and Section 1, Pages 1–3; Figure 3 and Section 3.1, Pages 4–5",
+      "type": "method"
+    },
+    {
+      "claim": "PARD 使用 Mask Placeholder 切断块内实际候选之间的依赖，使 K 个位置能够在一次 Drafter 前向中并行计算。",
+      "location": "Section 3.1, Equations 6–7, Page 5",
+      "type": "method"
+    },
+    {
+      "claim": "Mask Training 将序列展开为多个 Next-k 子任务，并通过专用 Attention Mask 保持训练条件与推理条件一致。",
+      "location": "Section 3.2.1 and Figure 4, Pages 5–6",
+      "type": "training"
+    },
+    {
+      "claim": "COD 按几何衰减保留后部子任务 Token，并保证每个保留位置拥有完整的 Prefix KV，使训练复杂度由 O(NK) 降到 O(N)。",
+      "location": "Section 3.2.2, Equations 9–11, Page 6; Appendix B, Pages 15–16",
+      "type": "training"
+    },
+    {
+      "claim": "主训练配置使用 K=8、r=0.7、r_min=0.2，在 8 张 MI250X 上通过 TRL 训练 4 个 Epoch。",
+      "location": "Section 4.1, Page 7; Appendix Table 4, Page 17",
+      "type": "configuration"
+    },
+    {
+      "claim": "PARD 在 LLaMA3.1-8B HumanEval 上达到 264.88 tokens/s 和 3.63× 加速，高于 EAGLE-3 的 233.43 tokens/s 和 3.19×。",
+      "location": "Table 1, Page 7",
+      "type": "result"
+    },
+    {
+      "claim": "PARD 在 LLaMA3.1-8B 上同时取得更高 Acceptance Rate 和不随 Draft Length 增长的固定 Draft Bandwidth Consumption。",
+      "location": "Tables 2–3, Page 8",
+      "type": "result"
+    },
+    {
+      "claim": "r=0.7、r_min=0.2 的 COD 设置将训练提速约 3 倍，而 Shared Mask ID 支持 K_infer 大于 K_train。",
+      "location": "Section 4.3 and Figure 5, Pages 8–9",
+      "type": "ablation"
+    },
+    {
+      "claim": "以 LLaMA3-70B 为 Target 的估算中，PARD 训练成本为 20.22 PFLOPs/1M Tokens，显著低于 EAGLE 和 EAGLE-3。",
+      "location": "Appendix A, Page 15",
+      "type": "training-cost"
+    },
+    {
+      "claim": "Batch Size 从 1 增至 16 时，PARD 在 LLaMA3.1-8B HumanEval 上的加速由 3.63×下降到 1.33×。",
+      "location": "Appendix Table 5, Page 17",
+      "type": "system"
+    },
+    {
+      "claim": "论文最终结果基于 vLLM，并另外实现了使用 torch.compile 与 Static KV Cache 的 Transformers+；Chain Attention 是默认候选结构。",
+      "location": "Appendix F and Table 7, Pages 17–18",
+      "type": "implementation"
+    },
+    {
+      "claim": "论文未直接实验比较 ParallelSpec、BiTA 和 PaSS，只在附录中给出 Target Independence 的概念性对比。",
+      "location": "Appendix G and Table 8, Page 18",
+      "type": "evaluation"
+    }
+  ],
+  "notes": [
+    "PARD 虽然采用 Mask Token 并一次并行预测一个未来块，但它不是从零训练的扩散语言模型，也不执行多轮去噪；其本质是经过 Next-k Mask 适配的小型自回归语言模型。",
+    "Target-independent 需要按模型系列理解：同一个 LLaMA Drafter 可服务 LLaMA3 的多个规模，同一个 Qwen Drafter可服务多个 Qwen Target，但不能直接把 LLaMA Drafter 接到 Qwen Target。",
+    "PARD 的并行因子分解降低了 Draft Latency，但候选位置之间看不到该轮实际采样出的前序 Token。这是它与自回归 Drafter 最关键的质量—延迟交换。",
+    "所有未来位置共享同一个 Mask Token ID，而不是使用 m0、m1、m2 等独立词表项。消融显示共享 ID 略微提高吞吐，并使模型可以在推理时外推到大于 K_train 的 K。",
+    "COD 不是随意删除训练 Token：一个监督位置只有在其所需的全部前缀 KV 都存在时才能保留，否则会造成 Attention Context 不完整。",
+    "论文主训练使用 K_train=8，但消融中的最佳 K_infer=12。这里的外推能力只说明模型能接受更长的 Mask Block，不代表 K 会自动适应任务或系统负载。",
+    "PARD 的 Draft Bandwidth 对 K 近似恒定，是因为模型权重只需在一次并行前向中读取；这不意味着整个投机轮次的 Target Verify 成本也与 K 无关。",
+    "Tree Attention 被论文视为正交扩展。PARD 本身只解决 Drafter 的并行生成和训练成本，不负责多分支候选组织或动态 Verify 调度。"
+  ],
   "provenance": {
     "legacyWorkbookRow": 7,
     "workbookInstitutions": "香港中文大学（深圳）、其他合作单位"

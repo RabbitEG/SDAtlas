@@ -37,21 +37,57 @@
   "institutionSource": "https://arxiv.org/pdf/2510.02358",
   "methodOverview": "复用预训练扩散语言模型，一次产生多个位置的候选 Token 网格；Causal-consistency Path Search 从中抽取满足自回归因果关系的路径，ADL 再根据历史接受情况动态调整 Draft 长度。",
   "problemStatement": {
-    "background": null,
-    "priorLimitation": null,
-    "goal": null
+    "background": "自回归 LLM 必须逐 Token 顺序解码，生成 K 个 Token 需要执行 K 次串行前向。投机解码通过让较快的 Drafter 先提出一段候选，再由 Target 在一次前向中并行验证，从而在保持 Target 解码行为的同时降低平均 Token 延迟；实际收益同时取决于 Draft 吞吐、候选接受长度和 Verify 成本。",
+    "priorLimitation": "多数投机解码方法仍使用自回归 Drafter，每增加一个候选 Token 都需要额外执行一次 Drafter 前向，Draft 阶段本身仍受串行依赖限制。预训练扩散语言模型虽然可以并行预测整个 Mask 块，但其双向条件化只给出各位置的联合上下文边际分布，逐位置 Top-1 直接拼接可能形成不符合左到右因果关系的序列；同时，扩散 Draft 必须预先指定块长，固定长度会在过短限制推进量和过长增加漂移、EOS Padding 与无效验证之间产生冲突。",
+    "goal": "在不训练新 Drafter、不修改 Target 架构的条件下，把现成扩散语言模型接入标准投机解码接口；从并行产生的 Token Lattice 中寻找更符合 AR Verifier 的因果路径，并根据在线生成与接受反馈动态选择 Draft 长度，从而同时提高接受长度和端到端 Wall-clock Speedup。"
   },
-  "methodComponents": [],
+  "methodComponents": [
+    {
+      "name": "Pretrained DLM Parallel Drafter",
+      "stage": "Draft generation",
+      "purpose": "利用扩散语言模型的块级并行能力，以一次前向代替自回归 Drafter 的多次串行前向。",
+      "mechanism": "给定当前 Prefix 和 Draft 长度 k_t，在 Prefix 后追加 k_t 个 Mask Token。预训练 DLM 对整个 Mask 块执行并行去噪，并输出每个未来位置的候选分布及 Top-M Token 集合。虽然 DLM 原生支持多轮迭代精炼，DiffuSpec 默认只执行一次 Refinement Forward，以避免额外去噪步骤吞噬推理收益。",
+      "differenceFromPrior": "标准小型 AR Drafter 生成 k_t 个 Token 通常需要 k_t 次顺序前向；DiffuSpec 直接复用现成的 Dream-7B 等 DLM，在不额外训练 Draft Adapter 的情况下并行产生整个候选块。"
+    },
+    {
+      "name": "Left-to-Right Probability Adapter",
+      "stage": "Drafter–verifier interface",
+      "purpose": "把原生双向条件化的 DLM 分布转换成标准投机采样接口可以使用的逐位置 Proposal Probability。",
+      "mechanism": "对于候选块中的第 i 个位置，使用仅保留原始 Prefix、并将块内待预测位置置为 Mask 的输入读取该位置分布，构造 q_phi^L2R 代理概率。Target 随后仍按标准 Acceptance Ratio 或 Greedy Matching 逐位置处理候选，因此无需修改其网络结构。",
+      "differenceFromPrior": "AR Drafter 天然提供严格左到右条件概率；DLM 输出的是共享双向上下文下的逐位置分布。该适配层保持标准 Drafter–Verifier 概率接口，但得到的是近似的左到右代理，而不是真正基于已选候选 Prefix 重新计算的路径条件概率。"
+    },
+    {
+      "name": "Causal-Consistency Path Search",
+      "stage": "Candidate organization",
+      "purpose": "避免把每个位置的局部 Top-1 生硬拼接成因果不连贯的候选，提高首次 Draft–Target 失配发生的位置。",
+      "mechanism": "从每个位置的 Top-M 候选开始，保留累计概率质量达到阈值 tau 的最小候选集合，并用 M_max 限制分支数；EOS 始终保留，路径遇到首个 EOS 后停止扩展。对路径 pi 使用 DLM Log Probability 与因果代理 Log Probability 的加权和评分，再以 Beam Size B 执行左到右 Beam Search。论文默认使用 3-gram KenLM 作为因果代理，lambda=0.5、B=3、tau=0.8、M_max=15。",
+      "differenceFromPrior": "普通扩散式 Draft 可直接采用各位置 Argmax，忽略不同位置候选之间的因果兼容性；CPS 显式保留 Token Lattice，并在 Verify 前利用轻量因果分数选择一条更适合 AR Target 的链，而不需要重新训练 DLM。"
+    },
+    {
+      "name": "Adaptive Draft-Length Controller",
+      "stage": "Online draft scheduling",
+      "purpose": "针对不同 Prompt 和不同生成阶段自适应寻找 Draft 长度的速度—接受率甜点，减少固定块长造成的不足 Draft 或过度 Draft。",
+      "mechanism": "从 CPS 前的原始 DLM Draft 中计算首个 EOS 之前的生成长度 L_gen，并在 Verify 后获得连续接受长度 L_acc；分别对两者执行指数滑动平均。当平均接受进度能够跟上平均生成进度时，在 L_gen 基础上增加 delta，否则按当前生成长度回缩，最后裁剪到 [k_min, k_max]。默认 k_min=20、k_max=30、delta=10、rho=0.5。",
+      "differenceFromPrior": "固定 k 无法适应不同样本的可预测性；Minions 式控制器主要依赖接受反馈，而 ADL 同时观察 DLM 实际在 EOS 前生成了多少有效内容以及其中多少被 Target 接受。"
+    },
+    {
+      "name": "Serving-Compatible Four-Stage Pipeline",
+      "stage": "End-to-end decoding",
+      "purpose": "在不改动 Target 架构的前提下，将 DLM Draft、路径搜索和长度控制接入标准投机解码流程。",
+      "mechanism": "每轮依次执行 DLM Draft、CPS 路径抽取、Target Parallel Verification 和 ADL 长度更新。Target 只通过候选 Token 与 Proposal Probability 接口参与验证；在 Temperature=0 的 Greedy Verification 下，无论 CPS 选择何种候选，首个不匹配位置都会由 Target 自身的 Greedy Token 修正，因此输出逐 Token 等同于普通 Target Greedy Decoding。",
+      "differenceFromPrior": "方法不要求给 Target 增加预测头、修改 Attention 或重新训练参数；与 EAGLE、Medusa 等依赖附加模型结构或专门训练的方案相比，核心改动集中在 Drafter 侧和轻量前后处理模块。"
+    }
+  ],
   "characteristics": {
-    "requiresTraining": null,
-    "drafterType": null,
-    "draftGeneration": null,
-    "candidateStructure": null,
-    "verificationStrategy": null,
-    "usesTargetFeatures": null,
-    "dynamicDraftLength": null,
-    "dynamicVerifyLength": null,
-    "lossless": null
+    "requiresTraining": false,
+    "drafterType": "pretrained-diffusion-language-model",
+    "draftGeneration": "single-pass-parallel",
+    "candidateStructure": "token-lattice-to-chain",
+    "verificationStrategy": "standard-block-verification",
+    "usesTargetFeatures": false,
+    "dynamicDraftLength": true,
+    "dynamicVerifyLength": false,
+    "lossless": true
   },
   "subproblemContributions": {
     "A": {
@@ -68,23 +104,179 @@
     }
   },
   "training": {
-    "summary": null,
-    "data": null,
-    "objective": null
+    "summary": "DiffuSpec 本身是 Training-free 方法，不训练新的 Drafter、Target 或控制器，而是直接复用公开的预训练 Dream-7B。CPS 和 ADL 都是无可训练参数的推理时模块；仅作为因果代理的 3-gram KenLM 需要离线拟合。",
+    "data": "方法没有专门的神经网络训练数据。主实验使用公开的 Dream-7B、Qwen2.5-32B 等 Checkpoint。Appendix A 说明 3-gram KenLM 只使用各任务的训练划分拟合，避免测试集泄漏；正文则将其概括为在离线文本语料上训练后跨任务复用。",
+    "objective": "DiffuSpec 不引入新的优化目标。论文为完整性给出了预训练 DLM 的标准目标：随机腐化干净序列，并在被腐化位置使用 Token-wise Cross-Entropy 恢复原 Token。该目标描述 DLM 的既有训练方式，不是 DiffuSpec 实验中重新执行的训练流程。"
   },
   "evaluation": {
-    "targetModels": [],
-    "benchmarks": [],
-    "baselines": [],
-    "metrics": [],
-    "hardware": [],
-    "frameworks": []
+    "targetModels": [
+      "Qwen2.5-32B",
+      "Qwen3-32B",
+      "Qwen2.5-Coder-32B"
+    ],
+    "benchmarks": [
+      "Spec-Bench",
+      "MT-Bench",
+      "WMT-style Machine Translation",
+      "CNN/DailyMail",
+      "Natural Questions",
+      "GSM8K",
+      "DPR over Wikipedia",
+      "HumanEval"
+    ],
+    "baselines": [
+      "Autoregressive Greedy Decoding",
+      "Lookahead Decoding",
+      "Prompt Lookup Decoding",
+      "Token Recycling",
+      "SAMD",
+      "EAGLE-2",
+      "EAGLE-3",
+      "Speculative Sampling",
+      "SpecDiff",
+      "Minions-style Length Controller"
+    ],
+    "metrics": [
+      "Mean Accepted Tokens",
+      "End-to-end Wall-clock Speedup",
+      "Tokens per Second",
+      "MT-Bench Pairwise Win Rate",
+      "BLEU",
+      "ROUGE-L",
+      "Exact Match",
+      "F1",
+      "Task Accuracy",
+      "Per-stage Wall-clock Time"
+    ],
+    "hardware": [
+      "Single NVIDIA A100 80GB",
+      "11 CPU Cores",
+      "100GB System RAM"
+    ],
+    "frameworks": [
+      "PyTorch 2.6.0",
+      "Spec-Bench Evaluation Harness",
+      "KenLM"
+    ]
   },
-  "mainResults": [],
-  "limitations": [],
+  "mainResults": [
+    {
+      "condition": "Qwen2.5-32B Target、Dream-7B Drafter，Spec-Bench 六类任务，Temperature=0、Batch Size=1",
+      "metric": "Mean Accepted Tokens / End-to-end Speedup",
+      "result": "6.99 / 3.08×",
+      "comparison": "取得全部方法中的最高宏平均结果；EAGLE-3 为 4.28 / 2.80×，SpecDiff 为 6.05 / 2.69×，SPS 为 6.18 / 1.67×。",
+      "source": "Table 1"
+    },
+    {
+      "condition": "Qwen2.5-32B + Dream-7B，Spec-Bench 分任务结果",
+      "metric": "Wall-clock Speedup",
+      "result": "MT 3.09×；Translation 3.38×；Summarization 2.41×；QA 3.03×；Math 4.02×；RAG 2.38×",
+      "comparison": "DiffuSpec 在 MT、Translation、QA 和 Math 上取得表中最高速度；开放式或检索任务的收益明显低于数学与翻译任务。",
+      "source": "Table 1"
+    },
+    {
+      "condition": "相同 Qwen2.5-32B Target、Dream-7B Drafter 与运行配置",
+      "metric": "Comparison with Diffusion Baseline",
+      "result": "DiffuSpec 为 6.99 MAT / 3.08×，SpecDiff 为 6.05 MAT / 2.69×",
+      "comparison": "加入 CPS 和 ADL 后，Mean-MAT 提升 0.94，Mean-Speedup 提升 0.39×。",
+      "source": "Section 5.1 and Table 1"
+    },
+    {
+      "condition": "CPS 与 ADL 组件消融，Spec-Bench 宏平均",
+      "metric": "Mean Accepted Tokens / Mean Speedup",
+      "result": "CPS+ADL：6.99 / 3.08×；仅 CPS：6.95 / 2.98×；仅 ADL：6.43 / 2.73×；均关闭：6.05 / 2.69×",
+      "comparison": "CPS 贡献了主要接受长度提升，ADL 的独立接受收益较小，但能进一步把候选质量转化为端到端速度。",
+      "source": "Table 2"
+    },
+    {
+      "condition": "固定 Draft Length 与 ADL 比较，所有配置保留 CPS",
+      "metric": "Mean Accepted Tokens / Mean Speedup",
+      "result": "k=10：5.53 / 2.74×；k=20：6.56 / 2.98×；k=30：6.49 / 2.98×；k=50：6.51 / 2.91×；k=100：6.69 / 2.78×；ADL：6.99 / 3.08×",
+      "comparison": "更长的固定 Draft 能提高 MAT，但速度在 k=20–30 后下降；ADL 同时取得最高 MAT 和最高 Speedup。",
+      "source": "Appendix D, Table 5"
+    },
+    {
+      "condition": "扩散 Refinement Step S 从 1 增加到 10",
+      "metric": "Mean Accepted Tokens / Mean Speedup",
+      "result": "MAT 从 6.99 增加到 7.33，但 Speedup 从 3.08× 降至 0.93×",
+      "comparison": "额外去噪确实改善候选质量，却因重复执行 7B DLM 前向而直接抹掉投机解码收益，因此主配置固定 S=1。",
+      "source": "Section 5.3, Figure 5"
+    },
+    {
+      "condition": "异构 Tokenizer：Qwen3-32B Target；DiffuSpec 使用 Dream-7B，SPS 使用 Qwen2.5-7B",
+      "metric": "Mean Accepted Tokens / Mean Speedup",
+      "result": "DiffuSpec：3.02 / 1.42×；SPS：2.91 / 1.03×",
+      "comparison": "在需要 Vocabulary Adapter 映射概率的设置下，DiffuSpec 仍保持更高速度，但收益明显低于同 Tokenizer 的主实验。",
+      "source": "Appendix E, Table 6"
+    },
+    {
+      "condition": "DREAM-CODER-7B Drafter + Qwen2.5-Coder-32B Target，HumanEval",
+      "metric": "Mean Accepted Tokens / Mean Speedup",
+      "result": "10.94 / 5.35×",
+      "comparison": "SPS 的 MAT 更高，为 11.33，但速度仅 2.14×；SAMD 为 5.24 / 5.29×。DiffuSpec 以略高于 SAMD 的 5.35× 取得最高 Wall-clock Speedup。",
+      "source": "Appendix F, Table 7"
+    },
+    {
+      "condition": "Qwen2.5-32B + Dream-7B 主实验的分阶段计时",
+      "metric": "CPS Search Overhead",
+      "result": "CPS 平均仅占每轮 Wall-clock Time 的约 1.1%",
+      "comparison": "主要成本仍来自 DLM Draft 和 Target Verification，说明小 Beam 的 Lattice Search 本身不是端到端瓶颈。",
+      "source": "Section 5.1, Figure 4"
+    }
+  ],
+  "limitations": [
+    {
+      "type": "model-availability",
+      "description": "方法依赖现成的预训练扩散语言模型。论文明确指出，公开 DLM Checkpoint 在模型尺寸、领域和语言覆盖上仍远少于小型自回归 Drafter；缺少合适 DLM 时仍需额外执行蒸馏或轻量适配。",
+      "sourceType": "paper"
+    },
+    {
+      "type": "resource-cost",
+      "description": "Training-free 不等于低资源。主配置使用 Dream-7B 作为 Drafter，参数量和显存占用远高于 EAGLE Head 或 DFlash 一类轻量 Drafter；单次 DLM 前向虽然并行，但在显存受限、较小 Target 或高并发 Serving 中可能不具备良好的成本优势。",
+      "sourceType": "analysis"
+    },
+    {
+      "type": "losslessness",
+      "description": "论文的严格无损保证只适用于 Temperature=0 的 Greedy Verification。CPS 通过 Beam/MAP Search 选择候选，而不是从 Acceptance Ratio 中使用的同一 Proposal Distribution 采样；因此在 Temperature>0 时，经典投机采样的无偏分布恢复证明不直接成立，论文将其明确视为近似或启发式扩展。",
+      "sourceType": "paper"
+    },
+    {
+      "type": "causal-modeling",
+      "description": "CPS 使用 3-gram KenLM 评价局部因果连贯性，难以建模长距离语义、代码作用域或复杂推理依赖。Beam Search 只是在固定候选 Lattice 中重新选路，无法让后部 DLM 分布真正条件化于已选择的前部 Token。",
+      "sourceType": "analysis"
+    },
+    {
+      "type": "system-evaluation",
+      "description": "主实验仅在单张 A100、Batch Size=1 上进行，没有报告 Continuous Batching、高并发吞吐、不同 Context Length 或多卡 Serving。ADL 也只依据单请求生成与接受反馈，不感知 Target Batch Capacity、硬件吞吐曲线或系统负载。",
+      "sourceType": "paper"
+    },
+    {
+      "type": "generalization",
+      "description": "主实验集中在 Qwen2.5-32B + Dream-7B 这一组同生态模型。论文通过异构 Tokenizer 和 Coder 模型补充了两个附录实验，但尚未系统覆盖更多 Target 规模、DLM 家族、语言或生产流量分布。",
+      "sourceType": "observed-data"
+    },
+    {
+      "type": "controller",
+      "description": "ADL 调整的是下一轮 Draft Length，而不是独立的 Verify Budget；主配置还把长度限制在较窄的 [20, 30] 范围。它无法像负载感知调度器那样，在已经生成长候选后根据 Batch 状态裁剪低价值 Verify Suffix。",
+      "sourceType": "analysis"
+    },
+    {
+      "type": "reproducibility",
+      "description": "论文和当前官方条目未提供作者官方代码仓库或独立项目页。虽然公开了模型名称、硬件、软件版本与主要超参数，但 CPS、Probability Adapter、Tokenizer Mapping 和 Timing Harness 仍需复现者自行实现。",
+      "sourceType": "observed-data"
+    },
+    {
+      "type": "documentation",
+      "description": "正文称 3-gram KenLM 在离线文本语料上训练并跨任务复用，而 Appendix A 又称其分别拟合各数据集训练划分。两处关于 Causal Proxy 训练数据的口径不完全一致，会影响严格复现实验配置。",
+      "sourceType": "observed-data"
+    }
+  ],
   "relations": {
     "extends": [],
-    "comparesAgainst": [],
+    "comparesAgainst": [
+      "eagle-2",
+      "eagle-3"
+    ],
     "related": [
       "medusa",
       "eagle",
@@ -105,12 +297,87 @@
     "codeUrl": null,
     "modelUrl": null,
     "projectPage": null,
-    "officialImplementation": null,
-    "status": "not-checked",
-    "notes": []
+    "officialImplementation": false,
+    "status": "not-reproduced",
+    "notes": [
+      "论文复用公开的 Dream-7B、Qwen2.5-32B 和 Spec-Bench，但未给出专属于 DiffuSpec 的官方代码或模型仓库。",
+      "论文提供了 PyTorch 2.6.0、单张 A100 80GB、Batch Size 1、KV Cache、Temperature 0 及 CPS/ADL 的主要超参数，可以据此自行实现核心算法。",
+      "异构 Tokenizer 实验依赖概率空间 Vocabulary Adapter，但论文没有给出对应实现细节或完整映射配置。",
+      "本站尚未记录一组严格复现 Table 1、Table 2 与 Appendix Table 5–7 的环境、命令和结果，因此状态标记为 not-reproduced。"
+    ]
   },
-  "evidence": [],
-  "notes": [],
+  "evidence": [
+    {
+      "claim": "DiffuSpec 是 Training-free 框架，直接复用预训练 DLM，以一次前向并行产生多 Token Draft，并保持标准 AR Verifier 接口。",
+      "location": "Abstract; Sections 1 and 4.1, Pages 1–4",
+      "type": "method"
+    },
+    {
+      "claim": "CPS 对各位置候选执行累计概率质量剪枝、EOS 保留和首 EOS 截断，再结合 DLM 与因果代理分数进行 Beam Search。",
+      "location": "Section 4.2 and Figure 3, Page 5",
+      "type": "method"
+    },
+    {
+      "claim": "ADL 根据首个 EOS 前的 L_gen 和 Verify 后的 L_acc 的指数滑动平均更新下一轮 Draft Length。",
+      "location": "Section 4.3, Pages 5–6",
+      "type": "method"
+    },
+    {
+      "claim": "在 Temperature=0 下，DiffuSpec 的最终输出逐 Token 等同于 Target 的普通 Greedy Decoding。",
+      "location": "Proposition 4.1, Section 4.4, Page 6; Appendix H, Pages 14–15",
+      "type": "guarantee"
+    },
+    {
+      "claim": "主实验使用 Qwen2.5-32B Target、Dream-7B Drafter、单张 A100 80GB、PyTorch 2.6.0、Batch Size 1 和单步 Refinement。",
+      "location": "Section 5, Pages 6–7; Appendix A, Page 12",
+      "type": "configuration"
+    },
+    {
+      "claim": "默认 CPS/ADL 参数为 k_min=20、k_max=30、B=3、tau=0.8、M_max=15、lambda=0.5、delta=10 和 rho=0.5。",
+      "location": "Section 5, Page 7; Appendix A, Page 12",
+      "type": "configuration"
+    },
+    {
+      "claim": "DiffuSpec 在 Spec-Bench 上达到 6.99 Mean-MAT 和 3.08× Mean-Speedup，优于 EAGLE-3、SPS、SpecDiff 和其他基线。",
+      "location": "Table 1 and Section 5.1, Page 7",
+      "type": "result"
+    },
+    {
+      "claim": "组件消融显示 CPS 对接受长度贡献更大，ADL 进一步改善速度；二者结合取得 6.99 MAT 和 3.08× Speedup。",
+      "location": "Section 5.2 and Table 2, Pages 7–8",
+      "type": "ablation"
+    },
+    {
+      "claim": "增加 DLM Refinement Step 会提高 MAT，但 S=10 时 Speedup 降至 0.93×，因此主实验采用 S=1。",
+      "location": "Section 5.3 and Figure 5, Page 8",
+      "type": "ablation"
+    },
+    {
+      "claim": "ADL 相比 k=10、20、30、50、100 的固定长度策略同时取得最高 Mean-MAT 和 Mean-Speedup。",
+      "location": "Appendix D, Table 5, Pages 12–13",
+      "type": "result"
+    },
+    {
+      "claim": "异构 Tokenizer 设置下 DiffuSpec 达到 3.02 MAT 和 1.42× Speedup；Coder 设置的 HumanEval 实验达到 10.94 MAT 和 5.35× Speedup。",
+      "location": "Appendices E–F, Tables 6–7, Page 13",
+      "type": "result"
+    },
+    {
+      "claim": "在随机采样解码下，CPS 的搜索分布与 Acceptance Ratio 使用的 Proposal Distribution 不一致，因此经典无偏性证明不直接适用。",
+      "location": "Appendix H.3, Page 15",
+      "type": "limitation"
+    }
+  ],
+  "notes": [
+    "论文的 MAT 对应连续被接受的 Draft Prefix 长度，不包含 Target 在拒绝位置产生的修正或 Bonus Token；不能直接与把 Bonus Token 计入 Acceptance Length 的论文横向对数值。",
+    "DiffuSpec 的 Candidate Structure 最终仍是一条 Chain。Token Lattice 和 Beam Search 用于 Verify 前选路，并没有像 Medusa、SpecInfer 或 DDTree 那样把多条分支同时送入 Target 验证。",
+    "所谓 Left-to-Right Probability 是由 DLM 边际分布构造的代理接口，而不是根据已经选择的候选 Prefix 逐步重新运行 DLM 得到的严格 AR Factorization。",
+    "默认只执行一次扩散 Refinement。DiffuSpec 的关键不是让 DLM 完成高质量独立生成，而是让它以最低前向次数提出足以被更强 AR Target 筛选的候选。",
+    "ADL 属于动态 Draft Length，而不是动态 Verify Length。每轮 Target 仍验证 CPS 最终给出的整条候选，缺少面向 Batch Serving 的独立 Verify Suffix 裁剪。",
+    "论文主结果中的最高任务加速是 Math 的 4.02×，而摘要使用的是较保守的“up to 3×”概括；附录 Coder 实验则进一步报告了 5.35×。",
+    "与 DFlash 的路线区别很直接：DiffuSpec 不训练 Drafter、使用完整的 7B 预训练 DLM，并靠推理时 CPS/ADL 修正；DFlash 训练小型 Target-conditioned Block-Diffusion Drafter，以更低模型开销直接提高并行 Draft 质量。",
+    "正文与 Appendix A 对 3-gram KenLM 的训练语料描述存在差异，严格复现时应优先检查作者后续代码或向作者确认。"
+  ],
   "provenance": {
     "legacyWorkbookRow": 8,
     "workbookInstitutions": "香港中文大学（深圳）、其他合作单位"

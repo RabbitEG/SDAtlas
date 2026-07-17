@@ -35,21 +35,50 @@
   "institutionSource": "https://arxiv.org/pdf/2601.19278",
   "methodOverview": "从 Target Hidden State 出发，通过一个轻量模块同时预测多个被 Mask 的未来位置，再利用 N-gram 语义约束把独立候选剪枝成连贯的 Token Tree。",
   "problemStatement": {
-    "background": null,
-    "priorLimitation": null,
-    "goal": null
+    "background": "投机解码通过轻量 Drafter 先提出多个未来 Token，再由 Target 在一次前向中并行验证并接受最长合法前缀；其端到端收益同时取决于候选接受长度与 Draft 阶段自身的延迟。",
+    "priorLimitation": "EAGLE3 等高质量模型式 Drafter 仍需按 Token 多步自回归 Rollout，Draft Forward 约占总推理时间的 20%–40%，候选越长顺序开销越高。纯 N-gram 或检索式方法虽然 Draft 很快，但接受长度偏低；直接使用 Dream7B 一类大规模双向 dLLM 又存在模型过重、因果条件不匹配、Tokenizer 兼容性和模型可获得性问题。并行预测各未来位置还会隐式形成指数规模的候选组合，并产生跨位置不连贯路径。",
+    "goal": "构建一个与 Target 紧耦合的轻量单层并行 Drafter，在严格 Prefix 条件和因果 Mask 下用一次前向预测多个未来位置分布，再以低开销的连续性约束压缩为可验证 Token Tree，从而在保持 Target 原始输出分布不变的前提下降低 Draft 瓶颈。"
   },
-  "methodComponents": [],
+  "methodComponents": [
+    {
+      "name": "Multi-Layer Target Feature and Shifted Embedding Fusion",
+      "stage": "Target prefill and verification",
+      "purpose": "复用 Target 已完成前向时产生的内部知识，为单层 Drafter 提供比最终 Token Logits 更丰富的 Prefix 表征。",
+      "mechanism": "在每轮 Target Prefill 或 Verify 后，抽取第 1 层、第 (L/2−1) 层和第 (L−4) 层 Hidden State，按位置拼接后经全连接层投影为紧凑特征 g；再与右移一位的 Target Token Embedding 拼接形成 Prefix 输入 z。Embedding 保持冻结，特征投影参与训练。",
+      "differenceFromPrior": "普通小模型 Drafter 需要仅从 Token 历史重建 Target 的推理结果；独立大规模 dLLM 则计算和显存成本过高。DART 直接消费 Target 的多层特征，同时保持 Drafter 只有一个定制 Decoder Layer。"
+    },
+    {
+      "name": "Single-Pass Causal Masked Drafting with Shifted Logits",
+      "stage": "Draft generation",
+      "purpose": "消除自回归 Drafter 随 Draft Length 线性增加的多次前向，并重点提高决定整段接受的第一枚候选准确率。",
+      "mechanism": "在 Prefix 后追加 d−1 个可训练 Mask 表征，使用严格 Causal Attention 经过一个定制 Transformer Decoder Layer，一次得到 d 个未来位置的 Logits。Prefix 最后一位输出解释为第 1 枚候选，后续 Mask 位置输出依次右移预测下一位置；不执行迭代去噪、双向修正或逐 Token Rollout，也不维护自回归 Drafter KV Cache。",
+      "differenceFromPrior": "EAGLE3 每生成一层候选都要重复执行轻量 Drafter；标准 dLLM 依赖多轮双向去噪。DART 借用 Masked Parallel Prediction 的形式，但保留严格因果条件并将整个 Draft Block 压缩为一次前向。"
+    },
+    {
+      "name": "Prefix-Shared Masked Training and Annealed KL",
+      "stage": "Training",
+      "purpose": "让训练结构与推理时的 Prefix 条件并行预测一致，并避免远期高不确定性监督压过更关键的早期位置。",
+      "mechanism": "从同一训练序列构造多个不同 Prefix 的未来块，使用 Prefix-Isolated Sparse Attention：原始序列内部因果可见，每个 Mask Block 只能访问对应 Prefix，块内保持因果，块间完全隔离；借助 FlexAttention 一次前后向训练多个 Prefix。目标为 Target 分布到 Drafter 分布的逐位置 KL，权重 λ_t=γ^(t−1)，默认 γ=0.6。",
+      "differenceFromPrior": "离散 One-Hot 监督无法表达 Target 的完整概率分布；均匀权重又会让低可靠的远期位置主导优化。DART 用位置退火的分布蒸馏直接服务投机接受率，并专门保护靠前预测。"
+    },
+    {
+      "name": "Continuity-Aware N-gram Tree Pruning",
+      "stage": "Candidate construction and verification",
+      "purpose": "从各位置独立 Logits 隐含的指数候选空间中选出紧凑且语言上连贯的路径，控制 Tree Attention Verify 的节点预算。",
+      "mechanism": "每个未来位置先取 Top-25 Token；扩展部分序列时，把 Draft Log-Probability 与 Dolma 3 Mix 构建的 3-gram 条件概率组合，Logit 权重按 0.9^level 衰减、N-gram 权重固定为 0.5，并乘 (level+1)^−0.7。每层只保留 Beam Width 20，最后从全局扩展节点中选 Top-59 构成 Token Tree，再由 Target 用 Tree Attention 一次验证。",
+      "differenceFromPrior": "Lookahead 等方法把 N-gram 直接当作 Drafter，接受率受限；DART 只让 N-gram 充当并行 Logits 的连续性过滤器，使主要概率信息仍来自 Target-Conditioned Drafter。"
+    }
+  ],
   "characteristics": {
-    "requiresTraining": null,
-    "drafterType": null,
-    "draftGeneration": null,
-    "candidateStructure": null,
-    "verificationStrategy": null,
-    "usesTargetFeatures": null,
-    "dynamicDraftLength": null,
-    "dynamicVerifyLength": null,
-    "lossless": null
+    "requiresTraining": true,
+    "drafterType": "diffusion-inspired single-layer masked predictor",
+    "draftGeneration": "parallel",
+    "candidateStructure": "token-tree",
+    "verificationStrategy": "tree-attention",
+    "usesTargetFeatures": true,
+    "dynamicDraftLength": false,
+    "dynamicVerifyLength": false,
+    "lossless": true
   },
   "subproblemContributions": {
     "A": {
@@ -62,23 +91,176 @@
     }
   },
   "training": {
-    "summary": null,
-    "data": null,
-    "objective": null
+    "summary": "使用 ShareGPT 与 UltraChat 过滤后的约 28 万条样本，对每个 Target 单独训练一个单层 DART Drafter；同一序列内并行构造多个 Prefix/未来 Mask Block，并以块间隔离的 Sparse Causal Attention 联合训练。",
+    "data": "训练数据来自 ShareGPT 与 UltraChat，过滤后约 280K 条，与 EAGLE3 使用相同数据源。默认 Context Length 为 6400、Draft Length 为 8；Drafter 输入使用 Target 第 1 层、第 (num_layers/2−1) 层和第 (num_layers−4) 层 Hidden State。训练 3 个 Epoch，使用 AdamW、学习率 2e−5、β=(0.9,0.999)、Gradient Clipping 0.5、Cosine Annealing 与 Linear Warmup，并在 8×NVIDIA H20-3e 上完成。",
+    "objective": "对未来第 t 个位置最小化 KL(qθ(·|x1:n+t−1) || pφ(·|x1:n,t))，其中 Drafter 只条件于 Prefix x1:n，而教师分布来自 Target 在真实前缀上的输出；位置权重 λ_t=γ^(t−1)，默认 γ=0.6，以强调早期 Token。训练时 Target 与共享 Embedding 冻结，更新多层特征 FC Projection、定制 Decoder Layer、LM Head 和可训练 Mask Representation；Prefix-Isolated FlexAttention 防止不同未来块互相泄漏真值。"
   },
   "evaluation": {
-    "targetModels": [],
-    "benchmarks": [],
-    "baselines": [],
-    "metrics": [],
-    "hardware": [],
-    "frameworks": []
+    "targetModels": [
+      "Qwen3-1.7B",
+      "Qwen3-4B",
+      "Qwen3-8B",
+      "Qwen3-14B",
+      "Qwen3-32B",
+      "LLaMA2-Chat-7B"
+    ],
+    "benchmarks": [
+      "MT-Bench",
+      "HumanEval",
+      "Alpaca",
+      "MATH-500",
+      "CodeAlpaca",
+      "LiveCodeBench",
+      "MBPP"
+    ],
+    "baselines": [
+      "Autoregressive Decoding",
+      "EAGLE3",
+      "Standard Speculative Sampling (SPS)",
+      "Medusa",
+      "Hydra",
+      "Lookahead",
+      "PLD"
+    ],
+    "metrics": [
+      "End-to-end Throughput Speedup",
+      "Average Acceptance Length",
+      "Draft Forward Latency",
+      "Tree Search Latency",
+      "Position-wise Hit@1/Hit@10 Accuracy",
+      "Tokens per Second"
+    ],
+    "hardware": [
+      "8×NVIDIA H20-3e 141GB",
+      "NVIDIA A100-40GB"
+    ],
+    "frameworks": [
+      "PyTorch 2.8.0",
+      "SpecForge / SGLang",
+      "FlexAttention",
+      "C++ / OpenMP"
+    ]
   },
-  "mainResults": [],
-  "limitations": [],
+  "mainResults": [
+    {
+      "condition": "全部 Qwen3 规模与七个任务，Batch Size=1；Temperature=0，另在 Qwen3-14B/32B 上测试 Temperature=1",
+      "metric": "End-to-end Throughput Speedup",
+      "result": "2.03×–3.44×",
+      "comparison": "相对 EAGLE3 平均提高约 30%；最高单项为 Qwen3-14B 的 CodeAlpaca 3.44×。",
+      "source": "Abstract, Figure 2 and Table 1"
+    },
+    {
+      "condition": "Qwen3-4B，Temperature=0，七个基准宏平均",
+      "metric": "Mean Speedup / Average Acceptance Length",
+      "result": "2.87× / 3.87",
+      "comparison": "EAGLE3 为 2.12× / 3.54；DART 在相近接受长度下依靠更低 Draft 开销获得更高端到端速度。",
+      "source": "Table 1"
+    },
+    {
+      "condition": "Qwen3-14B，Temperature=0，CodeAlpaca",
+      "metric": "End-to-end Throughput Speedup",
+      "result": "3.44×",
+      "comparison": "EAGLE3 为 2.08×，相对提升约 65%。",
+      "source": "Table 1 and Section 5.2"
+    },
+    {
+      "condition": "LLaMA2-Chat-7B，Temperature=0，七个基准宏平均",
+      "metric": "Mean Speedup / Average Acceptance Length",
+      "result": "2.85× / 4.08",
+      "comparison": "Hydra 为 2.66× / 3.55，Medusa 为 2.24× / 2.68，Lookahead 为 1.61× / 1.81，PLD 为 1.74× / 1.92。",
+      "source": "Table 1"
+    },
+    {
+      "condition": "Qwen3-14B，单轮 Draft–Verify，H20-3e",
+      "metric": "Drafting Latency",
+      "result": "Draft Forward 1.5 ms，Tree Search 2.0 ms",
+      "comparison": "Draft Forward 相对 EAGLE3 的 10.2 ms 快 6.8×，相对 SPS 的 80.0 ms 快 53.3×；三者 Verify 约为 27.8/27.8/26.3 ms。",
+      "source": "Figure 5"
+    },
+    {
+      "condition": "Qwen3-4B，HumanEval、Alpaca、MATH-500 与 CodeAlpaca",
+      "metric": "N-gram Pruning Ablation on Average Acceptance Length",
+      "result": "加入 3-gram 后分别达到 3.63、3.26、3.37、4.59",
+      "comparison": "相对不使用 N-gram 分别提高 0.50、0.50、0.48、0.74。",
+      "source": "Table 2"
+    },
+    {
+      "condition": "Qwen3-4B，相同训练配置，比较 Shifted 与 Unshifted Logits",
+      "metric": "Future-position Prediction Accuracy",
+      "result": "第 1/2/3 位置 Hit@1 为 71.1%/41.0%/27.6%，Hit@10 为 93.2%/76.7%/65.9%",
+      "comparison": "Unshifted 的 Hit@1 为 57.7%/38.1%/25.1%；首位置提升最明显，为 13.4 个百分点。",
+      "source": "Table 3"
+    },
+    {
+      "condition": "Qwen3-4B，HumanEval，Annealed KL 系数消融",
+      "metric": "Average Acceptance Length",
+      "result": "γ=0.6 时 τ=3.63，为测试设置中最高",
+      "comparison": "γ=0.5/0.7/0.8/0.9/1.0 时分别为 3.59/3.57/3.54/3.52/3.48，说明强调早期位置优于无退火监督。",
+      "source": "Table 4"
+    },
+    {
+      "condition": "Qwen3-4B，HumanEval，H20-3e，Batch Size 从 2 增至 64",
+      "metric": "Throughput Speedup",
+      "result": "DART 从 2.16× 下降到 1.45×",
+      "comparison": "EAGLE3 同期从 1.84× 下降到 1.22×；虽然大 Batch 下相对收益收缩，DART 在全部测试 Batch Size 上仍更高。",
+      "source": "Table 5 and Table 6"
+    },
+    {
+      "condition": "单张 NVIDIA A100-40GB，Qwen3-1.7B/4B/8B/14B，七个基准宏平均",
+      "metric": "Cross-platform Mean Speedup",
+      "result": "DART 分别为 2.74×、2.83×、2.83×、2.84×",
+      "comparison": "对应 EAGLE3 为 2.21×、2.22×、2.33×、2.19×，整体仍约高 30%。",
+      "source": "Table 8 and Appendix F"
+    }
+  ],
+  "limitations": [
+    {
+      "type": "deployment-memory",
+      "description": "Continuity-Aware Pruning 依赖外部 3-gram Trie。完整 Qwen3/LLaMA2 版本约含 13 亿节点、占 43.5 GB 磁盘，并在推理时占用约 100 GB CPU RAM；虽然可跨进程共享且查询约 6 μs，但这明显提高了部署门槛。",
+      "sourceType": "paper"
+    },
+    {
+      "type": "algorithmic",
+      "description": "单次并行输出本质上是各未来位置在同一 Prefix 下的边缘分布，后部位置不会条件化于本轮已经选出的前部候选。DART 依靠表层 3-gram 纠正跨位置冲突，但没有直接学习路径条件接受概率，因此树评分与 Target 的真实路径分布仍存在代理偏差。",
+      "sourceType": "analysis"
+    },
+    {
+      "type": "adaptivity",
+      "description": "主配置固定 Draft Length=8、每位置 Top-25、Beam Width=20 和 Tree Size=59，不会按请求难度、任务类型、Target 尺度或实时系统负载动态调整 Draft/Verify 预算。",
+      "sourceType": "paper"
+    },
+    {
+      "type": "serving-scalability",
+      "description": "随着 Batch Size 增大，Target Verify 更趋 Compute-bound，投机收益持续下降；Qwen3-8B 在 Batch Size 48/64 时仅约 1.03×/1.01×，说明该设计主要优势仍集中在低并发或 Memory-bound Decode 场景。",
+      "sourceType": "observed-data"
+    },
+    {
+      "type": "training-cost",
+      "description": "DART 不是 Training-Free：每个 Target 需要单独训练并保存 Drafter，训练还依赖 Target 多层 Hidden State 与完整概率分布监督。论文默认使用 8 张 H20-3e、约 28 万样本和 3 个 Epoch。",
+      "sourceType": "paper"
+    },
+    {
+      "type": "evaluation",
+      "description": "主实验集中在 Qwen3 与 LLaMA2-Chat-7B，并主要使用 H20-3e/A100；论文未覆盖更多模型家族、MoE Target 或真实在线多租户 Serving。对 DiffuSpec 与 SpecDiff 也因实现未开源而未做直接比较。",
+      "sourceType": "paper"
+    },
+    {
+      "type": "system-integration",
+      "description": "方法要求 Target 暴露指定中间层 Hidden State，并额外集成自定义 Tree Attention、C++/OpenMP Tree Search、NUMA 绑核和 CPU Trie；它比仅接受 Token/Logits 的通用投机解码接口更侵入。",
+      "sourceType": "analysis"
+    },
+    {
+      "type": "latency-balance",
+      "description": "Tree Search 本身约需 2.0 ms，甚至高于 1.5 ms 的 Drafter Forward。对更小 Target、较快硬件或更大 Batch，这部分固定 CPU 侧开销占比可能上升，论文没有展示取消外部 Trie 后的完整端到端替代方案。",
+      "sourceType": "observed-data"
+    }
+  ],
   "relations": {
     "extends": [],
-    "comparesAgainst": [],
+    "comparesAgainst": [
+      "medusa",
+      "eagle-3"
+    ],
     "related": [
       "medusa",
       "eagle",
@@ -98,14 +280,80 @@
     "specdiff-2"
   ],
   "reproducibility": {
-    "codeUrl": null,
-    "modelUrl": null,
+    "codeUrl": "https://github.com/fvliang/DART",
+    "modelUrl": "https://huggingface.co/fvliang",
     "projectPage": null,
-    "officialImplementation": null,
-    "status": "not-checked",
-    "notes": []
+    "officialImplementation": true,
+    "status": "not-reproduced",
+    "notes": [
+      "官方仓库已提供完整推理代码、C++ N-gram Tree Search、Gradio/Python API 示例及 Apache-2.0 License。",
+      "官方 Hugging Face 账号提供 Qwen3-1.7B、4B、8B、14B、32B 的 DART 权重和 Qwen3 N-gram Trie；ModelScope 也提供对应镜像。",
+      "论文给出了训练超参数、FlexAttention Mask 伪代码、N-gram 构建与 Tree Pruning 参数，但本站尚未记录一组严格复现 Table 1/5/8 的完整命令和数值，因此状态标为 not-reproduced。",
+      "未发现独立于论文页和代码仓库之外的官方 Project Page。"
+    ]
   },
-  "evidence": [],
+  "evidence": [
+    {
+      "claim": "DART 以 Target 多层 Hidden State 和右移 Token Embedding 构造 Prefix 表征，并用单个定制 Decoder Layer 一次预测 d 个未来位置 Logits。",
+      "location": "Section 3.2 and Figure 3, Pages 3–4",
+      "type": "method"
+    },
+    {
+      "claim": "DART 使用严格 Causal Mask、Shifted Logits Prediction，不执行迭代去噪或双向修正，Draft Forward 成本不随候选长度线性增加。",
+      "location": "Sections 3.1–3.2, Page 4",
+      "type": "method"
+    },
+    {
+      "claim": "Prefix-Shared Masked Training 通过块间隔离、块内因果的 Sparse Attention 一次训练多个 Prefix，并使用 FlexAttention 加速。",
+      "location": "Section 3.3 and Figure 4, Page 5; Appendix B, Pages 11–12",
+      "type": "training"
+    },
+    {
+      "claim": "训练目标为位置退火 KL，λ_t=γ^(t−1)，默认 γ=0.6；消融中该设置在 HumanEval 上取得最高 τ=3.63。",
+      "location": "Section 3.3, Page 5; Table 4, Page 8",
+      "type": "training"
+    },
+    {
+      "claim": "训练数据来自 ShareGPT 与 UltraChat，过滤后约 280K 条；默认 Context Length 6400、Draft Length 8、训练 3 Epoch。",
+      "location": "Appendix B.2, Pages 11–12",
+      "type": "configuration"
+    },
+    {
+      "claim": "Continuity-Aware Tree Pruning 使用 Top-25、Beam Width 20、Tree Size 59，并融合 Draft Logit、3-gram 与深度权重。",
+      "location": "Section 4 and Algorithm 1, Page 6; Appendix D, Pages 13–14",
+      "type": "method"
+    },
+    {
+      "claim": "外部 3-gram 基于 Dolma 3 Mix 构建，约 13 亿节点、43.5 GB 磁盘、推理时约 100 GB CPU RAM，Warmup 后单次查询约 6 μs。",
+      "location": "Appendix C and Figure 7, Pages 12–13",
+      "type": "system"
+    },
+    {
+      "claim": "DART 在七个基准上取得 2.03×–3.44× 加速，相对 EAGLE3 平均提高约 30%，Qwen3-14B CodeAlpaca 上提高约 65%。",
+      "location": "Abstract, Page 1; Section 5.2 and Table 1, Page 7",
+      "type": "result"
+    },
+    {
+      "claim": "Qwen3-14B 上 Draft Forward 为 1.5 ms、Tree Search 为 2.0 ms，Draft Forward 相对 EAGLE3 和 SPS 分别快 6.8× 与 53.3×。",
+      "location": "Figure 5 and Section 5.2, Pages 6–7",
+      "type": "result"
+    },
+    {
+      "claim": "N-gram、Shifted Logits 和 Annealed KL 均通过消融提升接受长度或早期位置准确率。",
+      "location": "Tables 2–4 and Section 5.3, Page 8",
+      "type": "ablation"
+    },
+    {
+      "claim": "大 Batch 下 DART 仍优于 EAGLE3，但相对加速随 Batch Size 增大而下降；A100-40GB 上仍保持约 30% 的平均优势。",
+      "location": "Table 5, Page 8; Tables 6–8 and Appendices E–F, Pages 14–15",
+      "type": "system"
+    },
+    {
+      "claim": "官方实现与 Qwen3 多尺度 Drafter/N-gram 权重已公开。",
+      "location": "Paper Abstract, Page 1; Official GitHub README and Hugging Face author page",
+      "type": "reproducibility"
+    }
+  ],
   "notes": [],
   "provenance": {
     "legacyWorkbookRow": 16,

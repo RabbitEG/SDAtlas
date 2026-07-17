@@ -460,8 +460,8 @@
       var matched = code === highlightedCode ? " is-matched" : "";
       return [
         "<a class=\"category-badge" + matched + "\" style=\"" + ui.itemStyle(item) + "\" href=\"" +
-          subproblemHref(code) + "\" data-tooltip=\"" +
-          ui.escapeHtml(subproblemContribution(paper, code).summary) + "\">",
+        subproblemHref(code) + "\" data-tooltip=\"" +
+        ui.escapeHtml(subproblemContribution(paper, code).summary) + "\">",
         "<span class=\"badge-code\">" + ui.escapeHtml(code) + "</span>",
         "<span>" + ui.escapeHtml(item.shortName) + "</span></a>"
       ].join("");
@@ -487,7 +487,7 @@
     }).join("");
     var source = paper.institutionSource
       ? "<a class=\"institution-source\" href=\"" + ui.escapeHtml(paper.institutionSource) +
-        "\" target=\"_blank\" rel=\"noopener\">单位来源 <span aria-hidden=\"true\">↗</span></a>"
+      "\" target=\"_blank\" rel=\"noopener\">单位来源 <span aria-hidden=\"true\">↗</span></a>"
       : "";
     return "<div class=\"institution-list\" aria-label=\"论文相关单位\">" + chips +
       "</div>" + (source ? "<div class=\"institution-meta\">" + source + "</div>" : "");
@@ -501,11 +501,11 @@
       return [
         "<article class=\"contribution-panel" + active + "\" style=\"" + ui.itemStyle(item) + "\">",
         "<a class=\"contribution-label\" href=\"" + subproblemHref(code) + "\"><span>" +
-          ui.escapeHtml(code) + "</span>" + ui.escapeHtml(item.name) + "</a>",
+        ui.escapeHtml(code) + "</span>" + ui.escapeHtml(item.name) + "</a>",
         "<p class=\"contribution-summary math-rich-text\">" +
-          ui.renderMathText(contribution.summary) + "</p>",
+        ui.renderMathText(contribution.summary) + "</p>",
         "<div class=\"contribution-detail math-rich-text\"><p>" +
-          ui.renderMathText(contribution.detail).replace(/\n\n/g, "</p><p>") + "</p></div>",
+        ui.renderMathText(contribution.detail).replace(/\n\n/g, "</p><p>") + "</p></div>",
         "</article>"
       ].join("");
     }).join("");
@@ -542,7 +542,7 @@
   function explanationLink(paper, className) {
     if (!paper.explanationPage) return "";
     return "<a class=\"" + className + "\" href=\"" +
-      ui.escapeHtml(paper.explanationPage) + "\">论文解读 <span aria-hidden=\"true\">→</span></a>";
+      ui.escapeHtml(paper.explanationPage) + "\">论文解读专题页 <span aria-hidden=\"true\">→</span></a>";
   }
 
   function paperCard(paper, options) {
@@ -555,41 +555,41 @@
       "<summary class=\"paper-card__summary\"><span class=\"paper-summary__layout\">",
       "<span class=\"paper-summary__content\"><span class=\"paper-summary__topline\">",
       "<span class=\"paper-summary__title\" role=\"heading\" aria-level=\"3\">" +
-        ui.escapeHtml(paper.shortName) + "</span>",
+      ui.escapeHtml(paper.shortName) + "</span>",
       "<span class=\"paper-summary__datum paper-summary__venue\"><small>会议</small><strong>" +
-        ui.escapeHtml(paper.venue) + "</strong></span>",
+      ui.escapeHtml(paper.venue) + "</strong></span>",
       "<time class=\"paper-summary__datum paper-summary__date\" datetime=\"" + ui.escapeHtml(paper.date) +
-        "\"><small>时间</small><strong>" + ui.escapeHtml(paper.date) + "</strong></time>",
+      "\"><small>时间</small><strong>" + ui.escapeHtml(paper.date) + "</strong></time>",
       "<span class=\"paper-context-summary\"><strong>贡献</strong><span class=\"math-rich-text\">" +
-        ui.renderMathText(context) + "</span></span></span>",
+      ui.renderMathText(context) + "</span></span></span>",
       "<span class=\"paper-summary__secondline\">",
       "<span class=\"paper-summary__institutions\"><strong>相关单位</strong><span>" +
-        ui.escapeHtml(paper.institutions) + "</span></span>",
+      ui.escapeHtml(paper.institutions) + "</span></span>",
       explanationLink(paper, "paper-summary__explanation"),
       "</span></span>",
       "<span class=\"paper-summary__toggle\" aria-hidden=\"true\"><span class=\"when-closed\">展开</span>" +
-        "<span class=\"when-open\">收起</span><i></i></span>",
+      "<span class=\"when-open\">收起</span><i></i></span>",
       "</span></summary><div class=\"paper-card__details\">",
       "<section class=\"paper-data-grid paper-overview-grid\" aria-label=\"论文信息\">",
       "<div class=\"paper-field paper-field--full paper-field--row-end\"><span class=\"field-label\">标题</span>" +
-        "<p class=\"paper-expanded-title math-rich-text\">" + ui.renderMathText(paper.title) + "</p></div>",
+      "<p class=\"paper-expanded-title math-rich-text\">" + ui.renderMathText(paper.title) + "</p></div>",
       "<div class=\"paper-field paper-field--full paper-field--row-end\"><span class=\"field-label\">作者</span>" +
-        "<div class=\"author-list\">" + authorsMarkup(paper) + "</div></div>",
+      "<div class=\"author-list\">" + authorsMarkup(paper) + "</div></div>",
       "<div class=\"paper-field paper-field--full paper-field--row-end\"><span class=\"field-label\">子问题</span>" +
-        "<div class=\"chip-row\">" + subproblemBadges(paper, highlightedCode) + "</div></div>",
+      "<div class=\"chip-row\">" + subproblemBadges(paper, highlightedCode) + "</div></div>",
       "<div class=\"paper-field paper-field--full paper-field--row-end paper-field--institutions\">" +
-        "<span class=\"field-label\">相关单位</span>" + institutionList(paper) + "</div>",
+      "<span class=\"field-label\">相关单位</span>" + institutionList(paper) + "</div>",
       "<div class=\"paper-field paper-field--full paper-field--row-end\"><span class=\"field-label\">直观方法概述</span>" +
-        "<p class=\"math-rich-text\">" + ui.renderMathText(paper.methodOverview) + "</p></div>",
+      "<p class=\"math-rich-text\">" + ui.renderMathText(paper.methodOverview) + "</p></div>",
       "<div class=\"paper-field paper-field--full paper-field--row-end\"><span class=\"field-label\">笔记</span>" +
-        notesMarkup(paper) + "</div></section>",
+      notesMarkup(paper) + "</div></section>",
       "<section class=\"paper-contributions\" aria-label=\"子问题贡献\">",
       "<div class=\"section-mini-title\"><span>SUBPROBLEM CONTRIBUTIONS</span><strong>详细贡献</strong></div>",
       "<div class=\"contribution-grid\">" + contributionPanels(paper, highlightedCode) + "</div></section>",
       "<footer class=\"paper-card__footer\"><a class=\"button button-primary\" href=\"" + detailHref +
-        "\">查看论文详情 <span aria-hidden=\"true\">→</span></a>" +
-        "<span class=\"citation-counts\">引用 " + paper.citations.length + " · 被引用 " +
-        paper.citedBy.length + "</span></footer>",
+      "\">查看论文详情 <span aria-hidden=\"true\">→</span></a>" +
+      "<span class=\"citation-counts\">引用 " + paper.citations.length + " · 被引用 " +
+      paper.citedBy.length + "</span></footer>",
       "</div></details>"
     ].join("");
   }
@@ -648,7 +648,7 @@
       "<span><strong>SDAtlas</strong><small>RESEARCH NAVIGATOR</small></span></a>",
       "<p>投机解码论文的子问题、方法与论文关系索引。</p>",
       "<p class=\"footer-meta\">DATASET · " + ui.escapeHtml(data.meta.updated) + "<br>SCHEMA · v" +
-        ui.escapeHtml(data.schemaVersion) + "</p></div>"
+      ui.escapeHtml(data.schemaVersion) + "</p></div>"
     ].join("");
   }
 

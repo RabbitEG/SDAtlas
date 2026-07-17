@@ -47,21 +47,64 @@
   "institutionSource": "https://arxiv.org/pdf/2401.10774",
   "methodOverview": "在冻结的 Target 上增加多个并行预测未来 Token 的 Head，将各 Head 的候选组合成 Token Tree，再用一次 Tree Attention 完成 Verify。它省去了独立 Drafter，可直观理解为让同一个模型一次提出多条短续写，再统一验收。",
   "problemStatement": {
-    "background": null,
-    "priorLimitation": null,
-    "goal": null
+    "background": "自回归 LLM 每轮完整前向通常只生成一个 Token，解码过程受显存带宽限制：模型参数需要反复从 HBM 搬运到计算单元，而现代加速器的大量算力没有被充分利用。投机解码通过一次 Target 前向并行验证多个候选 Token，能够提高单次参数读取所完成的有效工作量。",
+    "priorLimitation": "传统投机解码需要额外获得、训练、维护和部署一个小型 Drafter。独立 Drafter 不仅可能与 Target 存在分布偏移，在张量并行或分布式 Serving 中还会引入额外的模型放置、通信和缓存管理复杂度。仅提出单条候选链又无法充分利用 Target 一次前向的并行能力，而标准 rejection sampling 在非零 Temperature 下还可能因 Drafter 与 Target 的独立采样而频繁拒绝候选。",
+    "goal": "不再维护独立 Drafter，而是在原始 LLM 上附加少量未来 Token 预测 Head，并将多个位置的高概率输出组织成共享前缀树，使 Target 能在一次 Tree Attention 前向中验证多条续写。与此同时，提供冻结 Target 的 Medusa-1、联合微调的 Medusa-2、自蒸馏和 typical acceptance，以覆盖低成本无损加速与更高近似加速两类部署需求。"
   },
-  "methodComponents": [],
+  "methodComponents": [
+    {
+      "name": "Medusa Heads",
+      "stage": "Candidate generation",
+      "purpose": "直接复用 Target 已经计算出的隐藏状态，并行预测多个未来位置，避免训练和部署独立 Drafter。",
+      "mechanism": "在 Target 最后一层隐藏状态 h_t 上增加 K 个单层预测 Head。原始 LM Head 预测位置 t+1，第 k 个 Medusa Head 预测位置 t+k+1。每个 Head 由带残差连接的 SiLU 前馈层和词表投影组成：先计算 SiLU(W1·h_t)+h_t，再通过 W2 输出词表分布。W2 从原始 LM Head 初始化，W1 初始化为零，使新增 Head 初始行为接近原模型。",
+      "differenceFromPrior": "传统投机解码使用单独的小语言模型逐 Token Draft；Medusa 将 Drafter 压缩为直接挂在 Target Hidden State 上的多个轻量预测头，不需要第二套 Transformer 主干。"
+    },
+    {
+      "name": "Token Tree Construction",
+      "stage": "Candidate organization",
+      "purpose": "从每个未来位置的不确定分布中保留多种可能续写，提高至少一条路径被 Target 接受的概率。",
+      "mechanism": "第 k 个 Head 保留 top-s_k 个 Token，最基础的构树方式对不同位置的候选做笛卡尔积，并将共享前缀合并为 Token Tree。论文进一步在校准集上统计不同 Head、不同预测名次的单项准确率，将路径准确率近似为沿途节点准确率之积，并在固定节点预算下贪心加入当前可扩展节点中估计准确率最高者，得到非均匀稀疏树。",
+      "differenceFromPrior": "单链投机解码每轮只尝试一种未来；普通稠密笛卡尔积树则会迅速膨胀。Medusa 用共享前缀和离线校准得到的稀疏树，在候选覆盖率与 Verify 成本之间取折中。"
+    },
+    {
+      "name": "Tree Attention",
+      "stage": "Parallel target verification",
+      "purpose": "在不把每条续写扩展成独立 Batch 样本的情况下，让 Target 一次处理整棵候选树。",
+      "mechanism": "将树中所有节点展平为一个序列，并构造祖先约束 Attention Mask：每个候选节点只能关注自身路径上的祖先节点，不能看到兄弟分支或其他路径。各节点的位置编号也按照其在路径中的真实深度重新设置。Target 因而可在一次前向中并行计算所有树节点的 Logits，并选择最长可接受路径。",
+      "differenceFromPrior": "标准 Causal Attention 只能表达单条线性历史；逐条验证又会复制公共前缀并扩大 Batch。Tree Attention 显式编码树形因果关系，使公共前缀只计算和存储一次。"
+    },
+    {
+      "name": "Rejection Sampling and Typical Acceptance",
+      "stage": "Candidate acceptance",
+      "purpose": "分别支持严格保持 Target 分布的无损模式，以及更重视实际生成质量和接受长度的近似模式。",
+      "mechanism": "严格模式沿用投机解码的 rejection sampling，根据 Target 与候选分布执行接受和残差采样，可保持原始 Target 分布。Typical acceptance 则直接检查候选 Token 在 Target 下是否足够合理，其阈值为 min(ε, δ·exp(-H(p_target)))；分布熵越高，可接受候选范围越宽。系统在所有路径中选择满足规则的最长前缀，并保证每轮至少由原 LM Head 推进一个 Token。",
+      "differenceFromPrior": "标准 rejection sampling 即使 Drafter 与 Target 分布相同，也可能因双方独立随机采样而拒绝候选。Typical acceptance 不追求逐分布严格一致，而是接受 Target 认为典型且合理的续写，以换取更长前缀。"
+    },
+    {
+      "name": "Medusa-1 and Medusa-2 Training",
+      "stage": "Training",
+      "purpose": "分别提供不修改原模型能力的低成本训练方案，以及通过联合适配提高远期 Token 预测准确率的高性能方案。",
+      "mechanism": "Medusa-1 冻结 Target，只训练未来 Token Heads，并以随预测距离衰减的权重组合各 Head 的交叉熵。Medusa-2 在该目标之外保留原 LM Head 的 next-token loss，同时采用 Target 与 Heads 的差分学习率，并先只训练 Heads、再逐步进行联合训练，避免初始较大的 Head 梯度破坏 Target。",
+      "differenceFromPrior": "直接把多 Token Loss 与原模型一起从头联合微调会降低原模型质量。Medusa-2 通过保留原始目标、降低主干学习率和两阶段 Warmup，专门控制这一训练冲突。"
+    },
+    {
+      "name": "Self-Distillation",
+      "stage": "Training data construction",
+      "purpose": "在原 SFT 数据不可获得或模型经历过 RLHF、训练数据已无法代表当前输出分布时，为 Medusa Heads 构造对齐数据。",
+      "mechanism": "先从相近领域的公开数据集中取得 Prompt，再让 Target 自己生成 Response，形成与当前模型输出风格一致的训练集。Medusa-2 自蒸馏时，主干不只拟合生成出的离散 Token，还通过 KL Loss 对齐冻结原模型的完整 next-token 分布。使用 LoRA 时可通过关闭 Adapter 得到 Teacher，无需同时在显存中维护第二份完整模型。",
+      "differenceFromPrior": "直接使用原始公开标签可能与经过 SFT 或 RLHF 后的模型分布不一致；自蒸馏让训练监督来自被加速模型自身，并用分布级约束减少联合训练造成的能力漂移。"
+    }
+  ],
   "characteristics": {
-    "requiresTraining": null,
-    "drafterType": null,
-    "draftGeneration": null,
-    "candidateStructure": null,
-    "verificationStrategy": null,
-    "usesTargetFeatures": null,
-    "dynamicDraftLength": null,
-    "dynamicVerifyLength": null,
-    "lossless": null
+    "requiresTraining": true,
+    "drafterType": "multi-head",
+    "draftGeneration": "parallel",
+    "candidateStructure": "tree",
+    "verificationStrategy": "tree-attention-prefix",
+    "usesTargetFeatures": true,
+    "dynamicDraftLength": false,
+    "dynamicVerifyLength": false,
+    "lossless": true
   },
   "subproblemContributions": {
     "A": {
@@ -83,19 +126,163 @@
   },
   "training": {
     "summary": "Medusa-1 冻结 Target，对各未来偏移的交叉熵按 λ_k（实践中取 0.8^k）加权；Medusa-2 再加入原始 next-token 损失，并以差分学习率和先 Heads、后联合的 warmup 防止破坏 Target 能力。",
-    "data": null,
-    "objective": null
+    "data": "Vicuna-7B-v1.5 和 Vicuna-13B-v1.5 使用与其 SFT 分布一致的 ShareGPT 数据训练两个 Epoch；论文给出的 Medusa-1 示例使用约 60K 条 ShareGPT 样本。对于无法获得原训练数据的 Vicuna-33B 和经历过对齐训练的 Zephyr-7B，先从 ShareGPT 或 UltraChat 等公开数据取得 Prompt，再由对应 Target 自行生成约 100K 量级的 Response 作为自蒸馏数据。训练序列只对 Assistant Response 部分计算监督损失。",
+    "objective": "Medusa-1 的目标为 L=Σ_k[-λ_k log p_t^(k)(y_{t+k+1})]，其中实践中 λ_k 取 0.8^k。Medusa-2 使用原 LM Head 的 next-token Cross-Entropy 加 λ_0 倍 Medusa-1 Loss，并给 Target 主干和新增 Heads 设置不同学习率；论文实现中 Heads 学习率约为主干的四倍，并先冻结主干训练 Heads，再进行联合 Warmup。自蒸馏版本还加入 KL(p_original||p_current) 约束主干分布，可借助 LoRA 在关闭 Adapter 时取得冻结 Teacher。实验通常训练五个 Head，并结合 LoRA、QLoRA、Cosine Learning-Rate Schedule 和 8-bit AdamW。"
   },
   "evaluation": {
-    "targetModels": [],
-    "benchmarks": [],
-    "baselines": [],
-    "metrics": [],
-    "hardware": [],
-    "frameworks": []
+    "targetModels": [
+      "Vicuna-7B-v1.5",
+      "Vicuna-13B-v1.5",
+      "Vicuna-33B",
+      "Zephyr-7B-Beta"
+    ],
+    "benchmarks": [
+      "MT-Bench",
+      "AlpacaEval"
+    ],
+    "baselines": [
+      "Vanilla Hugging Face autoregressive decoding",
+      "Speculative Decoding with standalone small draft models",
+      "Direct joint fine-tuning without Medusa-2 warmup",
+      "Medusa-1 Heads without Tree Attention",
+      "Dense Cartesian-product tree configurations",
+      "Greedy decoding",
+      "Standard random sampling"
+    ],
+    "metrics": [
+      "End-to-end wall-clock speedup",
+      "Tokens per second",
+      "Acceleration rate",
+      "Per-step overhead",
+      "MT-Bench GPT-4 judge score",
+      "Accepted continuation length",
+      "Generation quality"
+    ],
+    "hardware": [
+      "NVIDIA A100 PCIe",
+      "NVIDIA A100 80GB PCIe",
+      "NVIDIA A40",
+      "NVIDIA RTX A6000"
+    ],
+    "frameworks": [
+      "Hugging Face Transformers",
+      "PyTorch",
+      "torch.compile",
+      "Axolotl"
+    ]
   },
-  "mainResults": [],
-  "limitations": [],
+  "mainResults": [
+    {
+      "condition": "Vicuna-7B-v1.5，MT-Bench，Batch Size=1",
+      "metric": "End-to-end Wall-clock Speedup",
+      "result": "Medusa-1 为 2.18×，Medusa-2 为 2.83×。",
+      "comparison": "Medusa-2 通过联合适配主干提高了远期 Head 准确率，相比只训练 Heads 的 Medusa-1 进一步加速约 30%。",
+      "source": "Figure 3; Table 2"
+    },
+    {
+      "condition": "Vicuna-13B-v1.5，MT-Bench，Batch Size=1",
+      "metric": "End-to-end Wall-clock Speedup",
+      "result": "Medusa-1 为 2.33×，Medusa-2 为 2.83×。",
+      "comparison": "相对默认 Hugging Face 自回归实现，两种训练方式都超过 2×，联合训练保持与 7B 模型近似的 2.83× 加速。",
+      "source": "Figure 3"
+    },
+    {
+      "condition": "Vicuna-7B，MT-Bench 质量评测",
+      "metric": "GPT-4 Judge Score",
+      "result": "Baseline、直接联合微调、Medusa-1 和 Medusa-2 分别为 6.17、5.925、6.23 和 6.18。",
+      "comparison": "未经保护的直接联合微调明显损害质量；Medusa-2 的 Combined Loss、差分学习率和两阶段 Warmup 基本恢复了原模型质量。",
+      "source": "Table 2"
+    },
+    {
+      "condition": "四个 Medusa-2 模型，MT-Bench",
+      "metric": "Speedup and Acceleration Rate",
+      "result": "Vicuna-7B、Zephyr-7B、Vicuna-13B 和 Vicuna-33B 的 Speedup 分别为 2.83×、2.66×、2.83× 和 2.35×；对应 Acceleration Rate 为 3.47、3.14、3.51 和 3.01。",
+      "comparison": "论文中的独立 Drafter speculative decoding 在可比较模型上约为 1.47×–1.60×，Medusa 的多头树验证取得更高加速。",
+      "source": "Table 1"
+    },
+    {
+      "condition": "Vicuna-7B Medusa-2，MT-Bench 八个任务类别",
+      "metric": "Category-wise Speedup",
+      "result": "Humanities、Reasoning、Roleplay、Writing、STEM、Math、Coding 和 Extraction 分别约为 2.58×、2.58×、2.70×、2.72×、2.77×、3.01×、3.29× 和 3.62×。",
+      "comparison": "结构化程度较高的 Extraction、Coding 和 Math 获得更长的可接受前缀，而开放式 Humanities 和 Reasoning 的加速相对较低。",
+      "source": "Figure 3"
+    },
+    {
+      "condition": "Vicuna-7B Medusa-2，Writing 与 Roleplay 子集，候选树消融",
+      "metric": "Tree Efficiency",
+      "result": "约 64 个节点的校准稀疏树可获得高于部分 256 节点稠密树的 Acceleration Rate。",
+      "comparison": "继续增加候选节点时，接受长度收益逐渐饱和，但矩阵乘和 Attention 成本持续增加，实际 Tokens/s 反而下降。",
+      "source": "Figure 4"
+    },
+    {
+      "condition": "Vicuna-7B，逐步加入 Medusa 组件",
+      "metric": "Component Contribution",
+      "result": "仅使用 Medusa-1 Heads 约 1.5×；加入 Tree Attention 约 1.9×；使用优化稀疏树约 2.2×；改用 Medusa-2 联合训练后约 2.8×。",
+      "comparison": "结果表明加速并非只来自多 Token Head，候选树组织、Tree Attention 和联合训练均提供了独立收益。",
+      "source": "Table 3"
+    },
+    {
+      "condition": "AlpacaEval",
+      "metric": "Tokens per Second and Speedup",
+      "result": "Vicuna-7B 从 37.07 提升至 106.76 tokens/s（2.88×）；Vicuna-13B 从 29.01 提升至 91.54（3.16×）；Vicuna-33B 从 17.87 提升至 40.43（2.26×）；Zephyr-7B 从 34.21 提升至 99.50（2.91×）。",
+      "comparison": "不同模型规模和不同训练来源上均获得 2× 以上端到端加速，但自蒸馏的 Vicuna-33B 收益相对较低。",
+      "source": "Appendix F, Table 4"
+    },
+    {
+      "condition": "Vicuna-7B Medusa-2，Temperature=0.7，MT-Bench Writing 与 Roleplay",
+      "metric": "Typical Acceptance Trade-off",
+      "result": "随着 ε 从 0.01 增大到 0.25，生成质量总体提高而 Acceleration Rate 下降；在较合适阈值下，质量接近标准随机采样，同时保持高于普通逐 Token 解码的速度。",
+      "comparison": "Typical acceptance 明确体现了质量与加速的可调折中，但不再保证逐分布与原 Target 完全一致。",
+      "source": "Figure 5"
+    }
+  ],
+  "limitations": [
+    {
+      "type": "losslessness",
+      "description": "Medusa 并非所有配置都严格无损。只有冻结原 Target 的 Medusa-1 配合标准 rejection sampling 时，才能保持原始 Target 参数和输出分布；typical acceptance 主动放宽接受规则，Medusa-2 又会修改 Target 主干，因此两者只能表述为保持相近生成质量，而非严格分布等价。",
+      "sourceType": "analysis"
+    },
+    {
+      "type": "serving",
+      "description": "论文的核心端到端实验主要针对 Batch Size=1 的本地部署场景，没有系统评估高并发 Continuous Batching 下的吞吐、Tail Latency、Ragged Tree 管理和 KV Cache 开销。候选树会提高单请求算术强度，但也可能占用原本用于扩大 Batch 的计算容量。",
+      "sourceType": "paper"
+    },
+    {
+      "type": "candidate-cost",
+      "description": "候选节点数量不能无脑扩大。论文的树消融显示，Acceleration Rate 随节点数增加趋于饱和，而实际 Tokens/s 会因矩阵乘和 Attention 从 Memory-bound 转向 Compute-bound 而下降，因此树规模必须针对模型和硬件调优。",
+      "sourceType": "paper"
+    },
+    {
+      "type": "static-policy",
+      "description": "Head 数量、各 Head 的 top-k 和稀疏树结构主要通过离线校准确定，推理时基本固定，没有根据当前 Prompt 难度、Head 置信度、请求类型或实时系统负载动态调整 Draft Depth 和 Verify Budget。",
+      "sourceType": "analysis"
+    },
+    {
+      "type": "calibration",
+      "description": "优化树将不同 Head、不同预测名次的准确率视为近似独立，并使用校准集统计得到的全局准确率估计路径命中率。不同领域、Temperature 或模型输出分布发生变化时，这些静态统计可能失配。",
+      "sourceType": "analysis"
+    },
+    {
+      "type": "training-stability",
+      "description": "Medusa-2 对训练配方敏感。论文中直接联合训练使 Vicuna-7B 的 MT-Bench 分数从 6.17 降至 5.925，只有加入原始 next-token Loss、差分学习率和两阶段 Warmup 后才恢复到 6.18。",
+      "sourceType": "observed-data"
+    },
+    {
+      "type": "parameter-overhead",
+      "description": "虽然 Medusa 不需要第二个 Transformer Drafter，但每个 Head 仍包含一个映射到完整词表的 d×V 投影矩阵。随着 Hidden Dimension、Vocabulary Size 或 Head 数量增加，模型权重、显存占用和分布式通信开销并非可以忽略。",
+      "sourceType": "analysis"
+    },
+    {
+      "type": "evaluation",
+      "description": "主评测集中在 Vicuna 和 Zephyr 系列聊天模型以及 MT-Bench、AlpacaEval，缺少对现代大词表模型、长上下文、工具调用、高并发 Serving 和严格代码执行正确率的系统验证。MT-Bench 质量还依赖 GPT-4 Judge，存在评审模型偏差。",
+      "sourceType": "analysis"
+    },
+    {
+      "type": "reproducibility",
+      "description": "论文给出了 Medusa-1 单张 A100 的训练示例和附录中的 A100、A40、A6000 Roofline 分析，但主文各项 Wall-clock Speedup 的完整硬件、内核版本和端到端测量环境披露有限，跨框架直接复现实验数值需要额外对齐。",
+      "sourceType": "paper"
+    }
+  ],
   "relations": {
     "extends": [],
     "comparesAgainst": [],
@@ -108,15 +295,95 @@
     "specinfer"
   ],
   "reproducibility": {
-    "codeUrl": null,
-    "modelUrl": null,
-    "projectPage": null,
-    "officialImplementation": null,
-    "status": "not-checked",
-    "notes": []
+    "codeUrl": "https://github.com/FasterDecoding/Medusa",
+    "modelUrl": "https://huggingface.co/FasterDecoding",
+    "projectPage": "https://sites.google.com/view/medusa-llm",
+    "officialImplementation": true,
+    "status": "not-reproduced",
+    "notes": [
+      "官方仓库提供 Medusa-1、Medusa-2、Self-Distillation、训练及推理代码，并采用 Apache-2.0 License。",
+      "作者在 FasterDecoding Hugging Face 组织下发布了多个 Vicuna 和 Zephyr 对应的 Medusa-1、Medusa-2 权重。",
+      "官方独立实现主要面向单 GPU、Batch Size=1；TensorRT-LLM、Hugging Face TGI 和 RTP-LLM 等推理框架另有 Medusa 集成。",
+      "本站尚未记录一组严格复现论文 MT-Bench、AlpacaEval 和树结构消融结果的完整环境、命令与数值，因此状态标为 not-reproduced。"
+    ]
   },
-  "evidence": [],
-  "notes": [],
+  "evidence": [
+    {
+      "claim": "Medusa 通过附加多个未来 Token 预测 Head，避免获得、训练和部署独立 Drafter，并以 Tree Attention 一次验证多条候选。",
+      "location": "Abstract and Section 1, Pages 1–2",
+      "type": "method"
+    },
+    {
+      "claim": "第 k 个 Medusa Head 读取 Target 最后一层 Hidden State，使用带 SiLU 和残差连接的单层网络预测位置 t+k+1。",
+      "location": "Section 2.1.1, Page 3",
+      "type": "method"
+    },
+    {
+      "claim": "各 Head 的 top-s_k 候选通过笛卡尔积形成共享前缀树，树节点只能关注其祖先，位置编码按路径深度重新设置。",
+      "location": "Section 2.1.2 and Figure 2, Pages 3–4",
+      "type": "method"
+    },
+    {
+      "claim": "Medusa-1 冻结 Target，并使用按未来预测距离加权的多 Head Cross-Entropy，实践中 λ_k 取类似 0.8^k 的衰减。",
+      "location": "Section 2.2.1, Page 4",
+      "type": "training"
+    },
+    {
+      "claim": "Medusa-2 将原始 next-token Loss 与 Medusa Loss 联合，并使用差分学习率和 Heads Warmup 保护主干能力。",
+      "location": "Section 2.2.2, Pages 4–5",
+      "type": "training"
+    },
+    {
+      "claim": "Typical acceptance 根据 Target Token 概率和分布熵设定阈值，并从所有候选中选择最长可接受前缀。",
+      "location": "Section 2.3.1, Page 5",
+      "type": "verification"
+    },
+    {
+      "claim": "缺少原始数据时，可由 Target 自生成响应；Medusa-2 再以原模型分布的 KL Loss 进行自蒸馏，并可借助 LoRA 避免保存第二份 Teacher。",
+      "location": "Section 2.3.2, Page 6",
+      "type": "training"
+    },
+    {
+      "claim": "优化树在校准集上估计 Head 与预测名次准确率，并在节点预算下贪心加入估计贡献最高的可连接节点。",
+      "location": "Section 2.3.3, Page 6; Appendix C",
+      "type": "method"
+    },
+    {
+      "claim": "Vicuna-7B 和 Vicuna-13B 上，Medusa-1 分别达到 2.18× 和 2.33×，Medusa-2 均达到约 2.83×。",
+      "location": "Section 3.1 and Figure 3, Page 7",
+      "type": "result"
+    },
+    {
+      "claim": "直接联合微调降低 Vicuna-7B 质量，而两阶段 Medusa-2 将 MT-Bench 分数恢复到与 Baseline 接近，同时达到 2.83× Speedup。",
+      "location": "Section 3.3.3 and Table 2, Page 9",
+      "type": "ablation"
+    },
+    {
+      "claim": "稀疏优化树能用明显少于稠密树的节点取得更高 Acceleration Rate，但候选过多会降低实际 Tokens/s。",
+      "location": "Section 3.3.1 and Figure 4, Page 8",
+      "type": "ablation"
+    },
+    {
+      "claim": "AlpacaEval 上四个模型均达到超过 2× 的端到端加速，Vicuna-13B 的报告值最高，为 3.16×。",
+      "location": "Appendix F, Figure 8 and Table 4, Page 15",
+      "type": "result"
+    },
+    {
+      "claim": "论文附录对 A100-80GB-PCIe、A40 和 A6000 上的线性层与 Attention 运算进行 Roofline 分析，以解释候选规模和 Batch Size 对性能的影响。",
+      "location": "Appendix G, Pages 15–27",
+      "type": "system"
+    }
+  ],
+  "notes": [
+    "论文中的 Acceleration Rate 指每次 Target 解码步骤平均推进的 Token 数；端到端 Speedup 还需除以处理候选树带来的单步 Overhead，因此二者不能直接等同。",
+    "论文经验上认为最多训练五个 Medusa Head 已经足够；经过稀疏树优化后，实际推理有时只需启用前三个或四个 Head，多余 Head 可直接忽略。",
+    "Tree Attention 不是额外调用一个 Verifier：候选树本身直接送入原 Target，Target 计算出的 Hidden State 和 Logits还可供下一轮 Medusa Heads 继续生成候选。",
+    "Medusa 的多 Head 预测在未来位置之间彼此独立，候选树只是枚举不同组合，并没有让后部 Head 条件化于某个实际选中的前部 Token；树分支用于缓解这种多模态不确定性，而不是消除它。",
+    "严格 rejection sampling 与 typical acceptance 应当分开记录：前者保证 Target 分布不变，后者是一种质量近似保持、但可接受更多合理 Token 的工程折中。",
+    "Medusa-1 的核心价值是冻结 Target 后低成本接入和严格保留模型能力；Medusa-2 的核心价值是牺牲参数完全不变这一条件，换取更准确的远期 Head 和更高 Speedup。",
+    "候选树结构不能只追求更大的平均接受长度。论文的 Roofline 与树消融表明，候选过多会将原本 Memory-bound 的解码推向 Compute-bound，导致真实 Tokens/s 下降。",
+    "论文主要研究 Batch Size=1，不应把其约 2.3×–2.8× 的低并发结果直接外推为高并发在线 Serving 的吞吐提升。"
+  ],
   "provenance": {
     "legacyWorkbookRow": 1,
     "workbookInstitutions": "美国卡内基梅隆大学（CMU）、Meta"
