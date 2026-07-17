@@ -398,17 +398,17 @@
 
   function layoutGraph(graph, options) {
     options = options || {};
-    var nodeWidth = finiteNumber(options.nodeWidth, 154);
-    var nodeHeight = finiteNumber(options.nodeHeight, 62);
-    var columnGap = finiteNumber(options.columnGap, 112);
-    var rowGap = finiteNumber(options.rowGap, 22);
-    var paddingX = finiteNumber(options.paddingX, 54);
-    var laneGap = finiteNumber(options.laneGap, 16);
+    var nodeWidth = finiteNumber(options.nodeWidth, 150);
+    var nodeHeight = finiteNumber(options.nodeHeight, 70);
+    var columnGap = finiteNumber(options.columnGap, 28);
+    var rowGap = finiteNumber(options.rowGap, 14);
+    var paddingX = finiteNumber(options.paddingX, 32);
+    var laneGap = finiteNumber(options.laneGap, 12);
     var rankById = rankGraph(graph);
     var layers = orderedLayers(graph, rankById);
     var outer = assignOuterRoutes(graph, layers, rankById);
-    var paddingTop = 38 + outer.topCount * laneGap;
-    var paddingBottom = 38 + outer.bottomCount * laneGap;
+    var paddingTop = 32 + outer.topCount * laneGap;
+    var paddingBottom = 32 + outer.bottomCount * laneGap;
     var maximumRows = Math.max.apply(null, [1].concat(layers.map(function (layer) {
       return layer.papers.length;
     })));
@@ -532,7 +532,7 @@
         "<a class=\"" + className + "\" data-paper-id=\"" + escapeHtml(id) +
           "\" href=\"" + escapeHtml(paperHref(paper, options)) + "\"",
         " style=\"left:" + position.x + "px;top:" + position.y + "px;width:" +
-          position.width + "px;min-height:" + position.height + "px\"",
+          position.width + "px;height:" + position.height + "px\"",
         " aria-label=\"" + escapeHtml(aria) + "\" title=\"" + escapeHtml(fullTitle) + "\">",
         "<strong>" + escapeHtml(shortName) + "</strong><time>" +
           escapeHtml(paperDate(paper)) + "</time></a>"
@@ -580,13 +580,27 @@
       zoomAt(state.scale * factor, rectangle.left + rectangle.width / 2,
         rectangle.top + rectangle.height / 2);
     }
-    function fit() {
+    function readableScale() {
+      if (options.readableScale != null) {
+        return finiteNumber(options.readableScale, 0.66);
+      }
+      if (viewport.clientWidth >= 1000) return 0.66;
+      if (viewport.clientWidth >= 720) return 0.61;
+      if (viewport.clientWidth >= 480) return 0.54;
+      return 0.48;
+    }
+    function fit(preferReadable) {
       var availableWidth = Math.max(1, viewport.clientWidth - 34);
       var availableHeight = Math.max(1, viewport.clientHeight - 34);
-      state.scale = clamp(Math.min(1, availableWidth / layout.width,
-        availableHeight / layout.height), minimumScale, maximumScale);
-      state.x = (viewport.clientWidth - layout.width * state.scale) / 2;
-      state.y = (viewport.clientHeight - layout.height * state.scale) / 2;
+      var fitted = Math.min(1, availableWidth / layout.width,
+        availableHeight / layout.height);
+      var desired = preferReadable && fitted < 1
+        ? Math.max(fitted, readableScale())
+        : fitted;
+      state.scale = clamp((preferReadable ? Math.round(desired * 100) :
+        Math.floor(desired * 100)) / 100, minimumScale, maximumScale);
+      state.x = Math.round((viewport.clientWidth - layout.width * state.scale) / 2);
+      state.y = Math.round((viewport.clientHeight - layout.height * state.scale) / 2);
       apply();
     }
     function onWheel(event) {
@@ -621,7 +635,7 @@
       else if (event.key === "ArrowDown") state.y += 38;
       else if (event.key === "+" || event.key === "=") zoomFromCenter(1.18);
       else if (event.key === "-") zoomFromCenter(1 / 1.18);
-      else if (event.key === "0") fit();
+      else if (event.key === "0") fit(false);
       else handled = false;
       if (handled) {
         event.preventDefault();
@@ -634,7 +648,7 @@
       var action = button.getAttribute("data-graph-action");
       if (action === "zoom-in") zoomFromCenter(1.22);
       if (action === "zoom-out") zoomFromCenter(1 / 1.22);
-      if (action === "fit") fit();
+      if (action === "fit") fit(false);
     }
 
     viewport.addEventListener("wheel", onWheel, { passive: false });
@@ -644,14 +658,14 @@
     viewport.addEventListener("pointercancel", finishPointer);
     viewport.addEventListener("keydown", onKeyDown);
     controls.addEventListener("click", onControlClick);
-    frame = window.requestAnimationFrame(fit);
+    frame = window.requestAnimationFrame(function () { fit(true); });
     if (typeof ResizeObserver === "function") {
       var previousWidth = 0;
       resizeObserver = new ResizeObserver(function (entries) {
         var width = entries[0] ? entries[0].contentRect.width : viewport.clientWidth;
         if (Math.abs(width - previousWidth) < 1) return;
         previousWidth = width;
-        fit();
+        fit(true);
       });
       resizeObserver.observe(viewport);
     }
