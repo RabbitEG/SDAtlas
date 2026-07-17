@@ -10,8 +10,11 @@
     "Yipeng Ji",
     "Chul Lee"
   ],
-  "methodOverview": "让 Drafter 通过 Cross-Attention 读取固定的 Target 上下文，而不是依赖紧耦合的 Self-Attention 或逐层 Feature 融合。两阶段 Block-Attention Training 降低多步模拟的显存开销。",
-  "notes": [],
+  "venue": "arXiv",
+  "date": "2025-05",
+  "url": "https://arxiv.org/abs/2505.24544",
+  "localPdf": "../Reference/BEAGLE.pdf",
+  "explanationPage": null,
   "institutionDetails": [
     {
       "name": "LG电子多伦多人工智能实验室",
@@ -20,6 +23,24 @@
     }
   ],
   "institutionSource": "https://arxiv.org/html/2505.24544v3",
+  "methodOverview": "让 Drafter 通过 Cross-Attention 读取固定的 Target 上下文，而不是依赖紧耦合的 Self-Attention 或逐层 Feature 融合。两阶段 Block-Attention Training 降低多步模拟的显存开销。",
+  "problemStatement": {
+    "background": null,
+    "priorLimitation": null,
+    "goal": null
+  },
+  "methodComponents": [],
+  "characteristics": {
+    "requiresTraining": null,
+    "drafterType": null,
+    "draftGeneration": null,
+    "candidateStructure": null,
+    "verificationStrategy": null,
+    "usesTargetFeatures": null,
+    "dynamicDraftLength": null,
+    "dynamicVerifyLength": null,
+    "lossless": null
+  },
   "subproblemContributions": {
     "A": {
       "summary": "Beagle 用单层 Cross-Attention 加 MLP 构造 Drafter：当前 Token Embedding 形成 Query，Target 顶层隐状态或 Drafter 自回归产生的状态形成 Key/Value，并以遮蔽对角线及未来位置的因果掩码生成候选。",
@@ -30,6 +51,27 @@
       "detail": "前 10 个 Epoch 以局部未来 Key 全遮蔽的 Block-Attention 并行优化多 Token 目标，后 10 个 Epoch 原位更新自预测 Key 并按接受长度对逐步损失加权；两阶段还保留隐状态蒸馏正则以稳定收敛。Cross-Attention 模拟无需随步数展开新的 Query，因而保持近似常量训练显存，3 步模拟可在单张 24 GiB GPU 上训练 7B Target 的 Drafter。"
     }
   },
+  "training": {
+    "summary": "前 10 个 Epoch 以局部未来 Key 全遮蔽的 Block-Attention 并行优化多 Token 目标，后 10 个 Epoch 原位更新自预测 Key 并按接受长度对逐步损失加权；两阶段还保留隐状态蒸馏正则以稳定收敛。",
+    "data": null,
+    "objective": null
+  },
+  "evaluation": {
+    "targetModels": [],
+    "benchmarks": [],
+    "baselines": [],
+    "metrics": [],
+    "hardware": [],
+    "frameworks": []
+  },
+  "mainResults": [],
+  "limitations": [],
+  "relations": {
+    "extends": [],
+    "comparesAgainst": [],
+    "related": [],
+    "compatibleWith": []
+  },
   "citations": [
     "medusa",
     "eagle",
@@ -37,12 +79,18 @@
     "eagle-3",
     "specinfer"
   ],
-  "venue": "arXiv",
-  "date": "2025-05",
-  "url": "https://arxiv.org/abs/2505.24544",
+  "reproducibility": {
+    "codeUrl": null,
+    "modelUrl": null,
+    "projectPage": null,
+    "officialImplementation": null,
+    "status": "not-checked",
+    "notes": []
+  },
+  "evidence": [],
+  "notes": [],
   "provenance": {
     "legacyWorkbookRow": 6,
     "workbookInstitutions": "清华大学"
-  },
-  "localPdf": "../Reference/BEAGLE.pdf"
+  }
 }

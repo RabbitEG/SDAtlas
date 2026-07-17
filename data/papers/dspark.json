@@ -38,8 +38,11 @@
     "Dongyan Zhao",
     "Wenfeng Liang"
   ],
-  "methodOverview": "并行 Backbone 负责整体候选，廉价 Markov/RNN 串行模块补回 Prefix 依赖；额外的置信度 Head 估计 Prefix 能存活到多远，调度器再按实时负载和 SPS 为每个请求分配 Verify 长度。",
-  "notes": [],
+  "venue": "arXiv",
+  "date": "2026-07",
+  "url": "https://arxiv.org/abs/2607.05147",
+  "localPdf": "../Reference/DSpark.pdf",
+  "explanationPage": null,
   "institutionDetails": [
     {
       "name": "深度求索（DeepSeek-AI）",
@@ -53,6 +56,24 @@
     }
   ],
   "institutionSource": "https://arxiv.org/pdf/2607.05147",
+  "methodOverview": "并行 Backbone 负责整体候选，廉价 Markov/RNN 串行模块补回 Prefix 依赖；额外的置信度 Head 估计 Prefix 能存活到多远，调度器再按实时负载和 SPS 为每个请求分配 Verify 长度。",
+  "problemStatement": {
+    "background": null,
+    "priorLimitation": null,
+    "goal": null
+  },
+  "methodComponents": [],
+  "characteristics": {
+    "requiresTraining": null,
+    "drafterType": null,
+    "draftGeneration": null,
+    "candidateStructure": null,
+    "verificationStrategy": null,
+    "usesTargetFeatures": null,
+    "dynamicDraftLength": null,
+    "dynamicVerifyLength": null,
+    "lossless": null
+  },
   "subproblemContributions": {
     "A": {
       "summary": "先让 DFlash 式并行 Backbone 在一次前向中产出整块 Hidden State 与 Base Logits，再以低秩一阶 Markov Head（默认）或带完整 Prefix 状态的 RNN Head 左到右加入转移偏置并采样。",
@@ -71,6 +92,27 @@
       "detail": "Target、共享 Embedding 与 LM Head 全程冻结；从每条 Target 序列随机抽取多个 Anchor 组成 γ-Token Block，只更新并行 Backbone、顺序模块和 Confidence Head。训练将位置指数加权的 Cross-Entropy、Draft/Target 分布总变差和置信度 BCE 以 0.1/0.9/1.0 组合，前部位置权重更高；其中总变差直接对应理论接受率，置信度软标签同为 1−½‖p_d−p_t‖₁。"
     }
   },
+  "training": {
+    "summary": "Target、共享 Embedding 与 LM Head 全程冻结；从每条 Target 序列随机抽取多个 Anchor 组成 γ-Token Block，只更新并行 Backbone、顺序模块和 Confidence Head。",
+    "data": null,
+    "objective": null
+  },
+  "evaluation": {
+    "targetModels": [],
+    "benchmarks": [],
+    "baselines": [],
+    "metrics": [],
+    "hardware": [],
+    "frameworks": []
+  },
+  "mainResults": [],
+  "limitations": [],
+  "relations": {
+    "extends": [],
+    "comparesAgainst": [],
+    "related": [],
+    "compatibleWith": []
+  },
   "citations": [
     "medusa",
     "mtp",
@@ -88,12 +130,18 @@
     "ddtree",
     "taps"
   ],
-  "venue": "arXiv",
-  "date": "2026-07",
-  "url": "https://arxiv.org/abs/2607.05147",
+  "reproducibility": {
+    "codeUrl": null,
+    "modelUrl": null,
+    "projectPage": null,
+    "officialImplementation": null,
+    "status": "not-checked",
+    "notes": []
+  },
+  "evidence": [],
+  "notes": [],
   "provenance": {
     "legacyWorkbookRow": 13,
     "workbookInstitutions": "未知（arXiv作者团队）"
-  },
-  "localPdf": "../Reference/DSpark.pdf"
+  }
 }

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate SDAtlas schema-v4 sources and deterministic build artifacts.
+"""Validate SDAtlas schema-v5 sources and deterministic build artifacts.
 
 The maintained source is split in two layers:
 
@@ -30,10 +30,52 @@ from sync_catalog import build_catalog, render_aggregate, render_runtime
 ROOT = Path(__file__).resolve().parents[1]
 CATALOG_PATH = ROOT / "data" / "catalog.json"
 PAPERS_DIR = ROOT / "data" / "papers"
+PAPER_TEMPLATE_PATH = ROOT / "data" / "paper-template.json"
 AGGREGATE_PATH = ROOT / "data" / "catalog.generated.json"
 RUNTIME_CATALOG_PATH = ROOT / "assets" / "js" / "data.js"
 EXPECTED_SUBPROBLEM_CODES = ["A", "B", "C", "D", "E"]
 HTTP_PREFIXES = ("https://", "http://")
+PROBLEM_FIELDS = ("background", "priorLimitation", "goal")
+METHOD_COMPONENT_FIELDS = ("name", "stage", "purpose", "mechanism", "differenceFromPrior")
+CHARACTERISTIC_BOOLEAN_FIELDS = (
+    "requiresTraining", "usesTargetFeatures", "dynamicDraftLength",
+    "dynamicVerifyLength", "lossless",
+)
+CHARACTERISTIC_ENUMS = {
+    "drafterType": {
+        "small-llm", "feature-drafter", "multi-token-head", "block-diffusion",
+        "semi-autoregressive", "retrieval-based", "no-separate-drafter", "hybrid",
+    },
+    "draftGeneration": {"autoregressive", "parallel", "semi-autoregressive", "iterative", "none"},
+    "candidateStructure": {"chain", "tree", "multiple-chains", "token-heads", "adaptive-tree", "none"},
+    "verificationStrategy": {
+        "fixed-prefix", "dynamic-prefix", "tree-verification", "batch-aware",
+        "confidence-based", "custom",
+    },
+}
+EVALUATION_FIELDS = (
+    "targetModels", "benchmarks", "baselines", "metrics", "hardware", "frameworks",
+)
+RELATION_FIELDS = ("extends", "comparesAgainst", "related", "compatibleWith")
+REPRODUCIBILITY_STATUSES = {
+    "not-checked", "code-available", "not-reproduced", "reading-code",
+    "partial", "reproduced", "failed",
+}
+LIMITATION_TYPES = {
+    "algorithmic", "system", "training-cost", "memory", "latency",
+    "evaluation", "generalization", "deployment", "evidence",
+}
+LIMITATION_SOURCE_TYPES = {"paper", "analysis", "observed-data"}
+EVIDENCE_TYPES = {
+    "method", "configuration", "result", "ablation", "limitation", "training", "system",
+}
+EXPECTED_PAPER_FIELDS = (
+    "id", "index", "title", "shortName", "authors", "venue", "date", "url",
+    "localPdf", "explanationPage", "institutionDetails", "institutionSource",
+    "methodOverview", "problemStatement", "methodComponents", "characteristics",
+    "subproblemContributions", "training", "evaluation", "mainResults", "limitations",
+    "relations", "citations", "reproducibility", "evidence", "notes", "provenance",
+)
 
 
 class Validation:
@@ -98,10 +140,10 @@ def institution_summary(details: List[Dict[str, Any]]) -> str:
 
 
 def validate_taxonomy(catalog: Dict[str, Any], result: Validation) -> List[str]:
-    result.check(catalog.get("schemaVersion") == 4, "data/catalog.json schemaVersion 必须为 4")
+    result.check(catalog.get("schemaVersion") == 5, "data/catalog.json schemaVersion 必须为 5")
     result.check("papers" not in catalog, "论文必须维护在 data/papers/*.json，不能内嵌到 catalog.json")
     result.check("categories" not in catalog and "tags" not in catalog,
-                 "schema v4 只使用统一的 subproblems，不再使用 categories / tags")
+                 "schema v5 只使用统一的 subproblems，不再使用 categories / tags")
 
     meta = catalog.get("meta")
     result.check(isinstance(meta, dict), "catalog.meta 必须是 object")
@@ -143,6 +185,14 @@ def validate_taxonomy(catalog: Dict[str, Any], result: Validation) -> List[str]:
     return [code for code in codes if isinstance(code, str)]
 
 
+def validate_template(template: Dict[str, Any], result: Validation) -> None:
+    """Keep every independently maintained paper aligned with one ordered template."""
+    result.check(
+        tuple(template) == EXPECTED_PAPER_FIELDS,
+        "data/paper-template.json 的顶层字段或顺序与 schema v5 不一致",
+    )
+
+
 def validate_institutions(paper: Dict[str, Any], label: str, result: Validation) -> None:
     details = paper.get("institutionDetails")
     result.check(isinstance(details, list) and bool(details),
@@ -174,11 +224,12 @@ def validate_institutions(paper: Dict[str, Any], label: str, result: Validation)
 
 
 def validate_local_pdf(paper: Dict[str, Any], label: str, result: Validation) -> None:
+    result.check("localPdf" in paper, f"{label}: 必须显式提供 localPdf（未知时写 null）")
+    result.check("localPdfNote" not in paper,
+                 f"{label}: localPdfNote 已停用；没有本地文件时将 localPdf 写为 null")
     local_pdf = paper.get("localPdf")
-    local_note = paper.get("localPdfNote")
     if local_pdf is None or local_pdf == "":
-        result.check(nonempty_text(local_note),
-                     f"{label}: 没有 localPdf 时必须提供 localPdfNote")
+        result.check(local_pdf is None, f"{label}: 未知文本值应使用 null，不能使用空字符串")
         return
 
     result.check(nonempty_text(local_pdf), f"{label}: localPdf 必须是非空相对路径")
@@ -188,8 +239,6 @@ def validate_local_pdf(paper: Dict[str, Any], label: str, result: Validation) ->
     result.check(not path.is_absolute(), f"{label}: localPdf 必须使用相对路径")
     result.check(path.suffix.lower() == ".pdf", f"{label}: localPdf 必须指向 PDF")
     result.check((ROOT / path).resolve().is_file(), f"{label}: 本地 PDF 不存在：{local_pdf}")
-    result.warn(not nonempty_text(local_note),
-                f"{label}: 已有 localPdf，localPdfNote 通常应删除以免信息冲突")
 
 
 def validate_explanation_page(paper: Dict[str, Any], label: str, result: Validation) -> None:
@@ -215,6 +264,213 @@ def validate_explanation_page(paper: Dict[str, Any], label: str, result: Validat
     result.check(resolved.is_file(), f"{label}: 论文解读页不存在：{value}")
 
 
+def validate_nullable_text(value: Any, label: str, result: Validation) -> None:
+    """Accept a meaningful string or the schema-v5 unknown marker ``null``."""
+    result.check(value is None or nonempty_text(value), f"{label} 必须是非空字符串或 null")
+
+
+def validate_string_array(value: Any, label: str, result: Validation) -> None:
+    result.check(isinstance(value, list), f"{label} 必须是 array")
+    if not isinstance(value, list):
+        return
+    valid_items = all(nonempty_text(item) for item in value)
+    result.check(valid_items, f"{label} 只能包含非空字符串")
+    if valid_items:
+        result.check(len(value) == len(set(value)), f"{label} 不能包含重复项")
+
+
+def validate_exact_object(
+    value: Any, fields: Any, label: str, result: Validation
+) -> Any:
+    """Validate one fixed-shape nested object and return it when usable."""
+    result.check(isinstance(value, dict), f"{label} 必须是 object")
+    if not isinstance(value, dict):
+        return None
+    expected = set(fields)
+    actual = set(value)
+    result.check(actual == expected,
+                 f"{label} 字段必须恰好为 {sorted(expected)}，当前差异为 {sorted(actual ^ expected)}")
+    return value
+
+
+def validate_problem_statement(paper: Dict[str, Any], label: str, result: Validation) -> None:
+    value = validate_exact_object(
+        paper.get("problemStatement"), PROBLEM_FIELDS,
+        f"{label}: problemStatement", result,
+    )
+    if value is None:
+        return
+    for field in PROBLEM_FIELDS:
+        validate_nullable_text(value.get(field), f"{label}: problemStatement.{field}", result)
+
+
+def validate_method_components(paper: Dict[str, Any], label: str, result: Validation) -> None:
+    components = paper.get("methodComponents")
+    result.check(isinstance(components, list), f"{label}: methodComponents 必须是 array")
+    if not isinstance(components, list):
+        return
+    for index, component in enumerate(components):
+        component_label = f"{label}: methodComponents[{index}]"
+        value = validate_exact_object(
+            component, METHOD_COMPONENT_FIELDS, component_label, result,
+        )
+        if value is None:
+            continue
+        for field in ("name", "stage", "purpose", "mechanism"):
+            result.check(nonempty_text(value.get(field)), f"{component_label}.{field} 不能为空")
+        validate_nullable_text(
+            value.get("differenceFromPrior"),
+            f"{component_label}.differenceFromPrior", result,
+        )
+
+
+def validate_characteristics(paper: Dict[str, Any], label: str, result: Validation) -> None:
+    fields = CHARACTERISTIC_BOOLEAN_FIELDS + tuple(CHARACTERISTIC_ENUMS)
+    value = validate_exact_object(
+        paper.get("characteristics"), fields, f"{label}: characteristics", result,
+    )
+    if value is None:
+        return
+    for field in CHARACTERISTIC_BOOLEAN_FIELDS:
+        item = value.get(field)
+        result.check(item is None or type(item) is bool,
+                     f"{label}: characteristics.{field} 必须是 boolean 或 null")
+    for field, allowed in CHARACTERISTIC_ENUMS.items():
+        item = value.get(field)
+        result.check(item is None or item in allowed,
+                     f"{label}: characteristics.{field} 值无效：{item!r}")
+
+
+def validate_training(paper: Dict[str, Any], label: str, result: Validation) -> None:
+    value = validate_exact_object(
+        paper.get("training"), ("summary", "data", "objective"),
+        f"{label}: training", result,
+    )
+    if value is None:
+        return
+    for field in ("summary", "data", "objective"):
+        validate_nullable_text(value.get(field), f"{label}: training.{field}", result)
+
+
+def validate_evaluation(paper: Dict[str, Any], label: str, result: Validation) -> None:
+    value = validate_exact_object(
+        paper.get("evaluation"), EVALUATION_FIELDS,
+        f"{label}: evaluation", result,
+    )
+    if value is None:
+        return
+    for field in EVALUATION_FIELDS:
+        validate_string_array(value.get(field), f"{label}: evaluation.{field}", result)
+
+
+def validate_main_results(paper: Dict[str, Any], label: str, result: Validation) -> None:
+    values = paper.get("mainResults")
+    result.check(isinstance(values, list), f"{label}: mainResults 必须是 array")
+    if not isinstance(values, list):
+        return
+    fields = ("condition", "metric", "result", "comparison", "source")
+    for index, item in enumerate(values):
+        item_label = f"{label}: mainResults[{index}]"
+        value = validate_exact_object(item, fields, item_label, result)
+        if value is not None:
+            for field in fields:
+                result.check(nonempty_text(value.get(field)), f"{item_label}.{field} 不能为空")
+
+
+def validate_limitations(paper: Dict[str, Any], label: str, result: Validation) -> None:
+    values = paper.get("limitations")
+    result.check(isinstance(values, list), f"{label}: limitations 必须是 array")
+    if not isinstance(values, list):
+        return
+    fields = ("type", "description", "sourceType")
+    for index, item in enumerate(values):
+        item_label = f"{label}: limitations[{index}]"
+        value = validate_exact_object(item, fields, item_label, result)
+        if value is None:
+            continue
+        result.check(value.get("type") in LIMITATION_TYPES,
+                     f"{item_label}.type 值无效：{value.get('type')!r}")
+        result.check(nonempty_text(value.get("description")),
+                     f"{item_label}.description 不能为空")
+        result.check(value.get("sourceType") in LIMITATION_SOURCE_TYPES,
+                     f"{item_label}.sourceType 值无效：{value.get('sourceType')!r}")
+
+
+def validate_relations(
+    paper: Dict[str, Any], label: str, valid_ids: Any, result: Validation
+) -> None:
+    value = validate_exact_object(
+        paper.get("relations"), RELATION_FIELDS, f"{label}: relations", result,
+    )
+    if value is None:
+        return
+    paper_id = paper.get("id")
+    for field in RELATION_FIELDS:
+        relation_label = f"{label}: relations.{field}"
+        targets = value.get(field)
+        validate_string_array(targets, relation_label, result)
+        if not isinstance(targets, list):
+            continue
+        result.check(paper_id not in targets, f"{relation_label} 不能包含自身")
+        unknown = set(targets) - valid_ids
+        result.check(not unknown, f"{relation_label} 包含未收录论文 {sorted(unknown)}")
+
+
+def validate_reproducibility(paper: Dict[str, Any], label: str, result: Validation) -> None:
+    fields = (
+        "codeUrl", "modelUrl", "projectPage", "officialImplementation", "status", "notes",
+    )
+    value = validate_exact_object(
+        paper.get("reproducibility"), fields,
+        f"{label}: reproducibility", result,
+    )
+    if value is None:
+        return
+    for field in ("codeUrl", "modelUrl", "projectPage"):
+        item = value.get(field)
+        result.check(item is None or valid_http_url(item),
+                     f"{label}: reproducibility.{field} 必须是 HTTP(S) URL 或 null")
+    official = value.get("officialImplementation")
+    result.check(official is None or type(official) is bool,
+                 f"{label}: reproducibility.officialImplementation 必须是 boolean 或 null")
+    result.check(value.get("status") in REPRODUCIBILITY_STATUSES,
+                 f"{label}: reproducibility.status 值无效：{value.get('status')!r}")
+    validate_string_array(value.get("notes"), f"{label}: reproducibility.notes", result)
+
+
+def validate_evidence(paper: Dict[str, Any], label: str, result: Validation) -> None:
+    values = paper.get("evidence")
+    result.check(isinstance(values, list), f"{label}: evidence 必须是 array")
+    if not isinstance(values, list):
+        return
+    fields = ("claim", "location", "type")
+    for index, item in enumerate(values):
+        item_label = f"{label}: evidence[{index}]"
+        value = validate_exact_object(item, fields, item_label, result)
+        if value is None:
+            continue
+        result.check(nonempty_text(value.get("claim")), f"{item_label}.claim 不能为空")
+        result.check(nonempty_text(value.get("location")), f"{item_label}.location 不能为空")
+        result.check(value.get("type") in EVIDENCE_TYPES,
+                     f"{item_label}.type 值无效：{value.get('type')!r}")
+
+
+def validate_provenance(paper: Dict[str, Any], label: str, result: Validation) -> None:
+    value = validate_exact_object(
+        paper.get("provenance"), ("legacyWorkbookRow", "workbookInstitutions"),
+        f"{label}: provenance", result,
+    )
+    if value is None:
+        return
+    row = value.get("legacyWorkbookRow")
+    result.check(row is None or (type(row) is int and row > 0),
+                 f"{label}: provenance.legacyWorkbookRow 必须是正整数或 null")
+    validate_nullable_text(
+        value.get("workbookInstitutions"),
+        f"{label}: provenance.workbookInstitutions", result,
+    )
+
+
 def validate_papers(
     papers: List[Dict[str, Any]], valid_codes: List[str], result: Validation
 ) -> None:
@@ -237,6 +493,9 @@ def validate_papers(
         index = paper.get("index")
         label = f"#{index} {paper_id}"
         source_path = Path(str(paper.get("_sourcePath", "")))
+        source_fields = tuple(field for field in paper if field != "_sourcePath")
+        result.check(source_fields == EXPECTED_PAPER_FIELDS,
+                     f"{label}: 顶层字段及顺序必须与 data/paper-template.json 完全一致")
         result.check(source_path.stem == paper_id,
                      f"{label}: 文件名必须与 id 一致（当前为 {source_path.name}）")
         result.check(isinstance(paper_id, str) and bool(re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", paper_id)),
@@ -264,6 +523,9 @@ def validate_papers(
                          f"{label}: notes 中的每项必须是非空字符串")
 
         validate_institutions(paper, label, result)
+        validate_problem_statement(paper, label, result)
+        validate_method_components(paper, label, result)
+        validate_characteristics(paper, label, result)
 
         contributions = paper.get("subproblemContributions")
         result.check(isinstance(contributions, dict) and bool(contributions),
@@ -283,6 +545,12 @@ def validate_papers(
                     result.check(nonempty_text(contribution.get("detail")),
                                  f"{contribution_label}.detail 不能为空")
 
+        validate_training(paper, label, result)
+        validate_evaluation(paper, label, result)
+        validate_main_results(paper, label, result)
+        validate_limitations(paper, label, result)
+        validate_relations(paper, label, valid_id_set, result)
+
         citations = paper.get("citations")
         result.check(isinstance(citations, list), f"{label}: citations 必须是 array，可为空")
         if isinstance(citations, list):
@@ -297,6 +565,9 @@ def validate_papers(
         for derived_field in ("institutions", "subproblemCodes", "citedBy"):
             result.check(derived_field not in paper,
                          f"{label}: {derived_field} 是生成字段，不能写入论文源文件")
+        validate_reproducibility(paper, label, result)
+        validate_evidence(paper, label, result)
+        validate_provenance(paper, label, result)
         validate_local_pdf(paper, label, result)
         validate_explanation_page(paper, label, result)
 
@@ -371,6 +642,7 @@ def validate_generated(
 def main() -> int:
     try:
         catalog = read_object(CATALOG_PATH)
+        template = read_object(PAPER_TEMPLATE_PATH)
         papers = load_paper_sources()
     except (OSError, ValueError, json.JSONDecodeError) as error:
         print(f"[ERROR] 无法执行目录验证：{error}", file=sys.stderr)
@@ -378,6 +650,7 @@ def main() -> int:
 
     result = Validation()
     valid_codes = validate_taxonomy(catalog, result)
+    validate_template(template, result)
     validate_papers(papers, valid_codes, result)
     validate_generated(catalog, papers, result)
 
@@ -392,7 +665,7 @@ def main() -> int:
 
     print(
         f"目录验证通过：{len(papers)} 篇独立论文、{len(valid_codes)} 个统一子问题；"
-        "summary/detail、作者、备注、站内引用、单位、本地 PDF 与两份生成物均一致。"
+        "schema-v5 方法、特征、实验、关系、复现、证据、站内引用与两份生成物均一致。"
     )
     return 0
 

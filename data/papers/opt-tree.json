@@ -13,8 +13,11 @@
     "Zhefeng Wang",
     "Min Zhang"
   ],
-  "methodOverview": "将一条路径上 Drafter 的条件概率连乘，得到节点被接受的近似概率；随后在节点预算内选择使概率总和最大的前缀闭合树，使目标直接对应预期接受 Token 数。",
-  "notes": [],
+  "venue": "TACL 2025",
+  "date": "2024-06",
+  "url": "https://aclanthology.org/2025.tacl-1.8/",
+  "localPdf": "../Reference/OPTTree.pdf",
+  "explanationPage": null,
   "institutionDetails": [
     {
       "name": "苏州大学计算机科学与技术研究所",
@@ -28,6 +31,24 @@
     }
   ],
   "institutionSource": "https://aclanthology.org/2025.tacl-1.8/",
+  "methodOverview": "将一条路径上 Drafter 的条件概率连乘，得到节点被接受的近似概率；随后在节点预算内选择使概率总和最大的前缀闭合树，使目标直接对应预期接受 Token 数。",
+  "problemStatement": {
+    "background": null,
+    "priorLimitation": null,
+    "goal": null
+  },
+  "methodComponents": [],
+  "characteristics": {
+    "requiresTraining": null,
+    "drafterType": null,
+    "draftGeneration": null,
+    "candidateStructure": null,
+    "verificationStrategy": null,
+    "usesTargetFeatures": null,
+    "dynamicDraftLength": null,
+    "dynamicVerifyLength": null,
+    "lossless": null
+  },
   "subproblemContributions": {
     "B": {
       "summary": "对任意自回归 Drafter，OPT-Tree 将每个节点沿 Root 路径的概率乘积 p̂ 视作该 Prefix 的命中概率，并把期望接受长度近似为全树 Σp̂。",
@@ -38,16 +59,43 @@
       "detail": "Verify 端只接收最终 n 节点子树，并用对应 Tree Attention Mask 在一次 Target 前向中取得每个节点的后继，返回最长命中分支再加一枚 Target Token；共享 Prefix 只占一个节点。n 可按 Target 与 GPU 的并行平台选取，δ 又在 Draft 深度上剔除期望增益低于额外 Draft 时间比的层，避免更深树的额外开销抵消接受收益。"
     }
   },
+  "training": {
+    "summary": null,
+    "data": null,
+    "objective": null
+  },
+  "evaluation": {
+    "targetModels": [],
+    "benchmarks": [],
+    "baselines": [],
+    "metrics": [],
+    "hardware": [],
+    "frameworks": []
+  },
+  "mainResults": [],
+  "limitations": [],
+  "relations": {
+    "extends": [],
+    "comparesAgainst": [],
+    "related": [],
+    "compatibleWith": []
+  },
   "citations": [
     "medusa",
     "eagle"
   ],
-  "venue": "TACL 2025",
-  "date": "2024-06",
-  "url": "https://aclanthology.org/2025.tacl-1.8/",
+  "reproducibility": {
+    "codeUrl": null,
+    "modelUrl": null,
+    "projectPage": null,
+    "officialImplementation": null,
+    "status": "not-checked",
+    "notes": []
+  },
+  "evidence": [],
+  "notes": [],
   "provenance": {
     "legacyWorkbookRow": 15,
     "workbookInstitutions": "未知（arXiv作者团队）"
-  },
-  "localPdf": "../Reference/OPTTree.pdf"
+  }
 }

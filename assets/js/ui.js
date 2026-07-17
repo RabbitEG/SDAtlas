@@ -398,7 +398,7 @@
   };
 })();
 /*
- * Schema v4 application layer.
+ * Schema v5 application layer.
  *
  * The formula renderer above remains deliberately independent from the data
  * model. This layer exposes the single A–E subproblem taxonomy, internal paper

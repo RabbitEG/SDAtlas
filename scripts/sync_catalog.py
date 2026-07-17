@@ -2,7 +2,8 @@
 """Build the static SDAtlas runtime from split, maintainable JSON sources.
 
 ``data/catalog.json`` stores site metadata and the unified A–E subproblem
-taxonomy. Each paper is maintained independently in ``data/papers/<id>.json``.
+taxonomy. Each schema-v5 paper is maintained independently in
+``data/papers/<id>.json``.
 This script validates their cross-file references, derives reverse citations
 and display-only fields, then writes two deterministic build artifacts:
 
@@ -23,6 +24,7 @@ from typing import Any, Dict, List
 ROOT = Path(__file__).resolve().parents[1]
 CATALOG_PATH = ROOT / "data" / "catalog.json"
 PAPERS_DIR = ROOT / "data" / "papers"
+PAPER_TEMPLATE_PATH = ROOT / "data" / "paper-template.json"
 AGGREGATE_PATH = ROOT / "data" / "catalog.generated.json"
 RUNTIME_PATH = ROOT / "assets" / "js" / "data.js"
 RUNTIME_HEADER = """/*
@@ -46,6 +48,8 @@ def read_json(path: Path) -> Dict[str, Any]:
 def load_catalog() -> Dict[str, Any]:
     """Load taxonomy metadata; papers intentionally do not live in this file."""
     catalog = read_json(CATALOG_PATH)
+    if catalog.get("schemaVersion") != 5:
+        raise ValueError("data/catalog.json schemaVersion must be 5")
     if not isinstance(catalog.get("subproblems"), list):
         raise ValueError("data/catalog.json must contain a subproblems array")
     if "papers" in catalog:
@@ -89,6 +93,7 @@ def validate_sources(catalog: Dict[str, Any], papers: List[Dict[str, Any]]) -> N
     subproblem_codes = [item.get("code") for item in subproblems]
     paper_ids = [paper.get("id") for paper in papers]
     indices = [paper.get("index") for paper in papers]
+    template_fields = tuple(read_json(PAPER_TEMPLATE_PATH))
 
     def check(condition: bool, message: str) -> None:
         if not condition:
@@ -107,11 +112,18 @@ def validate_sources(catalog: Dict[str, Any], papers: List[Dict[str, Any]]) -> N
     required_text = ("id", "title", "shortName", "methodOverview", "venue", "date", "url")
     for paper in papers:
         label = f"#{paper.get('index')} {paper.get('id')}"
+        source_fields = tuple(field for field in paper if field != "_sourcePath")
+        check(source_fields == template_fields,
+              f"{label}: source fields/order must match data/paper-template.json")
         for field in required_text:
             check(bool(str(paper.get(field, "")).strip()), f"{label}: missing {field}")
         check(isinstance(paper.get("authors"), list) and bool(paper.get("authors")),
               f"{label}: authors must be a non-empty array")
         check(isinstance(paper.get("notes"), list), f"{label}: notes must be an array")
+        check("localPdf" in paper, f"{label}: localPdf must be present (null is allowed)")
+        local_pdf = paper.get("localPdf")
+        check(local_pdf is None or (isinstance(local_pdf, str) and bool(local_pdf.strip())),
+              f"{label}: localPdf must be null or a non-empty relative path")
         details = paper.get("institutionDetails")
         check(isinstance(details, list) and bool(details),
               f"{label}: institutionDetails must be a non-empty array")
@@ -144,6 +156,25 @@ def validate_sources(catalog: Dict[str, Any], papers: List[Dict[str, Any]]) -> N
         check("institutions" not in paper,
               f"{label}: institutions is generated from institutionDetails")
         check("workbookTags" not in paper, f"{label}: workbookTags has been retired")
+        check("localPdfNote" not in paper, f"{label}: localPdfNote has been retired")
+
+        structured_fields = {
+            "problemStatement": dict,
+            "methodComponents": list,
+            "characteristics": dict,
+            "training": dict,
+            "evaluation": dict,
+            "mainResults": list,
+            "limitations": list,
+            "relations": dict,
+            "reproducibility": dict,
+            "evidence": list,
+            "provenance": dict,
+        }
+        for field, expected_type in structured_fields.items():
+            if field in paper:
+                check(isinstance(paper.get(field), expected_type),
+                      f"{label}: {field} must be a {expected_type.__name__}")
 
         explanation_page = paper.get("explanationPage")
         if explanation_page is not None:

@@ -8,8 +8,11 @@
     "Hyunjong Kim",
     "Sungzoon Cho"
   ],
-  "methodOverview": "面向长上下文的免 Training 增强方案：Prefill 使用 FlashAttention，Verify 使用 Hybrid Tree Attention；Cross-model Retrieval 再根据 Target 的 Attention Score，只为 Drafter 保留最有用的上下文 KV。",
-  "notes": [],
+  "venue": "Findings of ACL 2026",
+  "date": "2025-05",
+  "url": "https://aclanthology.org/2026.findings-acl.2153/",
+  "localPdf": "../Reference/SpecExtend.pdf",
+  "explanationPage": null,
   "institutionDetails": [
     {
       "name": "首尔大学",
@@ -18,6 +21,24 @@
     }
   ],
   "institutionSource": "https://aclanthology.org/2026.findings-acl.2153.pdf",
+  "methodOverview": "面向长上下文的免 Training 增强方案：Prefill 使用 FlashAttention，Verify 使用 Hybrid Tree Attention；Cross-model Retrieval 再根据 Target 的 Attention Score，只为 Drafter 保留最有用的上下文 KV。",
+  "problemStatement": {
+    "background": null,
+    "priorLimitation": null,
+    "goal": null
+  },
+  "methodComponents": [],
+  "characteristics": {
+    "requiresTraining": null,
+    "drafterType": null,
+    "draftGeneration": null,
+    "candidateStructure": null,
+    "verificationStrategy": null,
+    "usesTargetFeatures": null,
+    "dynamicDraftLength": null,
+    "dynamicVerifyLength": null,
+    "lossless": null
+  },
   "subproblemContributions": {
     "A": {
       "summary": "利用 Target 的 Attention Score 筛选 Drafter 最相关的上下文 KV。",
@@ -28,6 +49,27 @@
       "detail": "将 FlashAttention 用于 Target 与 Draft 的 Prefill，使用 Hybrid Tree Attention 加速树状 Verify，并以 Drop-in 方式同时优化 Prefill、Draft 和 Verify 阶段；方案不要求重新 Training 现有 Drafter。"
     }
   },
+  "training": {
+    "summary": null,
+    "data": null,
+    "objective": null
+  },
+  "evaluation": {
+    "targetModels": [],
+    "benchmarks": [],
+    "baselines": [],
+    "metrics": [],
+    "hardware": [],
+    "frameworks": []
+  },
+  "mainResults": [],
+  "limitations": [],
+  "relations": {
+    "extends": [],
+    "comparesAgainst": [],
+    "related": [],
+    "compatibleWith": []
+  },
   "citations": [
     "medusa",
     "eagle",
@@ -36,11 +78,18 @@
     "specinfer",
     "opt-tree"
   ],
-  "venue": "Findings of ACL 2026",
-  "date": "2025-05",
-  "url": "https://aclanthology.org/2026.findings-acl.2153/",
-  "localPdf": "../Reference/SpecExtend.pdf",
+  "reproducibility": {
+    "codeUrl": null,
+    "modelUrl": null,
+    "projectPage": null,
+    "officialImplementation": null,
+    "status": "not-checked",
+    "notes": []
+  },
+  "evidence": [],
+  "notes": [],
   "provenance": {
+    "legacyWorkbookRow": null,
     "workbookInstitutions": "首尔大学"
   }
 }

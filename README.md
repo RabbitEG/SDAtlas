@@ -33,7 +33,7 @@ python3 -m http.server 8000 --directory SDAtlas
 
 详情页使用参数化模板，因此新增论文或调整论文所属子问题时，不需要复制 HTML。
 
-## Schema v4 数据结构
+## Schema v5 数据结构
 
 人工维护的数据分为两层：
 
@@ -49,13 +49,19 @@ python3 -m http.server 8000 --directory SDAtlas
 - `id` / `index`：稳定主键与连续展示顺序；文件名必须与 `id` 一致；
 - `title` / `shortName` / `venue` / `date` / `url`：书目信息；
 - `authors[]`：完整作者列表；
-- `methodOverview`：一至三句话的学术但直观的方法概述，供论文总览和详情页使用；
-- `notes[]`：经过核实、需要额外告知读者的备注，可为空；
+- `methodOverview` / `problemStatement` / `methodComponents[]`：方法概述、问题定义和组件级机制；
+- `characteristics`：可比较的 Drafter、Draft、候选结构和 Verify 特征；未知项统一写 `null`；
 - `institutionDetails[]` / `institutionSource`：单位顺位、解释和来源；
 - `subproblemContributions`：论文涉及的 A–E 子问题及对应贡献；
+- `training` / `evaluation` / `mainResults[]`：Training、实验覆盖范围与代表性结果；
+- `limitations[]` / `relations`：带来源性质的限制，以及与引用关系分离的方法谱系；
 - `citations[]`：当前图谱范围内由该论文指向被引用论文的有向边；
+- `reproducibility` / `evidence[]`：复现状态与重要断言的回查位置；
+- `notes[]` / `provenance`：个人研究笔记与不面向读者的迁移来源；
 - `explanationPage`：可选的站内论文解读 HTML，相对于 `SDAtlas/`；未提供或设为 `null` 时不显示入口；
-- `localPdf`：相对于 `SDAtlas/` 的本地 PDF 路径。没有正确本地文件时改用 `localPdfNote` 说明原因。
+- `localPdf`：相对于 `SDAtlas/` 的本地 PDF 路径；没有正确本地文件时写 `null`。
+
+未知文本、布尔和枚举值使用 `null`；确认不存在的布尔值使用 `false`，集合使用空数组。`citations` 不能自动复制到 `relations`，未核实的实验、特征和方法关系也不能根据相似论文猜测。
 
 每条 `subproblemContributions.<code>` 都包含两种粒度：
 
@@ -85,7 +91,7 @@ python3 scripts/check_terminology.py
 三个脚本只依赖 Python 标准库：
 
 - `sync_catalog.py` 读取拆分源文件，派生反向引用、单位摘要和子问题代码，并更新两份生成物；
-- `validate_catalog.py` 检查 schema v4、A–E 定义、主键与索引、`summary/detail`、作者、备注、引用、单位、本地 PDF、可选解读页以及生成物同步状态；
+- `validate_catalog.py` 检查 schema v5、A–E 定义、结构化方法与实验字段、枚举和空值、引用与方法关系、单位、本地 PDF、可选解读页以及生成物同步状态；
 - `check_terminology.py` 检查元数据、每篇论文的自有文案和界面文案是否遵循统一术语。
 
 提交前可以额外运行：

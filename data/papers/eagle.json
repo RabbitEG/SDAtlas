@@ -9,8 +9,11 @@
     "Chao Zhang",
     "Hongyang Zhang"
   ],
-  "methodOverview": "不直接在离散 Token 空间 Draft，而是在 Target 倒数第二层的 Feature 空间自回归预测；同时引入错位一个位置的 Token 序列来消除 Feature 不确定性，最后再把 Feature 映射回 Token。",
-  "notes": [],
+  "venue": "ICML 2024",
+  "date": "2024-01",
+  "url": "https://proceedings.mlr.press/v235/li24bt.html",
+  "localPdf": null,
+  "explanationPage": null,
   "institutionDetails": [
     {
       "name": "北京大学",
@@ -34,6 +37,24 @@
     }
   ],
   "institutionSource": "https://arxiv.org/pdf/2401.15077",
+  "methodOverview": "不直接在离散 Token 空间 Draft，而是在 Target 倒数第二层的 Feature 空间自回归预测；同时引入错位一个位置的 Token 序列来消除 Feature 不确定性，最后再把 Feature 映射回 Token。",
+  "problemStatement": {
+    "background": null,
+    "priorLimitation": null,
+    "goal": null
+  },
+  "methodComponents": [],
+  "characteristics": {
+    "requiresTraining": null,
+    "drafterType": null,
+    "draftGeneration": null,
+    "candidateStructure": null,
+    "verificationStrategy": null,
+    "usesTargetFeatures": null,
+    "dynamicDraftLength": null,
+    "dynamicVerifyLength": null,
+    "lossless": null
+  },
   "subproblemContributions": {
     "A": {
       "summary": "冻结整个 Target，复用其 Embedding 与 LM Head；将 LM Head 前的 Feature 和向前错一位的已采样 Token embedding 拼接，经 FC 降维与单个 Transformer decoder layer 自回归预测下一 Feature，再由 Target LM Head 采样 Draft Token。",
@@ -44,16 +65,43 @@
       "detail": "只训练轻量 Autoregression Head：以 Smooth L1 回归 Target 的下一 Feature，并用 0.1 权重的交叉熵对齐真实与预测 Feature 经 Target LM Head 得到的 Token 分布。训练时向 Target Feature 注入 U(-0.1, 0.1) 均匀噪声以模拟多步 Draft 的误差累积；使用固定 ShareGPT 数据即可训练，无需为每个 Target 另行生成蒸馏答案。"
     }
   },
+  "training": {
+    "summary": "只训练轻量 Autoregression Head：以 Smooth L1 回归 Target 的下一 Feature，并用 0.1 权重的交叉熵对齐真实与预测 Feature 经 Target LM Head 得到的 Token 分布。",
+    "data": null,
+    "objective": null
+  },
+  "evaluation": {
+    "targetModels": [],
+    "benchmarks": [],
+    "baselines": [],
+    "metrics": [],
+    "hardware": [],
+    "frameworks": []
+  },
+  "mainResults": [],
+  "limitations": [],
+  "relations": {
+    "extends": [],
+    "comparesAgainst": [],
+    "related": [],
+    "compatibleWith": []
+  },
   "citations": [
     "medusa",
     "specinfer"
   ],
-  "venue": "ICML 2024",
-  "date": "2024-01",
-  "url": "https://proceedings.mlr.press/v235/li24bt.html",
+  "reproducibility": {
+    "codeUrl": null,
+    "modelUrl": null,
+    "projectPage": null,
+    "officialImplementation": null,
+    "status": "not-checked",
+    "notes": []
+  },
+  "evidence": [],
+  "notes": [],
   "provenance": {
     "legacyWorkbookRow": 3,
     "workbookInstitutions": "清华大学、美国加州大学圣塔芭芭拉分校（UCSB）"
-  },
-  "localPdfNote": "Reference/EAGLE.pdf 实际是 Fused3S 论文，与本条标题不一致，因此不提供错误的本地链接。"
+  }
 }

@@ -12,8 +12,11 @@
     "Deming Chen",
     "Tri Dao"
   ],
-  "methodOverview": "在冻结的 Target 上增加多个并行预测未来 Token 的 Head，将各 Head 的候选组合成 Token Tree，再用一次 Tree Attention 完成 Verify。它省去了独立 Drafter，可直观理解为让同一个模型一次提出多条短续写，再统一验收。",
-  "notes": [],
+  "venue": "ICML 2024",
+  "date": "2024-01",
+  "url": "https://proceedings.mlr.press/v235/cai24b.html",
+  "localPdf": "../Reference/Medusa.pdf",
+  "explanationPage": null,
   "institutionDetails": [
     {
       "name": "普林斯顿大学",
@@ -42,6 +45,24 @@
     }
   ],
   "institutionSource": "https://arxiv.org/pdf/2401.10774",
+  "methodOverview": "在冻结的 Target 上增加多个并行预测未来 Token 的 Head，将各 Head 的候选组合成 Token Tree，再用一次 Tree Attention 完成 Verify。它省去了独立 Drafter，可直观理解为让同一个模型一次提出多条短续写，再统一验收。",
+  "problemStatement": {
+    "background": null,
+    "priorLimitation": null,
+    "goal": null
+  },
+  "methodComponents": [],
+  "characteristics": {
+    "requiresTraining": null,
+    "drafterType": null,
+    "draftGeneration": null,
+    "candidateStructure": null,
+    "verificationStrategy": null,
+    "usesTargetFeatures": null,
+    "dynamicDraftLength": null,
+    "dynamicVerifyLength": null,
+    "lossless": null
+  },
   "subproblemContributions": {
     "A": {
       "summary": "在 Target 最后一层隐藏状态上挂接 K 个带 SiLU 与残差连接的单层 Head，第 k 个 Head 直接预测第 t+k+1 个 Token；它们复用同一份 Target 表征，与原 LM Head 一起并行提出 K+1 个位置，无需维护独立 Drafter。",
@@ -60,15 +81,42 @@
       "detail": "Medusa-1 冻结 Target，对各未来偏移的交叉熵按 λ_k（实践中取 0.8^k）加权；Medusa-2 再加入原始 next-token 损失，并以差分学习率和先 Heads、后联合的 warmup 防止破坏 Target 能力。缺少原训练数据时，可让 Target 自生成响应训练 Heads，并用原模型分布到当前主干分布的 KL 项进行自蒸馏。"
     }
   },
+  "training": {
+    "summary": "Medusa-1 冻结 Target，对各未来偏移的交叉熵按 λ_k（实践中取 0.8^k）加权；Medusa-2 再加入原始 next-token 损失，并以差分学习率和先 Heads、后联合的 warmup 防止破坏 Target 能力。",
+    "data": null,
+    "objective": null
+  },
+  "evaluation": {
+    "targetModels": [],
+    "benchmarks": [],
+    "baselines": [],
+    "metrics": [],
+    "hardware": [],
+    "frameworks": []
+  },
+  "mainResults": [],
+  "limitations": [],
+  "relations": {
+    "extends": [],
+    "comparesAgainst": [],
+    "related": [],
+    "compatibleWith": []
+  },
   "citations": [
     "specinfer"
   ],
-  "venue": "ICML 2024",
-  "date": "2024-01",
-  "url": "https://proceedings.mlr.press/v235/cai24b.html",
+  "reproducibility": {
+    "codeUrl": null,
+    "modelUrl": null,
+    "projectPage": null,
+    "officialImplementation": null,
+    "status": "not-checked",
+    "notes": []
+  },
+  "evidence": [],
+  "notes": [],
   "provenance": {
     "legacyWorkbookRow": 1,
     "workbookInstitutions": "美国卡内基梅隆大学（CMU）、Meta"
-  },
-  "localPdf": "../Reference/Medusa.pdf"
+  }
 }

@@ -15,8 +15,11 @@
     "Sheng Zhong",
     "Chen Tian"
   ],
-  "methodOverview": "从 Target Hidden State 出发，通过一个轻量模块同时预测多个被 Mask 的未来位置，再利用 N-gram 语义约束把独立候选剪枝成连贯的 Token Tree。",
-  "notes": [],
+  "venue": "arXiv",
+  "date": "2026-01",
+  "url": "https://arxiv.org/abs/2601.19278",
+  "localPdf": "../Reference/DART.pdf",
+  "explanationPage": null,
   "institutionDetails": [
     {
       "name": "南京大学新型软件技术全国重点实验室",
@@ -30,6 +33,24 @@
     }
   ],
   "institutionSource": "https://arxiv.org/pdf/2601.19278",
+  "methodOverview": "从 Target Hidden State 出发，通过一个轻量模块同时预测多个被 Mask 的未来位置，再利用 N-gram 语义约束把独立候选剪枝成连贯的 Token Tree。",
+  "problemStatement": {
+    "background": null,
+    "priorLimitation": null,
+    "goal": null
+  },
+  "methodComponents": [],
+  "characteristics": {
+    "requiresTraining": null,
+    "drafterType": null,
+    "draftGeneration": null,
+    "candidateStructure": null,
+    "verificationStrategy": null,
+    "usesTargetFeatures": null,
+    "dynamicDraftLength": null,
+    "dynamicVerifyLength": null,
+    "lossless": null
+  },
   "subproblemContributions": {
     "A": {
       "summary": "在每轮 Target Prefill/Verify 后，DART 拼接低、中、高三层 Hidden State 并投影，再与右移的 Target Token Embedding 组合为 Prefix 表征，追加 d−1 个可训练 [MASK]；单个定制 Transformer Decoder Layer 在严格 Causal Mask 下通过 Shifted Logits Prediction 一次给出 d 个未来位置分布。",
@@ -40,6 +61,27 @@
       "detail": "对每个并行位置的 Logits 先取 Top-25，再将 Draft Log-Probability 与当前部分序列的 3-gram 条件概率合成扩展分数；Logit 权重按 0.9^level 衰减、N-gram 权重为 0.5，组合结果再乘 (level+1)^−0.7，Beam 只保留 20 条活跃序列，最终从全局扩展树选 59 个最高分节点。该 Continuity-Aware Pruning 用外部 Dolma 3 Mix Trie 排除独立位置拼接出的不连贯路径，并把指数候选空间压成可一次 Tree Attention Verify 的紧凑树。\n\n第 i 层从对应位置 Logits 取 25 个候选，并把模型 Log-Probability、3-gram 条件概率与深度权重合成路径分数；每层用 Beam Width 20 截断活跃部分序列，最后从所有已扩节点保留全局 Top-59。这样树宽由联合分数而非各位置笛卡尔积决定，既保留多个高概率 Prefix，又把 Target 的 Tree Attention Verify 规模固定在 59 个节点内。"
     }
   },
+  "training": {
+    "summary": null,
+    "data": null,
+    "objective": null
+  },
+  "evaluation": {
+    "targetModels": [],
+    "benchmarks": [],
+    "baselines": [],
+    "metrics": [],
+    "hardware": [],
+    "frameworks": []
+  },
+  "mainResults": [],
+  "limitations": [],
+  "relations": {
+    "extends": [],
+    "comparesAgainst": [],
+    "related": [],
+    "compatibleWith": []
+  },
   "citations": [
     "medusa",
     "eagle",
@@ -48,12 +90,18 @@
     "diffuspec",
     "specdiff-2"
   ],
-  "venue": "arXiv",
-  "date": "2026-01",
-  "url": "https://arxiv.org/abs/2601.19278",
+  "reproducibility": {
+    "codeUrl": null,
+    "modelUrl": null,
+    "projectPage": null,
+    "officialImplementation": null,
+    "status": "not-checked",
+    "notes": []
+  },
+  "evidence": [],
+  "notes": [],
   "provenance": {
     "legacyWorkbookRow": 16,
     "workbookInstitutions": "未知（arXiv作者团队）"
-  },
-  "localPdf": "../Reference/DART.pdf"
+  }
 }

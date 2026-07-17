@@ -10,8 +10,11 @@
     "Dong Li",
     "Emad Barsoum"
   ],
-  "methodOverview": "把已有小型自回归模型低成本改造成一次预测多个位置的并行 Drafter，使同一个 Drafter 可以服务一族 Target。Conditional Drop-token 在 Training 时跳过部分不必要 Token，同时维持 KV Prefix 的完整性。",
-  "notes": [],
+  "venue": "ICLR 2026",
+  "date": "2025-04",
+  "url": "https://openreview.net/forum?id=XbOyv7iVGL",
+  "localPdf": "../Reference/PARD.pdf",
+  "explanationPage": null,
   "institutionDetails": [
     {
       "name": "AMD",
@@ -25,6 +28,24 @@
     }
   ],
   "institutionSource": "https://arxiv.org/pdf/2504.18583",
+  "methodOverview": "把已有小型自回归模型低成本改造成一次预测多个位置的并行 Drafter，使同一个 Drafter 可以服务一族 Target。Conditional Drop-token 在 Training 时跳过部分不必要 Token，同时维持 KV Prefix 的完整性。",
+  "problemStatement": {
+    "background": null,
+    "priorLimitation": null,
+    "goal": null
+  },
+  "methodComponents": [],
+  "characteristics": {
+    "requiresTraining": null,
+    "drafterType": null,
+    "draftGeneration": null,
+    "candidateStructure": null,
+    "verificationStrategy": null,
+    "usesTargetFeatures": null,
+    "dynamicDraftLength": null,
+    "dynamicVerifyLength": null,
+    "lossless": null
+  },
   "subproblemContributions": {
     "A": {
       "summary": "PARD 从同系列中能力较强的小型自回归模型出发，用 Mask Token 代替块内的未来依赖，使各位置只条件于已知前缀和占位符，从而在一次 Drafter 前向中并行提出多个未来 Token。",
@@ -35,6 +56,27 @@
       "detail": "Mask 训练原本要把长度 N 的样本展开为 K 个预测子任务；COD 对第 i 个子任务按 max(r^(i−1), r_min) 保留位置，且只保留拥有完整前缀 Key/Value 的 Token，将训练量压到小于 N/(1−r)。论文采用 K=8、r=0.7、r_min=0.2，在不降低最终推理速度的前提下较完整 Mask 训练提速约 3 倍，并省去为每个 Target 分别训练 Drafter 的成本。"
     }
   },
+  "training": {
+    "summary": "Mask 训练原本要把长度 N 的样本展开为 K 个预测子任务；COD 对第 i 个子任务按 max(r^(i−1), r_min) 保留位置，且只保留拥有完整前缀 Key/Value 的 Token，将训练量压到小于 N/(1−r)。",
+    "data": null,
+    "objective": null
+  },
+  "evaluation": {
+    "targetModels": [],
+    "benchmarks": [],
+    "baselines": [],
+    "metrics": [],
+    "hardware": [],
+    "frameworks": []
+  },
+  "mainResults": [],
+  "limitations": [],
+  "relations": {
+    "extends": [],
+    "comparesAgainst": [],
+    "related": [],
+    "compatibleWith": []
+  },
   "citations": [
     "medusa",
     "mtp",
@@ -43,12 +85,18 @@
     "eagle-3",
     "specinfer"
   ],
-  "venue": "ICLR 2026",
-  "date": "2025-04",
-  "url": "https://openreview.net/forum?id=XbOyv7iVGL",
+  "reproducibility": {
+    "codeUrl": null,
+    "modelUrl": null,
+    "projectPage": null,
+    "officialImplementation": null,
+    "status": "not-checked",
+    "notes": []
+  },
+  "evidence": [],
+  "notes": [],
   "provenance": {
     "legacyWorkbookRow": 7,
     "workbookInstitutions": "香港中文大学（深圳）、其他合作单位"
-  },
-  "localPdf": "../Reference/PARD.pdf"
+  }
 }

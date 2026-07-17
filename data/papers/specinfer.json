@@ -20,8 +20,11 @@
     "Reyna Abhyankar",
     "Zhihao Jia"
   ],
-  "methodOverview": "把一个或多个小型投机模型产生的候选合并为共享 Prefix 的 Token Tree，再由 Target 通过 Tree Attention 一次 Verify 整棵树；同时覆盖服务调度、分布式执行和模型卸载。",
-  "notes": [],
+  "venue": "ASPLOS 2024",
+  "date": "2023-05",
+  "url": "https://dl.acm.org/doi/10.1145/3620666.3651335",
+  "localPdf": null,
+  "explanationPage": null,
   "institutionDetails": [
     {
       "name": "卡内基梅隆大学",
@@ -55,6 +58,24 @@
     }
   ],
   "institutionSource": "https://arxiv.org/pdf/2305.09781",
+  "methodOverview": "把一个或多个小型投机模型产生的候选合并为共享 Prefix 的 Token Tree，再由 Target 通过 Tree Attention 一次 Verify 整棵树；同时覆盖服务调度、分布式执行和模型卸载。",
+  "problemStatement": {
+    "background": null,
+    "priorLimitation": null,
+    "goal": null
+  },
+  "methodComponents": [],
+  "characteristics": {
+    "requiresTraining": null,
+    "drafterType": null,
+    "draftGeneration": null,
+    "candidateStructure": null,
+    "verificationStrategy": null,
+    "usesTargetFeatures": null,
+    "dynamicDraftLength": null,
+    "dynamicVerifyLength": null,
+    "lossless": null
+  },
   "subproblemContributions": {
     "B": {
       "summary": "单个 SSM 按预设扩展向量 ⟨k₁,…,k_m⟩ 逐层取 Top-k，在模型内部扩大候选分支；也可让多个经残差样本 Boost-Tuning 的 SSM 并行提出树，再按完整 Root-to-node Token Sequence 合并相同 Prefix。",
@@ -69,13 +90,40 @@
       "detail": "Request Manager 按 Iteration 而非整请求调度并执行 Continuous Batching；小 SSM 以 Data Parallel 分布到 GPU，多个 SSM 可同时运行，大模型则结合节点内 Tensor Parallel 与节点间 Pipeline Parallel，管理器只交换 Token 并完成树合并与接受判定。整树一次推进多枚 Token，因而在分布式场景减少跨 GPU 解码轮次，在 Offloading 场景减少 CPU DRAM↔GPU HBM 权重搬运轮次；其收益主要来自低并发下可用于树 Verify 的闲置 GPU 算力。"
     }
   },
+  "training": {
+    "summary": null,
+    "data": null,
+    "objective": null
+  },
+  "evaluation": {
+    "targetModels": [],
+    "benchmarks": [],
+    "baselines": [],
+    "metrics": [],
+    "hardware": [],
+    "frameworks": []
+  },
+  "mainResults": [],
+  "limitations": [],
+  "relations": {
+    "extends": [],
+    "comparesAgainst": [],
+    "related": [],
+    "compatibleWith": []
+  },
   "citations": [],
-  "venue": "ASPLOS 2024",
-  "date": "2023-05",
-  "url": "https://dl.acm.org/doi/10.1145/3620666.3651335",
+  "reproducibility": {
+    "codeUrl": null,
+    "modelUrl": null,
+    "projectPage": null,
+    "officialImplementation": null,
+    "status": "not-checked",
+    "notes": []
+  },
+  "evidence": [],
+  "notes": [],
   "provenance": {
     "legacyWorkbookRow": 14,
     "workbookInstitutions": "美国加州大学圣迭戈分校（UCSD）、其他合作单位"
-  },
-  "localPdfNote": "Reference 目录中没有与 SpecInfer 对应的本地 PDF。"
+  }
 }

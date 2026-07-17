@@ -10,8 +10,11 @@
     "David Lopez-Paz",
     "Gabriel Synnaeve"
   ],
-  "methodOverview": "在共享主干上设置多个相互独立的预测 Head，同时预测接下来的若干 Token。多 Token Training 目标既能强化中间表示，也让模型具备用于自投机解码的并行未来预测能力。",
-  "notes": [],
+  "venue": "ICML 2024",
+  "date": "2024-04",
+  "url": "https://proceedings.mlr.press/v235/gloeckle24a.html",
+  "localPdf": "../Reference/MTP.pdf",
+  "explanationPage": null,
   "institutionDetails": [
     {
       "name": "Meta FAIR",
@@ -30,6 +33,24 @@
     }
   ],
   "institutionSource": "https://arxiv.org/pdf/2404.19737",
+  "methodOverview": "在共享主干上设置多个相互独立的预测 Head，同时预测接下来的若干 Token。多 Token Training 目标既能强化中间表示，也让模型具备用于自投机解码的并行未来预测能力。",
+  "problemStatement": {
+    "background": null,
+    "priorLimitation": null,
+    "goal": null
+  },
+  "methodComponents": [],
+  "characteristics": {
+    "requiresTraining": null,
+    "drafterType": null,
+    "draftGeneration": null,
+    "candidateStructure": null,
+    "verificationStrategy": null,
+    "usesTargetFeatures": null,
+    "dynamicDraftLength": null,
+    "dynamicVerifyLength": null,
+    "lossless": null
+  },
   "subproblemContributions": {
     "A": {
       "summary": "以共享 Transformer 主干、n 个独立 Transformer 层预测 Head 和共享 unembedding 矩阵组成多 Token 预测器，每个 Head 从同一上下文表征预测第 i 个未来 Token。",
@@ -44,15 +65,42 @@
       "detail": "在每个语料位置，对 n 个未来 Token 的独立条件分布求交叉熵之和，并让所有目标共同反向更新共享主干，使训练信号不再只偏向局部 next-token 模式。训练实现依次执行各 Head 的前向与反向、累计主干梯度并及时释放词表 logits，把峰值显存从 O(nV+d) 降至 O(V+d)，且不增加训练时长。"
     }
   },
+  "training": {
+    "summary": "在每个语料位置，对 n 个未来 Token 的独立条件分布求交叉熵之和，并让所有目标共同反向更新共享主干，使训练信号不再只偏向局部 next-token 模式。",
+    "data": null,
+    "objective": null
+  },
+  "evaluation": {
+    "targetModels": [],
+    "benchmarks": [],
+    "baselines": [],
+    "metrics": [],
+    "hardware": [],
+    "frameworks": []
+  },
+  "mainResults": [],
+  "limitations": [],
+  "relations": {
+    "extends": [],
+    "comparesAgainst": [],
+    "related": [],
+    "compatibleWith": []
+  },
   "citations": [
     "medusa"
   ],
-  "venue": "ICML 2024",
-  "date": "2024-04",
-  "url": "https://proceedings.mlr.press/v235/gloeckle24a.html",
+  "reproducibility": {
+    "codeUrl": null,
+    "modelUrl": null,
+    "projectPage": null,
+    "officialImplementation": null,
+    "status": "not-checked",
+    "notes": []
+  },
+  "evidence": [],
+  "notes": [],
   "provenance": {
     "legacyWorkbookRow": 2,
     "workbookInstitutions": "Meta FAIR"
-  },
-  "localPdf": "../Reference/MTP.pdf"
+  }
 }

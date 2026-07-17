@@ -8,8 +8,11 @@
     "Yesheng Liang",
     "Zhijian Liu"
   ],
-  "methodOverview": "轻量级 Block-Diffusion Drafter 用一次前向同时预测一个 Token Block，并注入由 Target 多层 KV 融合得到的上下文。位置加权 Training 重点保护靠前 Token。",
-  "notes": [],
+  "venue": "ICML 2026",
+  "date": "2026-02",
+  "url": "https://arxiv.org/abs/2602.06036",
+  "localPdf": "../Reference/DFlash.pdf",
+  "explanationPage": "explanations/DFlash.html",
   "institutionDetails": [
     {
       "name": "美国加州大学圣迭戈分校（UC San Diego）",
@@ -18,6 +21,24 @@
     }
   ],
   "institutionSource": "https://arxiv.org/pdf/2602.06036",
+  "methodOverview": "轻量级 Block-Diffusion Drafter 用一次前向同时预测一个 Token Block，并注入由 Target 多层 KV 融合得到的上下文。位置加权 Training 重点保护靠前 Token。",
+  "problemStatement": {
+    "background": null,
+    "priorLimitation": null,
+    "goal": null
+  },
+  "methodComponents": [],
+  "characteristics": {
+    "requiresTraining": null,
+    "drafterType": null,
+    "draftGeneration": null,
+    "candidateStructure": null,
+    "verificationStrategy": null,
+    "usesTargetFeatures": null,
+    "dynamicDraftLength": null,
+    "dynamicVerifyLength": null,
+    "lossless": null
+  },
   "subproblemContributions": {
     "A": {
       "summary": "以 Target 每轮产生的 Decode Token 为干净锚点，轻量 Block-Diffusion Drafter 在一次双向块注意力前向中并行补全其后的 B−1 个 Mask Token；论文主要配置为 5 层、块长 16。",
@@ -28,6 +49,27 @@
       "detail": "用 Nemotron Post-Training Dataset V2 与 CodeAlpaca 的约 80 万条提示，由各 Target 重新生成训练响应；每个序列随机采样锚点并遮蔽后续 B−1 个位置，以块间隔离、块内双向的 Sparse Attention 一次训练多个块。冻结共享的 Target Embedding 与 LM Head，仅更新 Drafter Transformer，并用随位置指数衰减的交叉熵强调会门控整段接受 Prefix 的前部 Token。"
     }
   },
+  "training": {
+    "summary": "用 Nemotron Post-Training Dataset V2 与 CodeAlpaca 的约 80 万条提示，由各 Target 重新生成训练响应；每个序列随机采样锚点并遮蔽后续 B−1 个位置，以块间隔离、块内双向的 Sparse Attention 一次训练多个块。",
+    "data": null,
+    "objective": null
+  },
+  "evaluation": {
+    "targetModels": [],
+    "benchmarks": [],
+    "baselines": [],
+    "metrics": [],
+    "hardware": [],
+    "frameworks": []
+  },
+  "mainResults": [],
+  "limitations": [],
+  "relations": {
+    "extends": [],
+    "comparesAgainst": [],
+    "related": [],
+    "compatibleWith": []
+  },
   "citations": [
     "medusa",
     "eagle",
@@ -37,13 +79,18 @@
     "diffuspec",
     "specdiff-2"
   ],
-  "venue": "ICML 2026",
-  "date": "2026-02",
-  "url": "https://arxiv.org/abs/2602.06036",
-  "explanationPage": "explanations/DFlash.html",
+  "reproducibility": {
+    "codeUrl": null,
+    "modelUrl": null,
+    "projectPage": null,
+    "officialImplementation": null,
+    "status": "not-checked",
+    "notes": []
+  },
+  "evidence": [],
+  "notes": [],
   "provenance": {
     "legacyWorkbookRow": 10,
     "workbookInstitutions": "中国科学院计算技术研究所、其他合作单位"
-  },
-  "localPdf": "../Reference/DFlash.pdf"
+  }
 }

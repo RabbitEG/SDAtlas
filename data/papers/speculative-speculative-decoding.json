@@ -8,8 +8,11 @@
     "Tri Dao",
     "Avner May"
   ],
-  "methodOverview": "在 Target 执行 Verify 的同时，Drafter 预判 Verify 可能出现的若干结果，并提前为这些结果继续计算后续 Draft；实际结果若命中预判集合，就能立即复用预计算结果。Saguaro 是针对这一重叠执行模式优化的实现。",
-  "notes": [],
+  "venue": "ICLR 2026 Poster",
+  "date": "2026-03",
+  "url": "https://openreview.net/forum?id=aL1Wnml9Ef",
+  "localPdf": "../Reference/Speculative_Speculative_Decoding.pdf",
+  "explanationPage": null,
   "institutionDetails": [
     {
       "name": "斯坦福大学",
@@ -28,6 +31,24 @@
     }
   ],
   "institutionSource": "https://arxiv.org/pdf/2603.03251",
+  "methodOverview": "在 Target 执行 Verify 的同时，Drafter 预判 Verify 可能出现的若干结果，并提前为这些结果继续计算后续 Draft；实际结果若命中预判集合，就能立即复用预计算结果。Saguaro 是针对这一重叠执行模式优化的实现。",
+  "problemStatement": {
+    "background": null,
+    "priorLimitation": null,
+    "goal": null
+  },
+  "methodComponents": [],
+  "characteristics": {
+    "requiresTraining": null,
+    "drafterType": null,
+    "draftGeneration": null,
+    "candidateStructure": null,
+    "verificationStrategy": null,
+    "usesTargetFeatures": null,
+    "dynamicDraftLength": null,
+    "dynamicVerifyLength": null,
+    "lossless": null
+  },
   "subproblemContributions": {
     "A": {
       "summary": "让 Drafter 针对多个可能的接受长度和 Bonus Token 提前生成下一轮 Draft。",
@@ -38,6 +59,27 @@
       "detail": "提出 Speculative Speculative Decoding：在 Target Verify 当前轮时，由独立硬件上的 Drafter 预测可能的 Verify 结果，并提前生成对应的下一轮 Draft。系统设计异步 Draft–Verify 流水线、Saguaro Cache 和随 Batch Size 变化的 Cache Miss 回退策略，消除两阶段之间的同步等待。"
     }
   },
+  "training": {
+    "summary": null,
+    "data": null,
+    "objective": null
+  },
+  "evaluation": {
+    "targetModels": [],
+    "benchmarks": [],
+    "baselines": [],
+    "metrics": [],
+    "hardware": [],
+    "frameworks": []
+  },
+  "mainResults": [],
+  "limitations": [],
+  "relations": {
+    "extends": [],
+    "comparesAgainst": [],
+    "related": [],
+    "compatibleWith": []
+  },
   "citations": [
     "medusa",
     "eagle",
@@ -47,11 +89,18 @@
     "dflash",
     "specinfer"
   ],
-  "venue": "ICLR 2026 Poster",
-  "date": "2026-03",
-  "url": "https://openreview.net/forum?id=aL1Wnml9Ef",
-  "localPdf": "../Reference/Speculative_Speculative_Decoding.pdf",
+  "reproducibility": {
+    "codeUrl": null,
+    "modelUrl": null,
+    "projectPage": null,
+    "officialImplementation": null,
+    "status": "not-checked",
+    "notes": []
+  },
+  "evidence": [],
+  "notes": [],
   "provenance": {
+    "legacyWorkbookRow": null,
     "workbookInstitutions": "斯坦福大学 → Together AI → 普林斯顿大学"
   }
 }

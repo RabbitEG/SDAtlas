@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "meta": {
     "title": "Speculative Decoding Atlas",
     "shortTitle": "SDAtlas",
@@ -77,8 +77,11 @@
         "Deming Chen",
         "Tri Dao"
       ],
-      "methodOverview": "在冻结的 Target 上增加多个并行预测未来 Token 的 Head，将各 Head 的候选组合成 Token Tree，再用一次 Tree Attention 完成 Verify。它省去了独立 Drafter，可直观理解为让同一个模型一次提出多条短续写，再统一验收。",
-      "notes": [],
+      "venue": "ICML 2024",
+      "date": "2024-01",
+      "url": "https://proceedings.mlr.press/v235/cai24b.html",
+      "localPdf": "../Reference/Medusa.pdf",
+      "explanationPage": null,
       "institutionDetails": [
         {
           "name": "普林斯顿大学",
@@ -107,6 +110,24 @@
         }
       ],
       "institutionSource": "https://arxiv.org/pdf/2401.10774",
+      "methodOverview": "在冻结的 Target 上增加多个并行预测未来 Token 的 Head，将各 Head 的候选组合成 Token Tree，再用一次 Tree Attention 完成 Verify。它省去了独立 Drafter，可直观理解为让同一个模型一次提出多条短续写，再统一验收。",
+      "problemStatement": {
+        "background": null,
+        "priorLimitation": null,
+        "goal": null
+      },
+      "methodComponents": [],
+      "characteristics": {
+        "requiresTraining": null,
+        "drafterType": null,
+        "draftGeneration": null,
+        "candidateStructure": null,
+        "verificationStrategy": null,
+        "usesTargetFeatures": null,
+        "dynamicDraftLength": null,
+        "dynamicVerifyLength": null,
+        "lossless": null
+      },
       "subproblemContributions": {
         "A": {
           "summary": "在 Target 最后一层隐藏状态上挂接 K 个带 SiLU 与残差连接的单层 Head，第 k 个 Head 直接预测第 t+k+1 个 Token；它们复用同一份 Target 表征，与原 LM Head 一起并行提出 K+1 个位置，无需维护独立 Drafter。",
@@ -125,17 +146,44 @@
           "detail": "Medusa-1 冻结 Target，对各未来偏移的交叉熵按 λ_k（实践中取 0.8^k）加权；Medusa-2 再加入原始 next-token 损失，并以差分学习率和先 Heads、后联合的 warmup 防止破坏 Target 能力。缺少原训练数据时，可让 Target 自生成响应训练 Heads，并用原模型分布到当前主干分布的 KL 项进行自蒸馏。"
         }
       },
+      "training": {
+        "summary": "Medusa-1 冻结 Target，对各未来偏移的交叉熵按 λ_k（实践中取 0.8^k）加权；Medusa-2 再加入原始 next-token 损失，并以差分学习率和先 Heads、后联合的 warmup 防止破坏 Target 能力。",
+        "data": null,
+        "objective": null
+      },
+      "evaluation": {
+        "targetModels": [],
+        "benchmarks": [],
+        "baselines": [],
+        "metrics": [],
+        "hardware": [],
+        "frameworks": []
+      },
+      "mainResults": [],
+      "limitations": [],
+      "relations": {
+        "extends": [],
+        "comparesAgainst": [],
+        "related": [],
+        "compatibleWith": []
+      },
       "citations": [
         "specinfer"
       ],
-      "venue": "ICML 2024",
-      "date": "2024-01",
-      "url": "https://proceedings.mlr.press/v235/cai24b.html",
+      "reproducibility": {
+        "codeUrl": null,
+        "modelUrl": null,
+        "projectPage": null,
+        "officialImplementation": null,
+        "status": "not-checked",
+        "notes": []
+      },
+      "evidence": [],
+      "notes": [],
       "provenance": {
         "legacyWorkbookRow": 1,
         "workbookInstitutions": "美国卡内基梅隆大学（CMU）、Meta"
       },
-      "localPdf": "../Reference/Medusa.pdf",
       "subproblemCodes": [
         "A",
         "B",
@@ -180,8 +228,11 @@
         "David Lopez-Paz",
         "Gabriel Synnaeve"
       ],
-      "methodOverview": "在共享主干上设置多个相互独立的预测 Head，同时预测接下来的若干 Token。多 Token Training 目标既能强化中间表示，也让模型具备用于自投机解码的并行未来预测能力。",
-      "notes": [],
+      "venue": "ICML 2024",
+      "date": "2024-04",
+      "url": "https://proceedings.mlr.press/v235/gloeckle24a.html",
+      "localPdf": "../Reference/MTP.pdf",
+      "explanationPage": null,
       "institutionDetails": [
         {
           "name": "Meta FAIR",
@@ -200,6 +251,24 @@
         }
       ],
       "institutionSource": "https://arxiv.org/pdf/2404.19737",
+      "methodOverview": "在共享主干上设置多个相互独立的预测 Head，同时预测接下来的若干 Token。多 Token Training 目标既能强化中间表示，也让模型具备用于自投机解码的并行未来预测能力。",
+      "problemStatement": {
+        "background": null,
+        "priorLimitation": null,
+        "goal": null
+      },
+      "methodComponents": [],
+      "characteristics": {
+        "requiresTraining": null,
+        "drafterType": null,
+        "draftGeneration": null,
+        "candidateStructure": null,
+        "verificationStrategy": null,
+        "usesTargetFeatures": null,
+        "dynamicDraftLength": null,
+        "dynamicVerifyLength": null,
+        "lossless": null
+      },
       "subproblemContributions": {
         "A": {
           "summary": "以共享 Transformer 主干、n 个独立 Transformer 层预测 Head 和共享 unembedding 矩阵组成多 Token 预测器，每个 Head 从同一上下文表征预测第 i 个未来 Token。",
@@ -214,17 +283,44 @@
           "detail": "在每个语料位置，对 n 个未来 Token 的独立条件分布求交叉熵之和，并让所有目标共同反向更新共享主干，使训练信号不再只偏向局部 next-token 模式。训练实现依次执行各 Head 的前向与反向、累计主干梯度并及时释放词表 logits，把峰值显存从 O(nV+d) 降至 O(V+d)，且不增加训练时长。"
         }
       },
+      "training": {
+        "summary": "在每个语料位置，对 n 个未来 Token 的独立条件分布求交叉熵之和，并让所有目标共同反向更新共享主干，使训练信号不再只偏向局部 next-token 模式。",
+        "data": null,
+        "objective": null
+      },
+      "evaluation": {
+        "targetModels": [],
+        "benchmarks": [],
+        "baselines": [],
+        "metrics": [],
+        "hardware": [],
+        "frameworks": []
+      },
+      "mainResults": [],
+      "limitations": [],
+      "relations": {
+        "extends": [],
+        "comparesAgainst": [],
+        "related": [],
+        "compatibleWith": []
+      },
       "citations": [
         "medusa"
       ],
-      "venue": "ICML 2024",
-      "date": "2024-04",
-      "url": "https://proceedings.mlr.press/v235/gloeckle24a.html",
+      "reproducibility": {
+        "codeUrl": null,
+        "modelUrl": null,
+        "projectPage": null,
+        "officialImplementation": null,
+        "status": "not-checked",
+        "notes": []
+      },
+      "evidence": [],
+      "notes": [],
       "provenance": {
         "legacyWorkbookRow": 2,
         "workbookInstitutions": "Meta FAIR"
       },
-      "localPdf": "../Reference/MTP.pdf",
       "subproblemCodes": [
         "A",
         "B",
@@ -248,8 +344,11 @@
         "Chao Zhang",
         "Hongyang Zhang"
       ],
-      "methodOverview": "不直接在离散 Token 空间 Draft，而是在 Target 倒数第二层的 Feature 空间自回归预测；同时引入错位一个位置的 Token 序列来消除 Feature 不确定性，最后再把 Feature 映射回 Token。",
-      "notes": [],
+      "venue": "ICML 2024",
+      "date": "2024-01",
+      "url": "https://proceedings.mlr.press/v235/li24bt.html",
+      "localPdf": null,
+      "explanationPage": null,
       "institutionDetails": [
         {
           "name": "北京大学",
@@ -273,6 +372,24 @@
         }
       ],
       "institutionSource": "https://arxiv.org/pdf/2401.15077",
+      "methodOverview": "不直接在离散 Token 空间 Draft，而是在 Target 倒数第二层的 Feature 空间自回归预测；同时引入错位一个位置的 Token 序列来消除 Feature 不确定性，最后再把 Feature 映射回 Token。",
+      "problemStatement": {
+        "background": null,
+        "priorLimitation": null,
+        "goal": null
+      },
+      "methodComponents": [],
+      "characteristics": {
+        "requiresTraining": null,
+        "drafterType": null,
+        "draftGeneration": null,
+        "candidateStructure": null,
+        "verificationStrategy": null,
+        "usesTargetFeatures": null,
+        "dynamicDraftLength": null,
+        "dynamicVerifyLength": null,
+        "lossless": null
+      },
       "subproblemContributions": {
         "A": {
           "summary": "冻结整个 Target，复用其 Embedding 与 LM Head；将 LM Head 前的 Feature 和向前错一位的已采样 Token embedding 拼接，经 FC 降维与单个 Transformer decoder layer 自回归预测下一 Feature，再由 Target LM Head 采样 Draft Token。",
@@ -283,18 +400,45 @@
           "detail": "只训练轻量 Autoregression Head：以 Smooth L1 回归 Target 的下一 Feature，并用 0.1 权重的交叉熵对齐真实与预测 Feature 经 Target LM Head 得到的 Token 分布。训练时向 Target Feature 注入 U(-0.1, 0.1) 均匀噪声以模拟多步 Draft 的误差累积；使用固定 ShareGPT 数据即可训练，无需为每个 Target 另行生成蒸馏答案。"
         }
       },
+      "training": {
+        "summary": "只训练轻量 Autoregression Head：以 Smooth L1 回归 Target 的下一 Feature，并用 0.1 权重的交叉熵对齐真实与预测 Feature 经 Target LM Head 得到的 Token 分布。",
+        "data": null,
+        "objective": null
+      },
+      "evaluation": {
+        "targetModels": [],
+        "benchmarks": [],
+        "baselines": [],
+        "metrics": [],
+        "hardware": [],
+        "frameworks": []
+      },
+      "mainResults": [],
+      "limitations": [],
+      "relations": {
+        "extends": [],
+        "comparesAgainst": [],
+        "related": [],
+        "compatibleWith": []
+      },
       "citations": [
         "medusa",
         "specinfer"
       ],
-      "venue": "ICML 2024",
-      "date": "2024-01",
-      "url": "https://proceedings.mlr.press/v235/li24bt.html",
+      "reproducibility": {
+        "codeUrl": null,
+        "modelUrl": null,
+        "projectPage": null,
+        "officialImplementation": null,
+        "status": "not-checked",
+        "notes": []
+      },
+      "evidence": [],
+      "notes": [],
       "provenance": {
         "legacyWorkbookRow": 3,
         "workbookInstitutions": "清华大学、美国加州大学圣塔芭芭拉分校（UCSB）"
       },
-      "localPdfNote": "Reference/EAGLE.pdf 实际是 Fused3S 论文，与本条标题不一致，因此不提供错误的本地链接。",
       "subproblemCodes": [
         "A",
         "E"
@@ -335,8 +479,11 @@
         "Chao Zhang",
         "Hongyang Zhang"
       ],
-      "methodOverview": "根据当前上下文动态构造 Draft Tree。每条路径的价值由沿途 Token 置信度连乘得到，算法先扩展高价值节点，再从全局保留固定预算内、前缀闭合的最优树。",
-      "notes": [],
+      "venue": "EMNLP 2024",
+      "date": "2024-06",
+      "url": "https://aclanthology.org/2024.emnlp-main.422/",
+      "localPdf": "../Reference/EAGLE2.pdf",
+      "explanationPage": null,
       "institutionDetails": [
         {
           "name": "北京大学",
@@ -360,6 +507,24 @@
         }
       ],
       "institutionSource": "https://arxiv.org/pdf/2406.16858",
+      "methodOverview": "根据当前上下文动态构造 Draft Tree。每条路径的价值由沿途 Token 置信度连乘得到，算法先扩展高价值节点，再从全局保留固定预算内、前缀闭合的最优树。",
+      "problemStatement": {
+        "background": null,
+        "priorLimitation": null,
+        "goal": null
+      },
+      "methodComponents": [],
+      "characteristics": {
+        "requiresTraining": null,
+        "drafterType": null,
+        "draftGeneration": null,
+        "candidateStructure": null,
+        "verificationStrategy": null,
+        "usesTargetFeatures": null,
+        "dynamicDraftLength": null,
+        "dynamicVerifyLength": null,
+        "lossless": null
+      },
       "subproblemContributions": {
         "B": {
           "summary": "保持 EAGLE 的特征级 Drafter、训练和推理方式不变，利用其校准良好的 Token 置信度作为接受率的低成本代理。",
@@ -370,18 +535,45 @@
           "detail": "全局重排只让 path value 最高的 m 个连通节点进入 Verify，低收益分支不会占用 Target 的节点预算；展平后构造 Tree Attention 掩码，使每个 Token 仅能看到祖先并由 Target 一次并行处理。接受阶段仍沿用标准投机解码的 rejection sampling 规则且不放宽条件，因此动态选树不改变 Target 的输出分布。"
         }
       },
+      "training": {
+        "summary": null,
+        "data": null,
+        "objective": null
+      },
+      "evaluation": {
+        "targetModels": [],
+        "benchmarks": [],
+        "baselines": [],
+        "metrics": [],
+        "hardware": [],
+        "frameworks": []
+      },
+      "mainResults": [],
+      "limitations": [],
+      "relations": {
+        "extends": [],
+        "comparesAgainst": [],
+        "related": [],
+        "compatibleWith": []
+      },
       "citations": [
         "medusa",
         "eagle"
       ],
-      "venue": "EMNLP 2024",
-      "date": "2024-06",
-      "url": "https://aclanthology.org/2024.emnlp-main.422/",
+      "reproducibility": {
+        "codeUrl": null,
+        "modelUrl": null,
+        "projectPage": null,
+        "officialImplementation": null,
+        "status": "not-checked",
+        "notes": []
+      },
+      "evidence": [],
+      "notes": [],
       "provenance": {
         "legacyWorkbookRow": 4,
         "workbookInstitutions": "清华大学、美国加州大学圣塔芭芭拉分校（UCSB）"
       },
-      "localPdf": "../Reference/EAGLE2.pdf",
       "subproblemCodes": [
         "B",
         "C"
@@ -419,8 +611,11 @@
         "Chao Zhang",
         "Hongyang Zhang"
       ],
-      "methodOverview": "从 Feature 回归转为直接预测 Token，并融合 Target 的浅层、中层和深层 Feature。Training-Time Test 在 Training 时模拟多步 Rollout，使训练分布更贴近真正的投机解码过程。",
-      "notes": [],
+      "venue": "NeurIPS 2025",
+      "date": "2025-03",
+      "url": "https://proceedings.neurips.cc/paper_files/paper/2025/hash/c7b5a35ea98b62512a869c19ea7b03cb-Abstract-Conference.html",
+      "localPdf": "../Reference/EAGLE3.pdf",
+      "explanationPage": null,
       "institutionDetails": [
         {
           "name": "北京大学",
@@ -444,6 +639,24 @@
         }
       ],
       "institutionSource": "https://proceedings.neurips.cc/paper_files/paper/2025/hash/c7b5a35ea98b62512a869c19ea7b03cb-Abstract-Conference.html",
+      "methodOverview": "从 Feature 回归转为直接预测 Token，并融合 Target 的浅层、中层和深层 Feature。Training-Time Test 在 Training 时模拟多步 Rollout，使训练分布更贴近真正的投机解码过程。",
+      "problemStatement": {
+        "background": null,
+        "priorLimitation": null,
+        "goal": null
+      },
+      "methodComponents": [],
+      "characteristics": {
+        "requiresTraining": null,
+        "drafterType": null,
+        "draftGeneration": null,
+        "candidateStructure": null,
+        "verificationStrategy": null,
+        "usesTargetFeatures": null,
+        "dynamicDraftLength": null,
+        "dynamicVerifyLength": null,
+        "lossless": null
+      },
       "subproblemContributions": {
         "A": {
           "summary": "针对 EAGLE 的特征回归约束限制模型表达能力与数据扩展收益的问题，EAGLE-3 去掉特征预测损失，让单层 Transformer Drafter 直接预测 Token，并将 Target 低、中、高层隐状态拼接后经全连接层融合为输入。",
@@ -454,19 +667,46 @@
           "detail": "Training-Time Test 在训练中把每轮 Drafter 输出作为下一轮输入，并用树状依赖注意力掩码一次模拟 5 步推理，以训练数据 Token 监督各步预测。该目标移除特征回归损失后可从扩大的 ShareGPT、UltraChat 等数据持续获益，论文使用约为 EAGLE 8 倍的数据观察到此前架构没有的数据扩展规律。"
         }
       },
+      "training": {
+        "summary": "Training-Time Test 在训练中把每轮 Drafter 输出作为下一轮输入，并用树状依赖注意力掩码一次模拟 5 步推理，以训练数据 Token 监督各步预测。",
+        "data": null,
+        "objective": null
+      },
+      "evaluation": {
+        "targetModels": [],
+        "benchmarks": [],
+        "baselines": [],
+        "metrics": [],
+        "hardware": [],
+        "frameworks": []
+      },
+      "mainResults": [],
+      "limitations": [],
+      "relations": {
+        "extends": [],
+        "comparesAgainst": [],
+        "related": [],
+        "compatibleWith": []
+      },
       "citations": [
         "medusa",
         "eagle",
         "eagle-2"
       ],
-      "venue": "NeurIPS 2025",
-      "date": "2025-03",
-      "url": "https://proceedings.neurips.cc/paper_files/paper/2025/hash/c7b5a35ea98b62512a869c19ea7b03cb-Abstract-Conference.html",
+      "reproducibility": {
+        "codeUrl": null,
+        "modelUrl": null,
+        "projectPage": null,
+        "officialImplementation": null,
+        "status": "not-checked",
+        "notes": []
+      },
+      "evidence": [],
+      "notes": [],
       "provenance": {
         "legacyWorkbookRow": 5,
         "workbookInstitutions": "清华大学"
       },
-      "localPdf": "../Reference/EAGLE3.pdf",
       "subproblemCodes": [
         "A",
         "E"
@@ -503,8 +743,11 @@
         "Yipeng Ji",
         "Chul Lee"
       ],
-      "methodOverview": "让 Drafter 通过 Cross-Attention 读取固定的 Target 上下文，而不是依赖紧耦合的 Self-Attention 或逐层 Feature 融合。两阶段 Block-Attention Training 降低多步模拟的显存开销。",
-      "notes": [],
+      "venue": "arXiv",
+      "date": "2025-05",
+      "url": "https://arxiv.org/abs/2505.24544",
+      "localPdf": "../Reference/BEAGLE.pdf",
+      "explanationPage": null,
       "institutionDetails": [
         {
           "name": "LG电子多伦多人工智能实验室",
@@ -513,6 +756,24 @@
         }
       ],
       "institutionSource": "https://arxiv.org/html/2505.24544v3",
+      "methodOverview": "让 Drafter 通过 Cross-Attention 读取固定的 Target 上下文，而不是依赖紧耦合的 Self-Attention 或逐层 Feature 融合。两阶段 Block-Attention Training 降低多步模拟的显存开销。",
+      "problemStatement": {
+        "background": null,
+        "priorLimitation": null,
+        "goal": null
+      },
+      "methodComponents": [],
+      "characteristics": {
+        "requiresTraining": null,
+        "drafterType": null,
+        "draftGeneration": null,
+        "candidateStructure": null,
+        "verificationStrategy": null,
+        "usesTargetFeatures": null,
+        "dynamicDraftLength": null,
+        "dynamicVerifyLength": null,
+        "lossless": null
+      },
       "subproblemContributions": {
         "A": {
           "summary": "Beagle 用单层 Cross-Attention 加 MLP 构造 Drafter：当前 Token Embedding 形成 Query，Target 顶层隐状态或 Drafter 自回归产生的状态形成 Key/Value，并以遮蔽对角线及未来位置的因果掩码生成候选。",
@@ -523,6 +784,27 @@
           "detail": "前 10 个 Epoch 以局部未来 Key 全遮蔽的 Block-Attention 并行优化多 Token 目标，后 10 个 Epoch 原位更新自预测 Key 并按接受长度对逐步损失加权；两阶段还保留隐状态蒸馏正则以稳定收敛。Cross-Attention 模拟无需随步数展开新的 Query，因而保持近似常量训练显存，3 步模拟可在单张 24 GiB GPU 上训练 7B Target 的 Drafter。"
         }
       },
+      "training": {
+        "summary": "前 10 个 Epoch 以局部未来 Key 全遮蔽的 Block-Attention 并行优化多 Token 目标，后 10 个 Epoch 原位更新自预测 Key 并按接受长度对逐步损失加权；两阶段还保留隐状态蒸馏正则以稳定收敛。",
+        "data": null,
+        "objective": null
+      },
+      "evaluation": {
+        "targetModels": [],
+        "benchmarks": [],
+        "baselines": [],
+        "metrics": [],
+        "hardware": [],
+        "frameworks": []
+      },
+      "mainResults": [],
+      "limitations": [],
+      "relations": {
+        "extends": [],
+        "comparesAgainst": [],
+        "related": [],
+        "compatibleWith": []
+      },
       "citations": [
         "medusa",
         "eagle",
@@ -530,14 +812,20 @@
         "eagle-3",
         "specinfer"
       ],
-      "venue": "arXiv",
-      "date": "2025-05",
-      "url": "https://arxiv.org/abs/2505.24544",
+      "reproducibility": {
+        "codeUrl": null,
+        "modelUrl": null,
+        "projectPage": null,
+        "officialImplementation": null,
+        "status": "not-checked",
+        "notes": []
+      },
+      "evidence": [],
+      "notes": [],
       "provenance": {
         "legacyWorkbookRow": 6,
         "workbookInstitutions": "清华大学"
       },
-      "localPdf": "../Reference/BEAGLE.pdf",
       "subproblemCodes": [
         "A",
         "E"
@@ -557,8 +845,11 @@
         "Dong Li",
         "Emad Barsoum"
       ],
-      "methodOverview": "把已有小型自回归模型低成本改造成一次预测多个位置的并行 Drafter，使同一个 Drafter 可以服务一族 Target。Conditional Drop-token 在 Training 时跳过部分不必要 Token，同时维持 KV Prefix 的完整性。",
-      "notes": [],
+      "venue": "ICLR 2026",
+      "date": "2025-04",
+      "url": "https://openreview.net/forum?id=XbOyv7iVGL",
+      "localPdf": "../Reference/PARD.pdf",
+      "explanationPage": null,
       "institutionDetails": [
         {
           "name": "AMD",
@@ -572,6 +863,24 @@
         }
       ],
       "institutionSource": "https://arxiv.org/pdf/2504.18583",
+      "methodOverview": "把已有小型自回归模型低成本改造成一次预测多个位置的并行 Drafter，使同一个 Drafter 可以服务一族 Target。Conditional Drop-token 在 Training 时跳过部分不必要 Token，同时维持 KV Prefix 的完整性。",
+      "problemStatement": {
+        "background": null,
+        "priorLimitation": null,
+        "goal": null
+      },
+      "methodComponents": [],
+      "characteristics": {
+        "requiresTraining": null,
+        "drafterType": null,
+        "draftGeneration": null,
+        "candidateStructure": null,
+        "verificationStrategy": null,
+        "usesTargetFeatures": null,
+        "dynamicDraftLength": null,
+        "dynamicVerifyLength": null,
+        "lossless": null
+      },
       "subproblemContributions": {
         "A": {
           "summary": "PARD 从同系列中能力较强的小型自回归模型出发，用 Mask Token 代替块内的未来依赖，使各位置只条件于已知前缀和占位符，从而在一次 Drafter 前向中并行提出多个未来 Token。",
@@ -582,6 +891,27 @@
           "detail": "Mask 训练原本要把长度 N 的样本展开为 K 个预测子任务；COD 对第 i 个子任务按 max(r^(i−1), r_min) 保留位置，且只保留拥有完整前缀 Key/Value 的 Token，将训练量压到小于 N/(1−r)。论文采用 K=8、r=0.7、r_min=0.2，在不降低最终推理速度的前提下较完整 Mask 训练提速约 3 倍，并省去为每个 Target 分别训练 Drafter 的成本。"
         }
       },
+      "training": {
+        "summary": "Mask 训练原本要把长度 N 的样本展开为 K 个预测子任务；COD 对第 i 个子任务按 max(r^(i−1), r_min) 保留位置，且只保留拥有完整前缀 Key/Value 的 Token，将训练量压到小于 N/(1−r)。",
+        "data": null,
+        "objective": null
+      },
+      "evaluation": {
+        "targetModels": [],
+        "benchmarks": [],
+        "baselines": [],
+        "metrics": [],
+        "hardware": [],
+        "frameworks": []
+      },
+      "mainResults": [],
+      "limitations": [],
+      "relations": {
+        "extends": [],
+        "comparesAgainst": [],
+        "related": [],
+        "compatibleWith": []
+      },
       "citations": [
         "medusa",
         "mtp",
@@ -590,14 +920,20 @@
         "eagle-3",
         "specinfer"
       ],
-      "venue": "ICLR 2026",
-      "date": "2025-04",
-      "url": "https://openreview.net/forum?id=XbOyv7iVGL",
+      "reproducibility": {
+        "codeUrl": null,
+        "modelUrl": null,
+        "projectPage": null,
+        "officialImplementation": null,
+        "status": "not-checked",
+        "notes": []
+      },
+      "evidence": [],
+      "notes": [],
       "provenance": {
         "legacyWorkbookRow": 7,
         "workbookInstitutions": "香港中文大学（深圳）、其他合作单位"
       },
-      "localPdf": "../Reference/PARD.pdf",
       "subproblemCodes": [
         "A",
         "E"
@@ -624,8 +960,11 @@
         "Chun Yuan",
         "Jun Wang"
       ],
-      "methodOverview": "复用预训练扩散语言模型，一次产生多个位置的候选 Token 网格；Causal-consistency Path Search 从中抽取满足自回归因果关系的路径，ADL 再根据历史接受情况动态调整 Draft 长度。",
-      "notes": [],
+      "venue": "Findings of ACL 2026",
+      "date": "2025-09",
+      "url": "https://aclanthology.org/2026.findings-acl.1048/",
+      "localPdf": "../Reference/DiffuSpec.pdf",
+      "explanationPage": null,
       "institutionDetails": [
         {
           "name": "清华大学深圳国际研究生院",
@@ -644,6 +983,24 @@
         }
       ],
       "institutionSource": "https://arxiv.org/pdf/2510.02358",
+      "methodOverview": "复用预训练扩散语言模型，一次产生多个位置的候选 Token 网格；Causal-consistency Path Search 从中抽取满足自回归因果关系的路径，ADL 再根据历史接受情况动态调整 Draft 长度。",
+      "problemStatement": {
+        "background": null,
+        "priorLimitation": null,
+        "goal": null
+      },
+      "methodComponents": [],
+      "characteristics": {
+        "requiresTraining": null,
+        "drafterType": null,
+        "draftGeneration": null,
+        "candidateStructure": null,
+        "verificationStrategy": null,
+        "usesTargetFeatures": null,
+        "dynamicDraftLength": null,
+        "dynamicVerifyLength": null,
+        "lossless": null
+      },
       "subproblemContributions": {
         "A": {
           "summary": "DiffuSpec 直接复用预训练扩散语言模型作为 Drafter，在前缀后追加 k 个 Mask，并以一次默认的去噪精炼前向同时产生各位置的候选分布与 Token Lattice，避免自回归 Drafter 为每个 Token 单独前向。",
@@ -658,6 +1015,27 @@
           "detail": "ADL 分别对原始扩散候选首个 EOS 前的生成长度 L_gen 和 Verify 后的连续接受长度 L_acc 做指数滑动平均；当接受进度跟上生成进度时小幅扩长，否则按 L_gen 回缩，并把下一轮长度限制在预设上下界。这样可避开固定长 Draft 过短限制进度、过长产生漂移并增加无效 Verify 的两端浪费。"
         }
       },
+      "training": {
+        "summary": null,
+        "data": null,
+        "objective": null
+      },
+      "evaluation": {
+        "targetModels": [],
+        "benchmarks": [],
+        "baselines": [],
+        "metrics": [],
+        "hardware": [],
+        "frameworks": []
+      },
+      "mainResults": [],
+      "limitations": [],
+      "relations": {
+        "extends": [],
+        "comparesAgainst": [],
+        "related": [],
+        "compatibleWith": []
+      },
       "citations": [
         "medusa",
         "eagle",
@@ -665,14 +1043,20 @@
         "eagle-3",
         "specinfer"
       ],
-      "venue": "Findings of ACL 2026",
-      "date": "2025-09",
-      "url": "https://aclanthology.org/2026.findings-acl.1048/",
+      "reproducibility": {
+        "codeUrl": null,
+        "modelUrl": null,
+        "projectPage": null,
+        "officialImplementation": null,
+        "status": "not-checked",
+        "notes": []
+      },
+      "evidence": [],
+      "notes": [],
       "provenance": {
         "legacyWorkbookRow": 8,
         "workbookInstitutions": "香港中文大学（深圳）、其他合作单位"
       },
-      "localPdf": "../Reference/DiffuSpec.pdf",
       "subproblemCodes": [
         "A",
         "B",
@@ -699,8 +1083,11 @@
         "Thomas Hartvigsen",
         "Ferdinando Fioretto"
       ],
-      "methodOverview": "使用离散扩散模型一次生成整个候选块，并通过 Streak-Distillation 或 Self-Selection 让冻结的自回归 Verifier 帮助校准 Drafter；推理时挑选预期接受长度最高的候选。",
-      "notes": [],
+      "venue": "MLSys 2026",
+      "date": "2025-11",
+      "url": "https://arxiv.org/abs/2511.00606",
+      "localPdf": "../Reference/SpecDiff2.pdf",
+      "explanationPage": null,
       "institutionDetails": [
         {
           "name": "美国弗吉尼亚大学计算机科学系",
@@ -709,6 +1096,24 @@
         }
       ],
       "institutionSource": "https://arxiv.org/pdf/2511.00606",
+      "methodOverview": "使用离散扩散模型一次生成整个候选块，并通过 Streak-Distillation 或 Self-Selection 让冻结的自回归 Verifier 帮助校准 Drafter；推理时挑选预期接受长度最高的候选。",
+      "problemStatement": {
+        "background": null,
+        "priorLimitation": null,
+        "goal": null
+      },
+      "methodComponents": [],
+      "characteristics": {
+        "requiresTraining": null,
+        "drafterType": null,
+        "draftGeneration": null,
+        "candidateStructure": null,
+        "verificationStrategy": null,
+        "usesTargetFeatures": null,
+        "dynamicDraftLength": null,
+        "dynamicVerifyLength": null,
+        "lossless": null
+      },
       "subproblemContributions": {
         "A": {
           "summary": "以预训练掩码离散扩散模型为 Drafter，在论文配置的一次去噪前向中并行输出 γ 个位置的边缘分布，使 Draft 时延主要取决于去噪步数而非候选长度。",
@@ -723,19 +1128,46 @@
           "detail": "冻结 Verifier，仅微调预训练扩散 Drafter；Streak-Distillation 在 Verifier 生成的教师续写上最大化各 Prefix 的 Draft 概率乘积之和，使目标直接对应期望连续接受 Token 数，而非逐位置平均对齐。Qwen 对齐语料由 Verifier 在 GSM8K、Alpaca 与 LiveCodeBench 提示上采样的续写混合而成。"
         }
       },
+      "training": {
+        "summary": "冻结 Verifier，仅微调预训练扩散 Drafter；Streak-Distillation 在 Verifier 生成的教师续写上最大化各 Prefix 的 Draft 概率乘积之和，使目标直接对应期望连续接受 Token 数，而非逐位置平均对齐。",
+        "data": null,
+        "objective": null
+      },
+      "evaluation": {
+        "targetModels": [],
+        "benchmarks": [],
+        "baselines": [],
+        "metrics": [],
+        "hardware": [],
+        "frameworks": []
+      },
+      "mainResults": [],
+      "limitations": [],
+      "relations": {
+        "extends": [],
+        "comparesAgainst": [],
+        "related": [],
+        "compatibleWith": []
+      },
       "citations": [
         "eagle",
         "eagle-2",
         "eagle-3"
       ],
-      "venue": "MLSys 2026",
-      "date": "2025-11",
-      "url": "https://arxiv.org/abs/2511.00606",
+      "reproducibility": {
+        "codeUrl": null,
+        "modelUrl": null,
+        "projectPage": null,
+        "officialImplementation": null,
+        "status": "not-checked",
+        "notes": []
+      },
+      "evidence": [],
+      "notes": [],
       "provenance": {
         "legacyWorkbookRow": 9,
         "workbookInstitutions": "美国加州大学圣塔芭芭拉分校（UCSB）等"
       },
-      "localPdf": "../Reference/SpecDiff2.pdf",
       "subproblemCodes": [
         "A",
         "B",
@@ -759,8 +1191,11 @@
         "Yesheng Liang",
         "Zhijian Liu"
       ],
-      "methodOverview": "轻量级 Block-Diffusion Drafter 用一次前向同时预测一个 Token Block，并注入由 Target 多层 KV 融合得到的上下文。位置加权 Training 重点保护靠前 Token。",
-      "notes": [],
+      "venue": "ICML 2026",
+      "date": "2026-02",
+      "url": "https://arxiv.org/abs/2602.06036",
+      "localPdf": "../Reference/DFlash.pdf",
+      "explanationPage": "explanations/DFlash.html",
       "institutionDetails": [
         {
           "name": "美国加州大学圣迭戈分校（UC San Diego）",
@@ -769,6 +1204,24 @@
         }
       ],
       "institutionSource": "https://arxiv.org/pdf/2602.06036",
+      "methodOverview": "轻量级 Block-Diffusion Drafter 用一次前向同时预测一个 Token Block，并注入由 Target 多层 KV 融合得到的上下文。位置加权 Training 重点保护靠前 Token。",
+      "problemStatement": {
+        "background": null,
+        "priorLimitation": null,
+        "goal": null
+      },
+      "methodComponents": [],
+      "characteristics": {
+        "requiresTraining": null,
+        "drafterType": null,
+        "draftGeneration": null,
+        "candidateStructure": null,
+        "verificationStrategy": null,
+        "usesTargetFeatures": null,
+        "dynamicDraftLength": null,
+        "dynamicVerifyLength": null,
+        "lossless": null
+      },
       "subproblemContributions": {
         "A": {
           "summary": "以 Target 每轮产生的 Decode Token 为干净锚点，轻量 Block-Diffusion Drafter 在一次双向块注意力前向中并行补全其后的 B−1 个 Mask Token；论文主要配置为 5 层、块长 16。",
@@ -779,6 +1232,27 @@
           "detail": "用 Nemotron Post-Training Dataset V2 与 CodeAlpaca 的约 80 万条提示，由各 Target 重新生成训练响应；每个序列随机采样锚点并遮蔽后续 B−1 个位置，以块间隔离、块内双向的 Sparse Attention 一次训练多个块。冻结共享的 Target Embedding 与 LM Head，仅更新 Drafter Transformer，并用随位置指数衰减的交叉熵强调会门控整段接受 Prefix 的前部 Token。"
         }
       },
+      "training": {
+        "summary": "用 Nemotron Post-Training Dataset V2 与 CodeAlpaca 的约 80 万条提示，由各 Target 重新生成训练响应；每个序列随机采样锚点并遮蔽后续 B−1 个位置，以块间隔离、块内双向的 Sparse Attention 一次训练多个块。",
+        "data": null,
+        "objective": null
+      },
+      "evaluation": {
+        "targetModels": [],
+        "benchmarks": [],
+        "baselines": [],
+        "metrics": [],
+        "hardware": [],
+        "frameworks": []
+      },
+      "mainResults": [],
+      "limitations": [],
+      "relations": {
+        "extends": [],
+        "comparesAgainst": [],
+        "related": [],
+        "compatibleWith": []
+      },
       "citations": [
         "medusa",
         "eagle",
@@ -788,15 +1262,20 @@
         "diffuspec",
         "specdiff-2"
       ],
-      "venue": "ICML 2026",
-      "date": "2026-02",
-      "url": "https://arxiv.org/abs/2602.06036",
-      "explanationPage": "explanations/DFlash.html",
+      "reproducibility": {
+        "codeUrl": null,
+        "modelUrl": null,
+        "projectPage": null,
+        "officialImplementation": null,
+        "status": "not-checked",
+        "notes": []
+      },
+      "evidence": [],
+      "notes": [],
       "provenance": {
         "legacyWorkbookRow": 10,
         "workbookInstitutions": "中国科学院计算技术研究所、其他合作单位"
       },
-      "localPdf": "../Reference/DFlash.pdf",
       "subproblemCodes": [
         "A",
         "E"
@@ -831,8 +1310,11 @@
         "Jianchen Zhu",
         "Sujian Li"
       ],
-      "methodOverview": "在 DFlash 基础上，让每个 Drafter Layer 从更广泛的 Target Layer 中学习独立融合权重，并使用异构 KV Projection；配合更深 Drafter、更多数据和渐进式损失提升容量。",
-      "notes": [],
+      "venue": "arXiv",
+      "date": "2026-06",
+      "url": "https://arxiv.org/abs/2606.02091",
+      "localPdf": "../Reference/DFlare.pdf",
+      "explanationPage": null,
       "institutionDetails": [
         {
           "name": "北京大学计算机学院",
@@ -846,6 +1328,24 @@
         }
       ],
       "institutionSource": "https://arxiv.org/pdf/2606.02091",
+      "methodOverview": "在 DFlash 基础上，让每个 Drafter Layer 从更广泛的 Target Layer 中学习独立融合权重，并使用异构 KV Projection；配合更深 Drafter、更多数据和渐进式损失提升容量。",
+      "problemStatement": {
+        "background": null,
+        "priorLimitation": null,
+        "goal": null
+      },
+      "methodComponents": [],
+      "characteristics": {
+        "requiresTraining": null,
+        "drafterType": null,
+        "draftGeneration": null,
+        "candidateStructure": null,
+        "verificationStrategy": null,
+        "usesTargetFeatures": null,
+        "dynamicDraftLength": null,
+        "dynamicVerifyLength": null,
+        "lossless": null
+      },
       "subproblemContributions": {
         "A": {
           "summary": "沿用 DFlash 的单次 Block-Diffusion Draft，但以 Adaptive Layer Fusion 为每个 Drafter 层学习一组 Softmax 标量权重，分别融合更广的 Target 层（Qwen 配置为 9 层），再用异构 K/V Projection 分离 Target 上下文与 Drafter 状态的表示空间。",
@@ -855,6 +1355,27 @@
           "summary": "将 Nemotron V2、CodeAlpaca 与 Step-3.5-Flash-SFT 扩展为约 240 万条提示，并用对应 Target 在温度 0.6 下重生成响应，训练规模是 DFlash 的 3 倍。",
           "detail": "将 Nemotron V2、CodeAlpaca 与 Step-3.5-Flash-SFT 扩展为约 240 万条提示，并用对应 Target 在温度 0.6 下重生成响应，训练规模是 DFlash 的 3 倍。Qwen 训练从 γ₀=4.5 逐步增大指数位置权重的衰减参数，先聚焦决定接受链的前部 Token，再逐渐提高困难后缀的训练权重。"
         }
+      },
+      "training": {
+        "summary": "将 Nemotron V2、CodeAlpaca 与 Step-3.5-Flash-SFT 扩展为约 240 万条提示，并用对应 Target 在温度 0.6 下重生成响应，训练规模是 DFlash 的 3 倍。",
+        "data": null,
+        "objective": null
+      },
+      "evaluation": {
+        "targetModels": [],
+        "benchmarks": [],
+        "baselines": [],
+        "metrics": [],
+        "hardware": [],
+        "frameworks": []
+      },
+      "mainResults": [],
+      "limitations": [],
+      "relations": {
+        "extends": [],
+        "comparesAgainst": [],
+        "related": [],
+        "compatibleWith": []
       },
       "citations": [
         "medusa",
@@ -867,14 +1388,20 @@
         "dflash",
         "specinfer"
       ],
-      "venue": "arXiv",
-      "date": "2026-06",
-      "url": "https://arxiv.org/abs/2606.02091",
+      "reproducibility": {
+        "codeUrl": null,
+        "modelUrl": null,
+        "projectPage": null,
+        "officialImplementation": null,
+        "status": "not-checked",
+        "notes": []
+      },
+      "evidence": [],
+      "notes": [],
       "provenance": {
         "legacyWorkbookRow": 11,
         "workbookInstitutions": "北京大学、腾讯"
       },
-      "localPdf": "../Reference/DFlare.pdf",
       "subproblemCodes": [
         "A",
         "E"
@@ -897,8 +1424,11 @@
         "Hanlin Xu",
         "Linfeng Zhang"
       ],
-      "methodOverview": "并行 Backbone 先给出整个 Block 的边缘分布，随后一个廉价的因果 Head 根据已经选中的 Prefix 逐步修正后续 Logit，相当于用一次并行预测打底，再用很小的串行模块恢复 Token 间依赖。",
-      "notes": [],
+      "venue": "arXiv",
+      "date": "2026-05",
+      "url": "https://arxiv.org/abs/2605.29707",
+      "localPdf": "../Reference/Domino.pdf",
+      "explanationPage": null,
       "institutionDetails": [
         {
           "name": "上海交通大学 EPIC Lab",
@@ -927,6 +1457,24 @@
         }
       ],
       "institutionSource": "https://arxiv.org/pdf/2605.29707",
+      "methodOverview": "并行 Backbone 先给出整个 Block 的边缘分布，随后一个廉价的因果 Head 根据已经选中的 Prefix 逐步修正后续 Logit，相当于用一次并行预测打底，再用很小的串行模块恢复 Token 间依赖。",
+      "problemStatement": {
+        "background": null,
+        "priorLimitation": null,
+        "goal": null
+      },
+      "methodComponents": [],
+      "characteristics": {
+        "requiresTraining": null,
+        "drafterType": null,
+        "draftGeneration": null,
+        "candidateStructure": null,
+        "verificationStrategy": null,
+        "usesTargetFeatures": null,
+        "dynamicDraftLength": null,
+        "dynamicVerifyLength": null,
+        "lossless": null
+      },
       "subproblemContributions": {
         "A": {
           "summary": "以 5 层 DFlash 为并行 Backbone，在一次前向中为 16-Token 块生成 Hidden State，并通过冻结的 Target LM Head 得到 Base Logits；随后 1024 维 GRU 顺序汇总已选 Prefix Token，再由 256 维低秩头给每个位置添加 Logit 残差。",
@@ -941,6 +1489,27 @@
           "detail": "因果 Encoder 使用 Ground-Truth Prefix 的 Teacher Forcing，针对只有此前 Token 已被接受时才有意义的修正区间；同时令 L=(1−λₜ)L_final+λₜL_base 并将 λₜ 从 1 线性退火到 0，先稳固并行 Base Distribution、再学习最终残差，防止修正头走捷径导致 Backbone 崩塌。训练响应由冻结 Target 在 142 万条 PerfectBlend 提示上重新生成，两个损失都使用前重后轻的指数位置权重。"
         }
       },
+      "training": {
+        "summary": "因果 Encoder 使用 Ground-Truth Prefix 的 Teacher Forcing，针对只有此前 Token 已被接受时才有意义的修正区间；同时令 L=(1−λₜ)L_final+λₜL_base 并将 λₜ 从 1 线性退火到 0，先稳固并行 Base Distribution、再学习最终残差，防止修正头走捷径导致 Backbone 崩塌。",
+        "data": null,
+        "objective": null
+      },
+      "evaluation": {
+        "targetModels": [],
+        "benchmarks": [],
+        "baselines": [],
+        "metrics": [],
+        "hardware": [],
+        "frameworks": []
+      },
+      "mainResults": [],
+      "limitations": [],
+      "relations": {
+        "extends": [],
+        "comparesAgainst": [],
+        "related": [],
+        "compatibleWith": []
+      },
       "citations": [
         "medusa",
         "eagle",
@@ -952,14 +1521,20 @@
         "specinfer",
         "dart"
       ],
-      "venue": "arXiv",
-      "date": "2026-05",
-      "url": "https://arxiv.org/abs/2605.29707",
+      "reproducibility": {
+        "codeUrl": null,
+        "modelUrl": null,
+        "projectPage": null,
+        "officialImplementation": null,
+        "status": "not-checked",
+        "notes": []
+      },
+      "evidence": [],
+      "notes": [],
       "provenance": {
         "legacyWorkbookRow": 12,
         "workbookInstitutions": "未知（arXiv作者团队）"
       },
-      "localPdf": "../Reference/Domino.pdf",
       "subproblemCodes": [
         "A",
         "D",
@@ -1010,8 +1585,11 @@
         "Dongyan Zhao",
         "Wenfeng Liang"
       ],
-      "methodOverview": "并行 Backbone 负责整体候选，廉价 Markov/RNN 串行模块补回 Prefix 依赖；额外的置信度 Head 估计 Prefix 能存活到多远，调度器再按实时负载和 SPS 为每个请求分配 Verify 长度。",
-      "notes": [],
+      "venue": "arXiv",
+      "date": "2026-07",
+      "url": "https://arxiv.org/abs/2607.05147",
+      "localPdf": "../Reference/DSpark.pdf",
+      "explanationPage": null,
       "institutionDetails": [
         {
           "name": "深度求索（DeepSeek-AI）",
@@ -1025,6 +1603,24 @@
         }
       ],
       "institutionSource": "https://arxiv.org/pdf/2607.05147",
+      "methodOverview": "并行 Backbone 负责整体候选，廉价 Markov/RNN 串行模块补回 Prefix 依赖；额外的置信度 Head 估计 Prefix 能存活到多远，调度器再按实时负载和 SPS 为每个请求分配 Verify 长度。",
+      "problemStatement": {
+        "background": null,
+        "priorLimitation": null,
+        "goal": null
+      },
+      "methodComponents": [],
+      "characteristics": {
+        "requiresTraining": null,
+        "drafterType": null,
+        "draftGeneration": null,
+        "candidateStructure": null,
+        "verificationStrategy": null,
+        "usesTargetFeatures": null,
+        "dynamicDraftLength": null,
+        "dynamicVerifyLength": null,
+        "lossless": null
+      },
       "subproblemContributions": {
         "A": {
           "summary": "先让 DFlash 式并行 Backbone 在一次前向中产出整块 Hidden State 与 Base Logits，再以低秩一阶 Markov Head（默认）或带完整 Prefix 状态的 RNN Head 左到右加入转移偏置并采样。",
@@ -1043,6 +1639,27 @@
           "detail": "Target、共享 Embedding 与 LM Head 全程冻结；从每条 Target 序列随机抽取多个 Anchor 组成 γ-Token Block，只更新并行 Backbone、顺序模块和 Confidence Head。训练将位置指数加权的 Cross-Entropy、Draft/Target 分布总变差和置信度 BCE 以 0.1/0.9/1.0 组合，前部位置权重更高；其中总变差直接对应理论接受率，置信度软标签同为 1−½‖p_d−p_t‖₁。"
         }
       },
+      "training": {
+        "summary": "Target、共享 Embedding 与 LM Head 全程冻结；从每条 Target 序列随机抽取多个 Anchor 组成 γ-Token Block，只更新并行 Backbone、顺序模块和 Confidence Head。",
+        "data": null,
+        "objective": null
+      },
+      "evaluation": {
+        "targetModels": [],
+        "benchmarks": [],
+        "baselines": [],
+        "metrics": [],
+        "hardware": [],
+        "frameworks": []
+      },
+      "mainResults": [],
+      "limitations": [],
+      "relations": {
+        "extends": [],
+        "comparesAgainst": [],
+        "related": [],
+        "compatibleWith": []
+      },
       "citations": [
         "medusa",
         "mtp",
@@ -1060,14 +1677,20 @@
         "ddtree",
         "taps"
       ],
-      "venue": "arXiv",
-      "date": "2026-07",
-      "url": "https://arxiv.org/abs/2607.05147",
+      "reproducibility": {
+        "codeUrl": null,
+        "modelUrl": null,
+        "projectPage": null,
+        "officialImplementation": null,
+        "status": "not-checked",
+        "notes": []
+      },
+      "evidence": [],
+      "notes": [],
       "provenance": {
         "legacyWorkbookRow": 13,
         "workbookInstitutions": "未知（arXiv作者团队）"
       },
-      "localPdf": "../Reference/DSpark.pdf",
       "subproblemCodes": [
         "A",
         "C",
@@ -1099,8 +1722,11 @@
         "Reyna Abhyankar",
         "Zhihao Jia"
       ],
-      "methodOverview": "把一个或多个小型投机模型产生的候选合并为共享 Prefix 的 Token Tree，再由 Target 通过 Tree Attention 一次 Verify 整棵树；同时覆盖服务调度、分布式执行和模型卸载。",
-      "notes": [],
+      "venue": "ASPLOS 2024",
+      "date": "2023-05",
+      "url": "https://dl.acm.org/doi/10.1145/3620666.3651335",
+      "localPdf": null,
+      "explanationPage": null,
       "institutionDetails": [
         {
           "name": "卡内基梅隆大学",
@@ -1134,6 +1760,24 @@
         }
       ],
       "institutionSource": "https://arxiv.org/pdf/2305.09781",
+      "methodOverview": "把一个或多个小型投机模型产生的候选合并为共享 Prefix 的 Token Tree，再由 Target 通过 Tree Attention 一次 Verify 整棵树；同时覆盖服务调度、分布式执行和模型卸载。",
+      "problemStatement": {
+        "background": null,
+        "priorLimitation": null,
+        "goal": null
+      },
+      "methodComponents": [],
+      "characteristics": {
+        "requiresTraining": null,
+        "drafterType": null,
+        "draftGeneration": null,
+        "candidateStructure": null,
+        "verificationStrategy": null,
+        "usesTargetFeatures": null,
+        "dynamicDraftLength": null,
+        "dynamicVerifyLength": null,
+        "lossless": null
+      },
       "subproblemContributions": {
         "B": {
           "summary": "单个 SSM 按预设扩展向量 ⟨k₁,…,k_m⟩ 逐层取 Top-k，在模型内部扩大候选分支；也可让多个经残差样本 Boost-Tuning 的 SSM 并行提出树，再按完整 Root-to-node Token Sequence 合并相同 Prefix。",
@@ -1148,15 +1792,42 @@
           "detail": "Request Manager 按 Iteration 而非整请求调度并执行 Continuous Batching；小 SSM 以 Data Parallel 分布到 GPU，多个 SSM 可同时运行，大模型则结合节点内 Tensor Parallel 与节点间 Pipeline Parallel，管理器只交换 Token 并完成树合并与接受判定。整树一次推进多枚 Token，因而在分布式场景减少跨 GPU 解码轮次，在 Offloading 场景减少 CPU DRAM↔GPU HBM 权重搬运轮次；其收益主要来自低并发下可用于树 Verify 的闲置 GPU 算力。"
         }
       },
+      "training": {
+        "summary": null,
+        "data": null,
+        "objective": null
+      },
+      "evaluation": {
+        "targetModels": [],
+        "benchmarks": [],
+        "baselines": [],
+        "metrics": [],
+        "hardware": [],
+        "frameworks": []
+      },
+      "mainResults": [],
+      "limitations": [],
+      "relations": {
+        "extends": [],
+        "comparesAgainst": [],
+        "related": [],
+        "compatibleWith": []
+      },
       "citations": [],
-      "venue": "ASPLOS 2024",
-      "date": "2023-05",
-      "url": "https://dl.acm.org/doi/10.1145/3620666.3651335",
+      "reproducibility": {
+        "codeUrl": null,
+        "modelUrl": null,
+        "projectPage": null,
+        "officialImplementation": null,
+        "status": "not-checked",
+        "notes": []
+      },
+      "evidence": [],
+      "notes": [],
       "provenance": {
         "legacyWorkbookRow": 14,
         "workbookInstitutions": "美国加州大学圣迭戈分校（UCSD）、其他合作单位"
       },
-      "localPdfNote": "Reference 目录中没有与 SpecInfer 对应的本地 PDF。",
       "subproblemCodes": [
         "B",
         "C",
@@ -1198,8 +1869,11 @@
         "Zhefeng Wang",
         "Min Zhang"
       ],
-      "methodOverview": "将一条路径上 Drafter 的条件概率连乘，得到节点被接受的近似概率；随后在节点预算内选择使概率总和最大的前缀闭合树，使目标直接对应预期接受 Token 数。",
-      "notes": [],
+      "venue": "TACL 2025",
+      "date": "2024-06",
+      "url": "https://aclanthology.org/2025.tacl-1.8/",
+      "localPdf": "../Reference/OPTTree.pdf",
+      "explanationPage": null,
       "institutionDetails": [
         {
           "name": "苏州大学计算机科学与技术研究所",
@@ -1213,6 +1887,24 @@
         }
       ],
       "institutionSource": "https://aclanthology.org/2025.tacl-1.8/",
+      "methodOverview": "将一条路径上 Drafter 的条件概率连乘，得到节点被接受的近似概率；随后在节点预算内选择使概率总和最大的前缀闭合树，使目标直接对应预期接受 Token 数。",
+      "problemStatement": {
+        "background": null,
+        "priorLimitation": null,
+        "goal": null
+      },
+      "methodComponents": [],
+      "characteristics": {
+        "requiresTraining": null,
+        "drafterType": null,
+        "draftGeneration": null,
+        "candidateStructure": null,
+        "verificationStrategy": null,
+        "usesTargetFeatures": null,
+        "dynamicDraftLength": null,
+        "dynamicVerifyLength": null,
+        "lossless": null
+      },
       "subproblemContributions": {
         "B": {
           "summary": "对任意自回归 Drafter，OPT-Tree 将每个节点沿 Root 路径的概率乘积 p̂ 视作该 Prefix 的命中概率，并把期望接受长度近似为全树 Σp̂。",
@@ -1223,18 +1915,45 @@
           "detail": "Verify 端只接收最终 n 节点子树，并用对应 Tree Attention Mask 在一次 Target 前向中取得每个节点的后继，返回最长命中分支再加一枚 Target Token；共享 Prefix 只占一个节点。n 可按 Target 与 GPU 的并行平台选取，δ 又在 Draft 深度上剔除期望增益低于额外 Draft 时间比的层，避免更深树的额外开销抵消接受收益。"
         }
       },
+      "training": {
+        "summary": null,
+        "data": null,
+        "objective": null
+      },
+      "evaluation": {
+        "targetModels": [],
+        "benchmarks": [],
+        "baselines": [],
+        "metrics": [],
+        "hardware": [],
+        "frameworks": []
+      },
+      "mainResults": [],
+      "limitations": [],
+      "relations": {
+        "extends": [],
+        "comparesAgainst": [],
+        "related": [],
+        "compatibleWith": []
+      },
       "citations": [
         "medusa",
         "eagle"
       ],
-      "venue": "TACL 2025",
-      "date": "2024-06",
-      "url": "https://aclanthology.org/2025.tacl-1.8/",
+      "reproducibility": {
+        "codeUrl": null,
+        "modelUrl": null,
+        "projectPage": null,
+        "officialImplementation": null,
+        "status": "not-checked",
+        "notes": []
+      },
+      "evidence": [],
+      "notes": [],
       "provenance": {
         "legacyWorkbookRow": 15,
         "workbookInstitutions": "未知（arXiv作者团队）"
       },
-      "localPdf": "../Reference/OPTTree.pdf",
       "subproblemCodes": [
         "B",
         "C"
@@ -1263,8 +1982,11 @@
         "Sheng Zhong",
         "Chen Tian"
       ],
-      "methodOverview": "从 Target Hidden State 出发，通过一个轻量模块同时预测多个被 Mask 的未来位置，再利用 N-gram 语义约束把独立候选剪枝成连贯的 Token Tree。",
-      "notes": [],
+      "venue": "arXiv",
+      "date": "2026-01",
+      "url": "https://arxiv.org/abs/2601.19278",
+      "localPdf": "../Reference/DART.pdf",
+      "explanationPage": null,
       "institutionDetails": [
         {
           "name": "南京大学新型软件技术全国重点实验室",
@@ -1278,6 +2000,24 @@
         }
       ],
       "institutionSource": "https://arxiv.org/pdf/2601.19278",
+      "methodOverview": "从 Target Hidden State 出发，通过一个轻量模块同时预测多个被 Mask 的未来位置，再利用 N-gram 语义约束把独立候选剪枝成连贯的 Token Tree。",
+      "problemStatement": {
+        "background": null,
+        "priorLimitation": null,
+        "goal": null
+      },
+      "methodComponents": [],
+      "characteristics": {
+        "requiresTraining": null,
+        "drafterType": null,
+        "draftGeneration": null,
+        "candidateStructure": null,
+        "verificationStrategy": null,
+        "usesTargetFeatures": null,
+        "dynamicDraftLength": null,
+        "dynamicVerifyLength": null,
+        "lossless": null
+      },
       "subproblemContributions": {
         "A": {
           "summary": "在每轮 Target Prefill/Verify 后，DART 拼接低、中、高三层 Hidden State 并投影，再与右移的 Target Token Embedding 组合为 Prefix 表征，追加 d−1 个可训练 [MASK]；单个定制 Transformer Decoder Layer 在严格 Causal Mask 下通过 Shifted Logits Prediction 一次给出 d 个未来位置分布。",
@@ -1288,6 +2028,27 @@
           "detail": "对每个并行位置的 Logits 先取 Top-25，再将 Draft Log-Probability 与当前部分序列的 3-gram 条件概率合成扩展分数；Logit 权重按 0.9^level 衰减、N-gram 权重为 0.5，组合结果再乘 (level+1)^−0.7，Beam 只保留 20 条活跃序列，最终从全局扩展树选 59 个最高分节点。该 Continuity-Aware Pruning 用外部 Dolma 3 Mix Trie 排除独立位置拼接出的不连贯路径，并把指数候选空间压成可一次 Tree Attention Verify 的紧凑树。\n\n第 i 层从对应位置 Logits 取 25 个候选，并把模型 Log-Probability、3-gram 条件概率与深度权重合成路径分数；每层用 Beam Width 20 截断活跃部分序列，最后从所有已扩节点保留全局 Top-59。这样树宽由联合分数而非各位置笛卡尔积决定，既保留多个高概率 Prefix，又把 Target 的 Tree Attention Verify 规模固定在 59 个节点内。"
         }
       },
+      "training": {
+        "summary": null,
+        "data": null,
+        "objective": null
+      },
+      "evaluation": {
+        "targetModels": [],
+        "benchmarks": [],
+        "baselines": [],
+        "metrics": [],
+        "hardware": [],
+        "frameworks": []
+      },
+      "mainResults": [],
+      "limitations": [],
+      "relations": {
+        "extends": [],
+        "comparesAgainst": [],
+        "related": [],
+        "compatibleWith": []
+      },
       "citations": [
         "medusa",
         "eagle",
@@ -1296,14 +2057,20 @@
         "diffuspec",
         "specdiff-2"
       ],
-      "venue": "arXiv",
-      "date": "2026-01",
-      "url": "https://arxiv.org/abs/2601.19278",
+      "reproducibility": {
+        "codeUrl": null,
+        "modelUrl": null,
+        "projectPage": null,
+        "officialImplementation": null,
+        "status": "not-checked",
+        "notes": []
+      },
+      "evidence": [],
+      "notes": [],
       "provenance": {
         "legacyWorkbookRow": 16,
         "workbookInstitutions": "未知（arXiv作者团队）"
       },
-      "localPdf": "../Reference/DART.pdf",
       "subproblemCodes": [
         "A",
         "B"
@@ -1325,8 +2092,11 @@
         "Liran Ringel",
         "Yaniv Romano"
       ],
-      "methodOverview": "利用 DFlash 为各位置给出的边缘概率，通过 Best-First Search 在节点预算下选择代理路径概率最高的候选，并用仅允许访问祖先的 Attention Mask 一次 Verify 整棵树。",
-      "notes": [],
+      "venue": "arXiv",
+      "date": "2026-04",
+      "url": "https://arxiv.org/abs/2604.12989",
+      "localPdf": "../Reference/DDTree.pdf",
+      "explanationPage": null,
       "institutionDetails": [
         {
           "name": "以色列理工学院（Technion）计算机科学系",
@@ -1340,6 +2110,24 @@
         }
       ],
       "institutionSource": "https://arxiv.org/pdf/2604.12989",
+      "methodOverview": "利用 DFlash 为各位置给出的边缘概率，通过 Best-First Search 在节点预算下选择代理路径概率最高的候选，并用仅允许访问祖先的 Attention Mask 一次 Verify 整棵树。",
+      "problemStatement": {
+        "background": null,
+        "priorLimitation": null,
+        "goal": null
+      },
+      "methodComponents": [],
+      "characteristics": {
+        "requiresTraining": null,
+        "drafterType": null,
+        "draftGeneration": null,
+        "candidateStructure": null,
+        "verificationStrategy": null,
+        "usesTargetFeatures": null,
+        "dynamicDraftLength": null,
+        "dynamicVerifyLength": null,
+        "lossless": null
+      },
       "subproblemContributions": {
         "B": {
           "summary": "保留 DFlash 单次 Block-Diffusion 前向给出的逐位置边缘分布，不再将其压成一条 Top-1 序列；DDTree 以这些边缘分布的乘积构造因子化路径概率，并把替代期望接受长度分解为树中各前缀的概率质量之和。",
@@ -1349,6 +2137,27 @@
           "summary": "将所选树展平后按深度赋予 Position ID，并用仅允许节点关注根、祖先和自身的 Tree Attention Mask，在一次 Target 前向中为所有分支计算分数。",
           "detail": "将所选树展平后按深度赋予 Position ID，并用仅允许节点关注根、祖先和自身的 Tree Attention Mask，在一次 Target 前向中为所有分支计算分数。Verifier 随 Target 自身的解码规则沿匹配子节点行走，首个未匹配 Token 成为下一轮 Bonus Token，KV Cache 只保留已接受路径。\n\n整棵候选树仅触发一次 Target 前向；祖先可见掩码隔离不同分支，节点预算 B 则直接限制进入 Verify 的 Token 数。匹配结束后压缩 KV Cache 到被接受的根到叶路径，使多分支覆盖不会污染后续上下文。"
         }
+      },
+      "training": {
+        "summary": null,
+        "data": null,
+        "objective": null
+      },
+      "evaluation": {
+        "targetModels": [],
+        "benchmarks": [],
+        "baselines": [],
+        "metrics": [],
+        "hardware": [],
+        "frameworks": []
+      },
+      "mainResults": [],
+      "limitations": [],
+      "relations": {
+        "extends": [],
+        "comparesAgainst": [],
+        "related": [],
+        "compatibleWith": []
       },
       "citations": [
         "medusa",
@@ -1361,14 +2170,20 @@
         "opt-tree",
         "dart"
       ],
-      "venue": "arXiv",
-      "date": "2026-04",
-      "url": "https://arxiv.org/abs/2604.12989",
+      "reproducibility": {
+        "codeUrl": null,
+        "modelUrl": null,
+        "projectPage": null,
+        "officialImplementation": null,
+        "status": "not-checked",
+        "notes": []
+      },
+      "evidence": [],
+      "notes": [],
       "provenance": {
         "legacyWorkbookRow": 17,
         "workbookInstitutions": "未知（arXiv作者团队）"
       },
-      "localPdf": "../Reference/DDTree.pdf",
       "subproblemCodes": [
         "B",
         "C"
@@ -1389,8 +2204,11 @@
         "Junnan Huang",
         "Xinyu Chen"
       ],
-      "methodOverview": "Training 一个轻量 Target-Aware Scorer 来估计每条边在 Target 下被接受的条件概率，沿 Prefix 连乘后选出紧凑的前缀闭合子树。",
-      "notes": [],
+      "venue": "arXiv",
+      "date": "2026-05",
+      "url": "https://arxiv.org/abs/2606.00487",
+      "localPdf": "../Reference/TAPS.pdf",
+      "explanationPage": null,
       "institutionDetails": [
         {
           "name": "香港科技大学（广州）",
@@ -1399,6 +2217,24 @@
         }
       ],
       "institutionSource": "https://arxiv.org/pdf/2606.00487",
+      "methodOverview": "Training 一个轻量 Target-Aware Scorer 来估计每条边在 Target 下被接受的条件概率，沿 Prefix 连乘后选出紧凑的前缀闭合子树。",
+      "problemStatement": {
+        "background": null,
+        "priorLimitation": null,
+        "goal": null
+      },
+      "methodComponents": [],
+      "characteristics": {
+        "requiresTraining": null,
+        "drafterType": null,
+        "draftGeneration": null,
+        "candidateStructure": null,
+        "verificationStrategy": null,
+        "usesTargetFeatures": null,
+        "dynamicDraftLength": null,
+        "dynamicVerifyLength": null,
+        "lossless": null
+      },
       "subproblemContributions": {
         "B": {
           "summary": "先从扩散 Drafter 每个位置的 Top-K Token 组成大候选池，再由轻量 Target-Aware Scorer 为每条父子边估计“已到达父节点时接受该孩子”的条件概率；沿根路径连乘后得到节点可达概率，因而会压低错误 Prefix 下看似高置信的后代。",
@@ -1408,6 +2244,27 @@
           "summary": "将“祖先全部通过后该节点才有用”显式纳入 Verify 分配，避免高边缘概率但 Prefix 已不可达的后代占用 Target 计算。",
           "detail": "将“祖先全部通过后该节点才有用”显式纳入 Verify 分配，避免高边缘概率但 Prefix 已不可达的后代占用 Target 计算。λ₁建模逐节点 Tree Attention 开销，λ₂惩罚较深且 KV 复用机会更低的节点，τ 则在剩余节点收益不足时终止扩树。"
         }
+      },
+      "training": {
+        "summary": null,
+        "data": null,
+        "objective": null
+      },
+      "evaluation": {
+        "targetModels": [],
+        "benchmarks": [],
+        "baselines": [],
+        "metrics": [],
+        "hardware": [],
+        "frameworks": []
+      },
+      "mainResults": [],
+      "limitations": [],
+      "relations": {
+        "extends": [],
+        "comparesAgainst": [],
+        "related": [],
+        "compatibleWith": []
       },
       "citations": [
         "medusa",
@@ -1419,14 +2276,20 @@
         "dart",
         "ddtree"
       ],
-      "venue": "arXiv",
-      "date": "2026-05",
-      "url": "https://arxiv.org/abs/2606.00487",
+      "reproducibility": {
+        "codeUrl": null,
+        "modelUrl": null,
+        "projectPage": null,
+        "officialImplementation": null,
+        "status": "not-checked",
+        "notes": []
+      },
+      "evidence": [],
+      "notes": [],
       "provenance": {
         "legacyWorkbookRow": 18,
         "workbookInstitutions": "未知（arXiv作者团队）"
       },
-      "localPdf": "../Reference/TAPS.pdf",
       "subproblemCodes": [
         "B",
         "C"
@@ -1445,8 +2308,11 @@
         "Lifu Wang",
         "Pan Zhou"
       ],
-      "methodOverview": "使用实际测得的 Draft 与 Verify 延迟曲线，在运行时比较增加候选节点的边际收益和成本；只有预计能降低端到端延迟时才扩树。",
-      "notes": [],
+      "venue": "ECCV 2026",
+      "date": "2026-04",
+      "url": "https://arxiv.org/abs/2604.09731",
+      "localPdf": "../Reference/SMART.pdf",
+      "explanationPage": null,
       "institutionDetails": [
         {
           "name": "新加坡管理大学",
@@ -1455,6 +2321,24 @@
         }
       ],
       "institutionSource": "https://arxiv.org/pdf/2604.09731",
+      "methodOverview": "使用实际测得的 Draft 与 Verify 延迟曲线，在运行时比较增加候选节点的边际收益和成本；只有预计能降低端到端延迟时才扩树。",
+      "problemStatement": {
+        "background": null,
+        "priorLimitation": null,
+        "goal": null
+      },
+      "methodComponents": [],
+      "characteristics": {
+        "requiresTraining": null,
+        "drafterType": null,
+        "draftGeneration": null,
+        "candidateStructure": null,
+        "verificationStrategy": null,
+        "usesTargetFeatures": null,
+        "dynamicDraftLength": null,
+        "dynamicVerifyLength": null,
+        "lossless": null
+      },
       "subproblemContributions": {
         "B": {
           "summary": "把候选树目标从最大化概率或接受长度改为最大化端到端加速比 R(T)=c_T·L_tree/(C_Draft+C_Verify)，其中 L_tree 由根到叶 Prefix 的累积接受概率估计。",
@@ -1469,6 +2353,27 @@
           "detail": "以当前 Batch Size 将设备级 Verify 预算均分为每条序列的树预算，并让每个请求再根据自身候选置信度逐节点扩展或剪枝。该训练无关的运行时控制器不改 Drafter、Target 或 Verify 规则，可作为 EAGLE、MSD、DFlash 等已有投机解码管线的插件。\n\n分别用 C_Draft=λ|T| 与 C_Verify=γ(exp(δ|T|^ρ)−1) 拟合指定 GPU 上的 Draft 和 Verify 时延，再用曲线导数估算新增节点的硬件边际成本。设备只需少量预分析前向即可重拟合参数，因此控制策略能反映不同 GPU 的算力、带宽与 Batch 饱和转折点。"
         }
       },
+      "training": {
+        "summary": null,
+        "data": null,
+        "objective": null
+      },
+      "evaluation": {
+        "targetModels": [],
+        "benchmarks": [],
+        "baselines": [],
+        "metrics": [],
+        "hardware": [],
+        "frameworks": []
+      },
+      "mainResults": [],
+      "limitations": [],
+      "relations": {
+        "extends": [],
+        "comparesAgainst": [],
+        "related": [],
+        "compatibleWith": []
+      },
       "citations": [
         "medusa",
         "dflash",
@@ -1477,14 +2382,20 @@
         "eagle-3",
         "specinfer"
       ],
-      "venue": "ECCV 2026",
-      "date": "2026-04",
-      "url": "https://arxiv.org/abs/2604.09731",
+      "reproducibility": {
+        "codeUrl": null,
+        "modelUrl": null,
+        "projectPage": null,
+        "officialImplementation": null,
+        "status": "not-checked",
+        "notes": []
+      },
+      "evidence": [],
+      "notes": [],
       "provenance": {
         "legacyWorkbookRow": 19,
         "workbookInstitutions": "未知（arXiv作者团队）"
       },
-      "localPdf": "../Reference/SMART.pdf",
       "subproblemCodes": [
         "B",
         "C",
@@ -1508,8 +2419,11 @@
         "Zhefeng Wang",
         "Enhong Chen"
       ],
-      "methodOverview": "不引入独立 Drafter，而是通过渐进式树结构引导 Target 在一次前向中探索多条路径，并逐阶段剪枝，在候选多样性、连贯性和 Verify 成本间取得平衡。",
-      "notes": [],
+      "venue": "COLM 2026",
+      "date": "2026-07",
+      "url": "https://arxiv.org/abs/2607.10661",
+      "localPdf": "../Reference/PTD.pdf",
+      "explanationPage": null,
       "institutionDetails": [
         {
           "name": "中国科学技术大学认知智能全国重点实验室",
@@ -1523,6 +2437,24 @@
         }
       ],
       "institutionSource": "https://arxiv.org/pdf/2607.10661",
+      "methodOverview": "不引入独立 Drafter，而是通过渐进式树结构引导 Target 在一次前向中探索多条路径，并逐阶段剪枝，在候选多样性、连贯性和 Verify 成本间取得平衡。",
+      "problemStatement": {
+        "background": null,
+        "priorLimitation": null,
+        "goal": null
+      },
+      "methodComponents": [],
+      "characteristics": {
+        "requiresTraining": null,
+        "drafterType": null,
+        "draftGeneration": null,
+        "candidateStructure": null,
+        "verificationStrategy": null,
+        "usesTargetFeatures": null,
+        "dynamicDraftLength": null,
+        "dynamicVerifyLength": null,
+        "lossless": null
+      },
       "subproblemContributions": {
         "A": {
           "summary": "不增加独立 Drafter、预测头或训练过程，而是通过树形输入与 Attention Mask 调用 Target 的内生预测能力；同一次前向并行产生 AR Next Token、为所有 Draft Tree 节点生成孩子，并为已缓存候选计算 Verify 结果。",
@@ -1537,20 +2469,47 @@
           "detail": "从 Candidate Pool 检索与当前 Prefix 匹配的树，复用仅祖先可见掩码和树深 Position ID，在联合 Target 前向中并行 Verify 各节点。贪心解码递归沿 Target 预测命中的孩子接受；采样解码则对兄弟候选做无放回抽样与重新归一化，以保持原始采样分布。"
         }
       },
+      "training": {
+        "summary": null,
+        "data": null,
+        "objective": null
+      },
+      "evaluation": {
+        "targetModels": [],
+        "benchmarks": [],
+        "baselines": [],
+        "metrics": [],
+        "hardware": [],
+        "frameworks": []
+      },
+      "mainResults": [],
+      "limitations": [],
+      "relations": {
+        "extends": [],
+        "comparesAgainst": [],
+        "related": [],
+        "compatibleWith": []
+      },
       "citations": [
         "medusa",
         "eagle",
         "eagle-2",
         "specinfer"
       ],
-      "venue": "COLM 2026",
-      "date": "2026-07",
-      "url": "https://arxiv.org/abs/2607.10661",
+      "reproducibility": {
+        "codeUrl": null,
+        "modelUrl": null,
+        "projectPage": null,
+        "officialImplementation": null,
+        "status": "not-checked",
+        "notes": []
+      },
+      "evidence": [],
+      "notes": [],
       "provenance": {
         "legacyWorkbookRow": 20,
         "workbookInstitutions": "未知（arXiv作者团队）"
       },
-      "localPdf": "../Reference/PTD.pdf",
       "subproblemCodes": [
         "A",
         "B",
@@ -1569,8 +2528,11 @@
         "Tri Dao",
         "Avner May"
       ],
-      "methodOverview": "在 Target 执行 Verify 的同时，Drafter 预判 Verify 可能出现的若干结果，并提前为这些结果继续计算后续 Draft；实际结果若命中预判集合，就能立即复用预计算结果。Saguaro 是针对这一重叠执行模式优化的实现。",
-      "notes": [],
+      "venue": "ICLR 2026 Poster",
+      "date": "2026-03",
+      "url": "https://openreview.net/forum?id=aL1Wnml9Ef",
+      "localPdf": "../Reference/Speculative_Speculative_Decoding.pdf",
+      "explanationPage": null,
       "institutionDetails": [
         {
           "name": "斯坦福大学",
@@ -1589,6 +2551,24 @@
         }
       ],
       "institutionSource": "https://arxiv.org/pdf/2603.03251",
+      "methodOverview": "在 Target 执行 Verify 的同时，Drafter 预判 Verify 可能出现的若干结果，并提前为这些结果继续计算后续 Draft；实际结果若命中预判集合，就能立即复用预计算结果。Saguaro 是针对这一重叠执行模式优化的实现。",
+      "problemStatement": {
+        "background": null,
+        "priorLimitation": null,
+        "goal": null
+      },
+      "methodComponents": [],
+      "characteristics": {
+        "requiresTraining": null,
+        "drafterType": null,
+        "draftGeneration": null,
+        "candidateStructure": null,
+        "verificationStrategy": null,
+        "usesTargetFeatures": null,
+        "dynamicDraftLength": null,
+        "dynamicVerifyLength": null,
+        "lossless": null
+      },
       "subproblemContributions": {
         "A": {
           "summary": "让 Drafter 针对多个可能的接受长度和 Bonus Token 提前生成下一轮 Draft。",
@@ -1599,6 +2579,27 @@
           "detail": "提出 Speculative Speculative Decoding：在 Target Verify 当前轮时，由独立硬件上的 Drafter 预测可能的 Verify 结果，并提前生成对应的下一轮 Draft。系统设计异步 Draft–Verify 流水线、Saguaro Cache 和随 Batch Size 变化的 Cache Miss 回退策略，消除两阶段之间的同步等待。"
         }
       },
+      "training": {
+        "summary": null,
+        "data": null,
+        "objective": null
+      },
+      "evaluation": {
+        "targetModels": [],
+        "benchmarks": [],
+        "baselines": [],
+        "metrics": [],
+        "hardware": [],
+        "frameworks": []
+      },
+      "mainResults": [],
+      "limitations": [],
+      "relations": {
+        "extends": [],
+        "comparesAgainst": [],
+        "related": [],
+        "compatibleWith": []
+      },
       "citations": [
         "medusa",
         "eagle",
@@ -1608,11 +2609,18 @@
         "dflash",
         "specinfer"
       ],
-      "venue": "ICLR 2026 Poster",
-      "date": "2026-03",
-      "url": "https://openreview.net/forum?id=aL1Wnml9Ef",
-      "localPdf": "../Reference/Speculative_Speculative_Decoding.pdf",
+      "reproducibility": {
+        "codeUrl": null,
+        "modelUrl": null,
+        "projectPage": null,
+        "officialImplementation": null,
+        "status": "not-checked",
+        "notes": []
+      },
+      "evidence": [],
+      "notes": [],
       "provenance": {
+        "legacyWorkbookRow": null,
         "workbookInstitutions": "斯坦福大学 → Together AI → 普林斯顿大学"
       },
       "subproblemCodes": [
@@ -1635,8 +2643,11 @@
         "Binbin Li",
         "Rui Zhang"
       ],
-      "methodOverview": "从 Position ID、Attention Mask 和 KV Cache 的同步不变量出发，EQSPEC 保证不等长 Batch 投机解码的正确性；EXSPEC 使用滑动请求池动态组合相同长度序列，减少反复对齐产生的实际开销。",
-      "notes": [],
+      "venue": "arXiv",
+      "date": "2025-10",
+      "url": "https://arxiv.org/abs/2510.22876",
+      "localPdf": "../Reference/Batch_Speculative_Decoding_Done_Right.pdf",
+      "explanationPage": null,
       "institutionDetails": [
         {
           "name": "宾夕法尼亚州立大学",
@@ -1650,6 +2661,24 @@
         }
       ],
       "institutionSource": "https://arxiv.org/pdf/2510.22876",
+      "methodOverview": "从 Position ID、Attention Mask 和 KV Cache 的同步不变量出发，EQSPEC 保证不等长 Batch 投机解码的正确性；EXSPEC 使用滑动请求池动态组合相同长度序列，减少反复对齐产生的实际开销。",
+      "problemStatement": {
+        "background": null,
+        "priorLimitation": null,
+        "goal": null
+      },
+      "methodComponents": [],
+      "characteristics": {
+        "requiresTraining": null,
+        "drafterType": null,
+        "draftGeneration": null,
+        "candidateStructure": null,
+        "verificationStrategy": null,
+        "usesTargetFeatures": null,
+        "dynamicDraftLength": null,
+        "dynamicVerifyLength": null,
+        "lossless": null
+      },
       "subproblemContributions": {
         "C": {
           "summary": "形式化 Batch Verify 后的矩形对齐与各项状态同步条件，以保持输出等价。",
@@ -1660,6 +2689,27 @@
           "detail": "系统研究 Batch Speculative Decoding 的 Ragged Tensor 正确性问题，并提出 EXSPEC 跨 Batch 调度机制，将长度相同的活跃序列动态组成批次，减少 Unpad–Append–Repad 和状态重对齐开销。"
         }
       },
+      "training": {
+        "summary": null,
+        "data": null,
+        "objective": null
+      },
+      "evaluation": {
+        "targetModels": [],
+        "benchmarks": [],
+        "baselines": [],
+        "metrics": [],
+        "hardware": [],
+        "frameworks": []
+      },
+      "mainResults": [],
+      "limitations": [],
+      "relations": {
+        "extends": [],
+        "comparesAgainst": [],
+        "related": [],
+        "compatibleWith": []
+      },
       "citations": [
         "medusa",
         "eagle",
@@ -1667,11 +2717,18 @@
         "eagle-3",
         "specinfer"
       ],
-      "venue": "arXiv",
-      "date": "2025-10",
-      "url": "https://arxiv.org/abs/2510.22876",
-      "localPdf": "../Reference/Batch_Speculative_Decoding_Done_Right.pdf",
+      "reproducibility": {
+        "codeUrl": null,
+        "modelUrl": null,
+        "projectPage": null,
+        "officialImplementation": null,
+        "status": "not-checked",
+        "notes": []
+      },
+      "evidence": [],
+      "notes": [],
       "provenance": {
+        "legacyWorkbookRow": null,
         "workbookInstitutions": "宾夕法尼亚州立大学 → eBay"
       },
       "subproblemCodes": [
@@ -1691,8 +2748,11 @@
         "Hyunjong Kim",
         "Sungzoon Cho"
       ],
-      "methodOverview": "面向长上下文的免 Training 增强方案：Prefill 使用 FlashAttention，Verify 使用 Hybrid Tree Attention；Cross-model Retrieval 再根据 Target 的 Attention Score，只为 Drafter 保留最有用的上下文 KV。",
-      "notes": [],
+      "venue": "Findings of ACL 2026",
+      "date": "2025-05",
+      "url": "https://aclanthology.org/2026.findings-acl.2153/",
+      "localPdf": "../Reference/SpecExtend.pdf",
+      "explanationPage": null,
       "institutionDetails": [
         {
           "name": "首尔大学",
@@ -1701,6 +2761,24 @@
         }
       ],
       "institutionSource": "https://aclanthology.org/2026.findings-acl.2153.pdf",
+      "methodOverview": "面向长上下文的免 Training 增强方案：Prefill 使用 FlashAttention，Verify 使用 Hybrid Tree Attention；Cross-model Retrieval 再根据 Target 的 Attention Score，只为 Drafter 保留最有用的上下文 KV。",
+      "problemStatement": {
+        "background": null,
+        "priorLimitation": null,
+        "goal": null
+      },
+      "methodComponents": [],
+      "characteristics": {
+        "requiresTraining": null,
+        "drafterType": null,
+        "draftGeneration": null,
+        "candidateStructure": null,
+        "verificationStrategy": null,
+        "usesTargetFeatures": null,
+        "dynamicDraftLength": null,
+        "dynamicVerifyLength": null,
+        "lossless": null
+      },
       "subproblemContributions": {
         "A": {
           "summary": "利用 Target 的 Attention Score 筛选 Drafter 最相关的上下文 KV。",
@@ -1711,6 +2789,27 @@
           "detail": "将 FlashAttention 用于 Target 与 Draft 的 Prefill，使用 Hybrid Tree Attention 加速树状 Verify，并以 Drop-in 方式同时优化 Prefill、Draft 和 Verify 阶段；方案不要求重新 Training 现有 Drafter。"
         }
       },
+      "training": {
+        "summary": null,
+        "data": null,
+        "objective": null
+      },
+      "evaluation": {
+        "targetModels": [],
+        "benchmarks": [],
+        "baselines": [],
+        "metrics": [],
+        "hardware": [],
+        "frameworks": []
+      },
+      "mainResults": [],
+      "limitations": [],
+      "relations": {
+        "extends": [],
+        "comparesAgainst": [],
+        "related": [],
+        "compatibleWith": []
+      },
       "citations": [
         "medusa",
         "eagle",
@@ -1719,11 +2818,18 @@
         "specinfer",
         "opt-tree"
       ],
-      "venue": "Findings of ACL 2026",
-      "date": "2025-05",
-      "url": "https://aclanthology.org/2026.findings-acl.2153/",
-      "localPdf": "../Reference/SpecExtend.pdf",
+      "reproducibility": {
+        "codeUrl": null,
+        "modelUrl": null,
+        "projectPage": null,
+        "officialImplementation": null,
+        "status": "not-checked",
+        "notes": []
+      },
+      "evidence": [],
+      "notes": [],
       "provenance": {
+        "legacyWorkbookRow": null,
         "workbookInstitutions": "首尔大学"
       },
       "subproblemCodes": [
@@ -1744,8 +2850,11 @@
         "Hang Gu",
         "Teng Wang"
       ],
-      "methodOverview": "将 Medusa 风格的轻量多 Head 预测改造成适合 NPU 静态图的固定 Token Tree 与 Tree Attention，并配合零拷贝检索；重点解决长序列推理中的显存与带宽瓶颈。",
-      "notes": [],
+      "venue": "arXiv",
+      "date": "2026-03",
+      "url": "https://arxiv.org/abs/2603.03383",
+      "localPdf": "../Reference/Accelerating_OpenPangu_Inference_on_NPU_via_Speculative_Decoding.pdf",
+      "explanationPage": null,
       "institutionDetails": [
         {
           "name": "中国科学技术大学软件学院",
@@ -1754,6 +2863,24 @@
         }
       ],
       "institutionSource": "https://arxiv.org/pdf/2603.03383",
+      "methodOverview": "将 Medusa 风格的轻量多 Head 预测改造成适合 NPU 静态图的固定 Token Tree 与 Tree Attention，并配合零拷贝检索；重点解决长序列推理中的显存与带宽瓶颈。",
+      "problemStatement": {
+        "background": null,
+        "priorLimitation": null,
+        "goal": null
+      },
+      "methodComponents": [],
+      "characteristics": {
+        "requiresTraining": null,
+        "drafterType": null,
+        "draftGeneration": null,
+        "candidateStructure": null,
+        "verificationStrategy": null,
+        "usesTargetFeatures": null,
+        "dynamicDraftLength": null,
+        "dynamicVerifyLength": null,
+        "lossless": null
+      },
       "subproblemContributions": {
         "B": {
           "summary": "将动态候选树改造成可离线预计算的静态树拓扑。",
@@ -1764,16 +2891,44 @@
           "detail": "完成 Medusa 在 NPU PyTorch 生态中的端到端适配，通过静态图、零拷贝路径提取和算子兼容性改造降低动态控制流开销，并解决图重编译、CPU 回退与长上下文内存带宽瓶颈。"
         }
       },
+      "training": {
+        "summary": null,
+        "data": null,
+        "objective": null
+      },
+      "evaluation": {
+        "targetModels": [],
+        "benchmarks": [],
+        "baselines": [],
+        "metrics": [],
+        "hardware": [],
+        "frameworks": []
+      },
+      "mainResults": [],
+      "limitations": [],
+      "relations": {
+        "extends": [],
+        "comparesAgainst": [],
+        "related": [],
+        "compatibleWith": []
+      },
       "citations": [
         "medusa",
         "eagle",
         "specinfer"
       ],
-      "venue": "arXiv",
-      "date": "2026-03",
-      "url": "https://arxiv.org/abs/2603.03383",
-      "localPdf": "../Reference/Accelerating_OpenPangu_Inference_on_NPU_via_Speculative_Decoding.pdf",
+      "reproducibility": {
+        "codeUrl": null,
+        "modelUrl": null,
+        "projectPage": null,
+        "officialImplementation": null,
+        "status": "not-checked",
+        "notes": []
+      },
+      "evidence": [],
+      "notes": [],
       "provenance": {
+        "legacyWorkbookRow": null,
         "workbookInstitutions": "中国科学技术大学软件学院"
       },
       "subproblemCodes": [
@@ -1795,8 +2950,11 @@
         "Wei Gao",
         "Ju Ren"
       ],
-      "methodOverview": "面向手机异构硬件，让小型 Drafter 驻留 DRAM、Target 驻留 Flash；使用同时考虑 I/O 与计算成本的 Token Tree 目标和 Early-Exit 预测提前剪除低价值分支，并在 CPU 与 NPU 间流水化执行。",
-      "notes": [],
+      "venue": "arXiv",
+      "date": "2026-05",
+      "url": "https://arxiv.org/abs/2605.16786",
+      "localPdf": "../Reference/Lever.pdf",
+      "explanationPage": null,
       "institutionDetails": [
         {
           "name": "清华大学",
@@ -1815,6 +2973,24 @@
         }
       ],
       "institutionSource": "https://arxiv.org/pdf/2605.16786",
+      "methodOverview": "面向手机异构硬件，让小型 Drafter 驻留 DRAM、Target 驻留 Flash；使用同时考虑 I/O 与计算成本的 Token Tree 目标和 Early-Exit 预测提前剪除低价值分支，并在 CPU 与 NPU 间流水化执行。",
+      "problemStatement": {
+        "background": null,
+        "priorLimitation": null,
+        "goal": null
+      },
+      "methodComponents": [],
+      "characteristics": {
+        "requiresTraining": null,
+        "drafterType": null,
+        "draftGeneration": null,
+        "candidateStructure": null,
+        "verificationStrategy": null,
+        "usesTargetFeatures": null,
+        "dynamicDraftLength": null,
+        "dynamicVerifyLength": null,
+        "lossless": null
+      },
       "subproblemContributions": {
         "B": {
           "summary": "以包含 Flash I/O 与移动端计算成本的 Gain–Cost 目标动态扩展候选树。",
@@ -1829,6 +3005,27 @@
           "detail": "面向手机有限 DRAM、低 Flash 带宽和有限 NPU 并行能力，让 Drafter 常驻 DRAM、Target 权重驻留 Flash，将批量 Transformer 运算映射到 NPU，并仅沿接受路径在 CPU 执行必要的输出投影。"
         }
       },
+      "training": {
+        "summary": null,
+        "data": null,
+        "objective": null
+      },
+      "evaluation": {
+        "targetModels": [],
+        "benchmarks": [],
+        "baselines": [],
+        "metrics": [],
+        "hardware": [],
+        "frameworks": []
+      },
+      "mainResults": [],
+      "limitations": [],
+      "relations": {
+        "extends": [],
+        "comparesAgainst": [],
+        "related": [],
+        "compatibleWith": []
+      },
       "citations": [
         "medusa",
         "eagle",
@@ -1837,11 +3034,18 @@
         "specinfer",
         "opt-tree"
       ],
-      "venue": "arXiv",
-      "date": "2026-05",
-      "url": "https://arxiv.org/abs/2605.16786",
-      "localPdf": "../Reference/Lever.pdf",
+      "reproducibility": {
+        "codeUrl": null,
+        "modelUrl": null,
+        "projectPage": null,
+        "officialImplementation": null,
+        "status": "not-checked",
+        "notes": []
+      },
+      "evidence": [],
+      "notes": [],
       "provenance": {
+        "legacyWorkbookRow": null,
         "workbookInstitutions": "清华大学 → 北京航空航天大学、匹兹堡大学"
       },
       "subproblemCodes": [

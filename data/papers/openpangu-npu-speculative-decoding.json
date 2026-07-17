@@ -9,8 +9,11 @@
     "Hang Gu",
     "Teng Wang"
   ],
-  "methodOverview": "将 Medusa 风格的轻量多 Head 预测改造成适合 NPU 静态图的固定 Token Tree 与 Tree Attention，并配合零拷贝检索；重点解决长序列推理中的显存与带宽瓶颈。",
-  "notes": [],
+  "venue": "arXiv",
+  "date": "2026-03",
+  "url": "https://arxiv.org/abs/2603.03383",
+  "localPdf": "../Reference/Accelerating_OpenPangu_Inference_on_NPU_via_Speculative_Decoding.pdf",
+  "explanationPage": null,
   "institutionDetails": [
     {
       "name": "中国科学技术大学软件学院",
@@ -19,6 +22,24 @@
     }
   ],
   "institutionSource": "https://arxiv.org/pdf/2603.03383",
+  "methodOverview": "将 Medusa 风格的轻量多 Head 预测改造成适合 NPU 静态图的固定 Token Tree 与 Tree Attention，并配合零拷贝检索；重点解决长序列推理中的显存与带宽瓶颈。",
+  "problemStatement": {
+    "background": null,
+    "priorLimitation": null,
+    "goal": null
+  },
+  "methodComponents": [],
+  "characteristics": {
+    "requiresTraining": null,
+    "drafterType": null,
+    "draftGeneration": null,
+    "candidateStructure": null,
+    "verificationStrategy": null,
+    "usesTargetFeatures": null,
+    "dynamicDraftLength": null,
+    "dynamicVerifyLength": null,
+    "lossless": null
+  },
   "subproblemContributions": {
     "B": {
       "summary": "将动态候选树改造成可离线预计算的静态树拓扑。",
@@ -29,16 +50,44 @@
       "detail": "完成 Medusa 在 NPU PyTorch 生态中的端到端适配，通过静态图、零拷贝路径提取和算子兼容性改造降低动态控制流开销，并解决图重编译、CPU 回退与长上下文内存带宽瓶颈。"
     }
   },
+  "training": {
+    "summary": null,
+    "data": null,
+    "objective": null
+  },
+  "evaluation": {
+    "targetModels": [],
+    "benchmarks": [],
+    "baselines": [],
+    "metrics": [],
+    "hardware": [],
+    "frameworks": []
+  },
+  "mainResults": [],
+  "limitations": [],
+  "relations": {
+    "extends": [],
+    "comparesAgainst": [],
+    "related": [],
+    "compatibleWith": []
+  },
   "citations": [
     "medusa",
     "eagle",
     "specinfer"
   ],
-  "venue": "arXiv",
-  "date": "2026-03",
-  "url": "https://arxiv.org/abs/2603.03383",
-  "localPdf": "../Reference/Accelerating_OpenPangu_Inference_on_NPU_via_Speculative_Decoding.pdf",
+  "reproducibility": {
+    "codeUrl": null,
+    "modelUrl": null,
+    "projectPage": null,
+    "officialImplementation": null,
+    "status": "not-checked",
+    "notes": []
+  },
+  "evidence": [],
+  "notes": [],
   "provenance": {
+    "legacyWorkbookRow": null,
     "workbookInstitutions": "中国科学技术大学软件学院"
   }
 }

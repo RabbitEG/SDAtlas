@@ -33,10 +33,10 @@
 
 ## 3. 检查范围
 
-术语检查器结构化扫描 schema v4 的人工维护源：
+术语检查器结构化扫描 schema v5 的人工维护源：
 
 - `data/catalog.json` 中的站点元数据与 A–E 子问题文案；
-- 所有 `data/papers/*.json` 中的 `methodOverview`、`notes`、单位解释；
+- 所有 `data/papers/*.json` 中的方法概述、问题陈述、方法组件、Training、结果比较、限制、证据、`notes` 与单位解释；
 - 每个 `subproblemContributions.<code>.summary` 与 `.detail`；
 - HTML 和非生成 JavaScript 中可明确判定的禁用中文写法；
 - 除本页外的项目文档中的旧投机解码译法。

@@ -11,8 +11,11 @@
     "Hanlin Xu",
     "Linfeng Zhang"
   ],
-  "methodOverview": "并行 Backbone 先给出整个 Block 的边缘分布，随后一个廉价的因果 Head 根据已经选中的 Prefix 逐步修正后续 Logit，相当于用一次并行预测打底，再用很小的串行模块恢复 Token 间依赖。",
-  "notes": [],
+  "venue": "arXiv",
+  "date": "2026-05",
+  "url": "https://arxiv.org/abs/2605.29707",
+  "localPdf": "../Reference/Domino.pdf",
+  "explanationPage": null,
   "institutionDetails": [
     {
       "name": "上海交通大学 EPIC Lab",
@@ -41,6 +44,24 @@
     }
   ],
   "institutionSource": "https://arxiv.org/pdf/2605.29707",
+  "methodOverview": "并行 Backbone 先给出整个 Block 的边缘分布，随后一个廉价的因果 Head 根据已经选中的 Prefix 逐步修正后续 Logit，相当于用一次并行预测打底，再用很小的串行模块恢复 Token 间依赖。",
+  "problemStatement": {
+    "background": null,
+    "priorLimitation": null,
+    "goal": null
+  },
+  "methodComponents": [],
+  "characteristics": {
+    "requiresTraining": null,
+    "drafterType": null,
+    "draftGeneration": null,
+    "candidateStructure": null,
+    "verificationStrategy": null,
+    "usesTargetFeatures": null,
+    "dynamicDraftLength": null,
+    "dynamicVerifyLength": null,
+    "lossless": null
+  },
   "subproblemContributions": {
     "A": {
       "summary": "以 5 层 DFlash 为并行 Backbone，在一次前向中为 16-Token 块生成 Hidden State，并通过冻结的 Target LM Head 得到 Base Logits；随后 1024 维 GRU 顺序汇总已选 Prefix Token，再由 256 维低秩头给每个位置添加 Logit 残差。",
@@ -55,6 +76,27 @@
       "detail": "因果 Encoder 使用 Ground-Truth Prefix 的 Teacher Forcing，针对只有此前 Token 已被接受时才有意义的修正区间；同时令 L=(1−λₜ)L_final+λₜL_base 并将 λₜ 从 1 线性退火到 0，先稳固并行 Base Distribution、再学习最终残差，防止修正头走捷径导致 Backbone 崩塌。训练响应由冻结 Target 在 142 万条 PerfectBlend 提示上重新生成，两个损失都使用前重后轻的指数位置权重。"
     }
   },
+  "training": {
+    "summary": "因果 Encoder 使用 Ground-Truth Prefix 的 Teacher Forcing，针对只有此前 Token 已被接受时才有意义的修正区间；同时令 L=(1−λₜ)L_final+λₜL_base 并将 λₜ 从 1 线性退火到 0，先稳固并行 Base Distribution、再学习最终残差，防止修正头走捷径导致 Backbone 崩塌。",
+    "data": null,
+    "objective": null
+  },
+  "evaluation": {
+    "targetModels": [],
+    "benchmarks": [],
+    "baselines": [],
+    "metrics": [],
+    "hardware": [],
+    "frameworks": []
+  },
+  "mainResults": [],
+  "limitations": [],
+  "relations": {
+    "extends": [],
+    "comparesAgainst": [],
+    "related": [],
+    "compatibleWith": []
+  },
   "citations": [
     "medusa",
     "eagle",
@@ -66,12 +108,18 @@
     "specinfer",
     "dart"
   ],
-  "venue": "arXiv",
-  "date": "2026-05",
-  "url": "https://arxiv.org/abs/2605.29707",
+  "reproducibility": {
+    "codeUrl": null,
+    "modelUrl": null,
+    "projectPage": null,
+    "officialImplementation": null,
+    "status": "not-checked",
+    "notes": []
+  },
+  "evidence": [],
+  "notes": [],
   "provenance": {
     "legacyWorkbookRow": 12,
     "workbookInstitutions": "未知（arXiv作者团队）"
-  },
-  "localPdf": "../Reference/Domino.pdf"
+  }
 }

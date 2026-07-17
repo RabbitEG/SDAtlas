@@ -8,8 +8,11 @@
     "Junnan Huang",
     "Xinyu Chen"
   ],
-  "methodOverview": "Training 一个轻量 Target-Aware Scorer 来估计每条边在 Target 下被接受的条件概率，沿 Prefix 连乘后选出紧凑的前缀闭合子树。",
-  "notes": [],
+  "venue": "arXiv",
+  "date": "2026-05",
+  "url": "https://arxiv.org/abs/2606.00487",
+  "localPdf": "../Reference/TAPS.pdf",
+  "explanationPage": null,
   "institutionDetails": [
     {
       "name": "香港科技大学（广州）",
@@ -18,6 +21,24 @@
     }
   ],
   "institutionSource": "https://arxiv.org/pdf/2606.00487",
+  "methodOverview": "Training 一个轻量 Target-Aware Scorer 来估计每条边在 Target 下被接受的条件概率，沿 Prefix 连乘后选出紧凑的前缀闭合子树。",
+  "problemStatement": {
+    "background": null,
+    "priorLimitation": null,
+    "goal": null
+  },
+  "methodComponents": [],
+  "characteristics": {
+    "requiresTraining": null,
+    "drafterType": null,
+    "draftGeneration": null,
+    "candidateStructure": null,
+    "verificationStrategy": null,
+    "usesTargetFeatures": null,
+    "dynamicDraftLength": null,
+    "dynamicVerifyLength": null,
+    "lossless": null
+  },
   "subproblemContributions": {
     "B": {
       "summary": "先从扩散 Drafter 每个位置的 Top-K Token 组成大候选池，再由轻量 Target-Aware Scorer 为每条父子边估计“已到达父节点时接受该孩子”的条件概率；沿根路径连乘后得到节点可达概率，因而会压低错误 Prefix 下看似高置信的后代。",
@@ -27,6 +48,27 @@
       "summary": "将“祖先全部通过后该节点才有用”显式纳入 Verify 分配，避免高边缘概率但 Prefix 已不可达的后代占用 Target 计算。",
       "detail": "将“祖先全部通过后该节点才有用”显式纳入 Verify 分配，避免高边缘概率但 Prefix 已不可达的后代占用 Target 计算。λ₁建模逐节点 Tree Attention 开销，λ₂惩罚较深且 KV 复用机会更低的节点，τ 则在剩余节点收益不足时终止扩树。"
     }
+  },
+  "training": {
+    "summary": null,
+    "data": null,
+    "objective": null
+  },
+  "evaluation": {
+    "targetModels": [],
+    "benchmarks": [],
+    "baselines": [],
+    "metrics": [],
+    "hardware": [],
+    "frameworks": []
+  },
+  "mainResults": [],
+  "limitations": [],
+  "relations": {
+    "extends": [],
+    "comparesAgainst": [],
+    "related": [],
+    "compatibleWith": []
   },
   "citations": [
     "medusa",
@@ -38,12 +80,18 @@
     "dart",
     "ddtree"
   ],
-  "venue": "arXiv",
-  "date": "2026-05",
-  "url": "https://arxiv.org/abs/2606.00487",
+  "reproducibility": {
+    "codeUrl": null,
+    "modelUrl": null,
+    "projectPage": null,
+    "officialImplementation": null,
+    "status": "not-checked",
+    "notes": []
+  },
+  "evidence": [],
+  "notes": [],
   "provenance": {
     "legacyWorkbookRow": 18,
     "workbookInstitutions": "未知（arXiv作者团队）"
-  },
-  "localPdf": "../Reference/TAPS.pdf"
+  }
 }

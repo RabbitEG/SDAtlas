@@ -17,8 +17,11 @@
     "Jianchen Zhu",
     "Sujian Li"
   ],
-  "methodOverview": "在 DFlash 基础上，让每个 Drafter Layer 从更广泛的 Target Layer 中学习独立融合权重，并使用异构 KV Projection；配合更深 Drafter、更多数据和渐进式损失提升容量。",
-  "notes": [],
+  "venue": "arXiv",
+  "date": "2026-06",
+  "url": "https://arxiv.org/abs/2606.02091",
+  "localPdf": "../Reference/DFlare.pdf",
+  "explanationPage": null,
   "institutionDetails": [
     {
       "name": "北京大学计算机学院",
@@ -32,6 +35,24 @@
     }
   ],
   "institutionSource": "https://arxiv.org/pdf/2606.02091",
+  "methodOverview": "在 DFlash 基础上，让每个 Drafter Layer 从更广泛的 Target Layer 中学习独立融合权重，并使用异构 KV Projection；配合更深 Drafter、更多数据和渐进式损失提升容量。",
+  "problemStatement": {
+    "background": null,
+    "priorLimitation": null,
+    "goal": null
+  },
+  "methodComponents": [],
+  "characteristics": {
+    "requiresTraining": null,
+    "drafterType": null,
+    "draftGeneration": null,
+    "candidateStructure": null,
+    "verificationStrategy": null,
+    "usesTargetFeatures": null,
+    "dynamicDraftLength": null,
+    "dynamicVerifyLength": null,
+    "lossless": null
+  },
   "subproblemContributions": {
     "A": {
       "summary": "沿用 DFlash 的单次 Block-Diffusion Draft，但以 Adaptive Layer Fusion 为每个 Drafter 层学习一组 Softmax 标量权重，分别融合更广的 Target 层（Qwen 配置为 9 层），再用异构 K/V Projection 分离 Target 上下文与 Drafter 状态的表示空间。",
@@ -41,6 +62,27 @@
       "summary": "将 Nemotron V2、CodeAlpaca 与 Step-3.5-Flash-SFT 扩展为约 240 万条提示，并用对应 Target 在温度 0.6 下重生成响应，训练规模是 DFlash 的 3 倍。",
       "detail": "将 Nemotron V2、CodeAlpaca 与 Step-3.5-Flash-SFT 扩展为约 240 万条提示，并用对应 Target 在温度 0.6 下重生成响应，训练规模是 DFlash 的 3 倍。Qwen 训练从 γ₀=4.5 逐步增大指数位置权重的衰减参数，先聚焦决定接受链的前部 Token，再逐渐提高困难后缀的训练权重。"
     }
+  },
+  "training": {
+    "summary": "将 Nemotron V2、CodeAlpaca 与 Step-3.5-Flash-SFT 扩展为约 240 万条提示，并用对应 Target 在温度 0.6 下重生成响应，训练规模是 DFlash 的 3 倍。",
+    "data": null,
+    "objective": null
+  },
+  "evaluation": {
+    "targetModels": [],
+    "benchmarks": [],
+    "baselines": [],
+    "metrics": [],
+    "hardware": [],
+    "frameworks": []
+  },
+  "mainResults": [],
+  "limitations": [],
+  "relations": {
+    "extends": [],
+    "comparesAgainst": [],
+    "related": [],
+    "compatibleWith": []
   },
   "citations": [
     "medusa",
@@ -53,12 +95,18 @@
     "dflash",
     "specinfer"
   ],
-  "venue": "arXiv",
-  "date": "2026-06",
-  "url": "https://arxiv.org/abs/2606.02091",
+  "reproducibility": {
+    "codeUrl": null,
+    "modelUrl": null,
+    "projectPage": null,
+    "officialImplementation": null,
+    "status": "not-checked",
+    "notes": []
+  },
+  "evidence": [],
+  "notes": [],
   "provenance": {
     "legacyWorkbookRow": 11,
     "workbookInstitutions": "北京大学、腾讯"
-  },
-  "localPdf": "../Reference/DFlare.pdf"
+  }
 }

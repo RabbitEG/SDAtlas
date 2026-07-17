@@ -7,8 +7,11 @@
     "Lifu Wang",
     "Pan Zhou"
   ],
-  "methodOverview": "使用实际测得的 Draft 与 Verify 延迟曲线，在运行时比较增加候选节点的边际收益和成本；只有预计能降低端到端延迟时才扩树。",
-  "notes": [],
+  "venue": "ECCV 2026",
+  "date": "2026-04",
+  "url": "https://arxiv.org/abs/2604.09731",
+  "localPdf": "../Reference/SMART.pdf",
+  "explanationPage": null,
   "institutionDetails": [
     {
       "name": "新加坡管理大学",
@@ -17,6 +20,24 @@
     }
   ],
   "institutionSource": "https://arxiv.org/pdf/2604.09731",
+  "methodOverview": "使用实际测得的 Draft 与 Verify 延迟曲线，在运行时比较增加候选节点的边际收益和成本；只有预计能降低端到端延迟时才扩树。",
+  "problemStatement": {
+    "background": null,
+    "priorLimitation": null,
+    "goal": null
+  },
+  "methodComponents": [],
+  "characteristics": {
+    "requiresTraining": null,
+    "drafterType": null,
+    "draftGeneration": null,
+    "candidateStructure": null,
+    "verificationStrategy": null,
+    "usesTargetFeatures": null,
+    "dynamicDraftLength": null,
+    "dynamicVerifyLength": null,
+    "lossless": null
+  },
   "subproblemContributions": {
     "B": {
       "summary": "把候选树目标从最大化概率或接受长度改为最大化端到端加速比 R(T)=c_T·L_tree/(C_Draft+C_Verify)，其中 L_tree 由根到叶 Prefix 的累积接受概率估计。",
@@ -31,6 +52,27 @@
       "detail": "以当前 Batch Size 将设备级 Verify 预算均分为每条序列的树预算，并让每个请求再根据自身候选置信度逐节点扩展或剪枝。该训练无关的运行时控制器不改 Drafter、Target 或 Verify 规则，可作为 EAGLE、MSD、DFlash 等已有投机解码管线的插件。\n\n分别用 C_Draft=λ|T| 与 C_Verify=γ(exp(δ|T|^ρ)−1) 拟合指定 GPU 上的 Draft 和 Verify 时延，再用曲线导数估算新增节点的硬件边际成本。设备只需少量预分析前向即可重拟合参数，因此控制策略能反映不同 GPU 的算力、带宽与 Batch 饱和转折点。"
     }
   },
+  "training": {
+    "summary": null,
+    "data": null,
+    "objective": null
+  },
+  "evaluation": {
+    "targetModels": [],
+    "benchmarks": [],
+    "baselines": [],
+    "metrics": [],
+    "hardware": [],
+    "frameworks": []
+  },
+  "mainResults": [],
+  "limitations": [],
+  "relations": {
+    "extends": [],
+    "comparesAgainst": [],
+    "related": [],
+    "compatibleWith": []
+  },
   "citations": [
     "medusa",
     "dflash",
@@ -39,12 +81,18 @@
     "eagle-3",
     "specinfer"
   ],
-  "venue": "ECCV 2026",
-  "date": "2026-04",
-  "url": "https://arxiv.org/abs/2604.09731",
+  "reproducibility": {
+    "codeUrl": null,
+    "modelUrl": null,
+    "projectPage": null,
+    "officialImplementation": null,
+    "status": "not-checked",
+    "notes": []
+  },
+  "evidence": [],
+  "notes": [],
   "provenance": {
     "legacyWorkbookRow": 19,
     "workbookInstitutions": "未知（arXiv作者团队）"
-  },
-  "localPdf": "../Reference/SMART.pdf"
+  }
 }

@@ -1,32 +1,83 @@
 {
   "id": "paper-stable-id",
   "index": 26,
-  "title": "标题",
+  "title": "论文原始英文标题",
   "shortName": "论文简称",
   "authors": [
     "作者一",
     "作者二"
   ],
-  "methodOverview": "用一至三句话给出兼顾准确性与可理解性的直观方法概述。",
-  "notes": [],
+  "venue": "会议或版本",
+  "date": "2026-07",
+  "url": "https://example.org/paper",
+  "localPdf": "../Reference/Paper.pdf",
+  "explanationPage": null,
   "institutionDetails": [
     {
       "name": "研究单位",
       "order": 1,
-      "explanation": "说明该单位与作者、主要工作或通讯作者的关系。"
+      "explanation": "说明单位与论文作者的署名关系。"
     }
   ],
   "institutionSource": "https://example.org/paper.pdf",
+  "methodOverview": "用一至两句话说明方法基于什么、改了哪里以及希望解决什么问题。",
+  "problemStatement": {
+    "background": null,
+    "priorLimitation": null,
+    "goal": null
+  },
+  "methodComponents": [],
+  "characteristics": {
+    "requiresTraining": null,
+    "drafterType": null,
+    "draftGeneration": null,
+    "candidateStructure": null,
+    "verificationStrategy": null,
+    "usesTargetFeatures": null,
+    "dynamicDraftLength": null,
+    "dynamicVerifyLength": null,
+    "lossless": null
+  },
   "subproblemContributions": {
     "A": {
       "summary": "列表折叠状态使用的单句贡献概括。",
       "detail": "论文详情页和展开区域使用的完整贡献说明。"
     }
   },
+  "training": {
+    "summary": null,
+    "data": null,
+    "objective": null
+  },
+  "evaluation": {
+    "targetModels": [],
+    "benchmarks": [],
+    "baselines": [],
+    "metrics": [],
+    "hardware": [],
+    "frameworks": []
+  },
+  "mainResults": [],
+  "limitations": [],
+  "relations": {
+    "extends": [],
+    "comparesAgainst": [],
+    "related": [],
+    "compatibleWith": []
+  },
   "citations": [],
-  "venue": "会议或版本",
-  "date": "2026-07",
-  "url": "https://example.org/paper",
-  "explanationPage": null,
-  "localPdf": "../Reference/Paper.pdf"
+  "reproducibility": {
+    "codeUrl": null,
+    "modelUrl": null,
+    "projectPage": null,
+    "officialImplementation": null,
+    "status": "not-checked",
+    "notes": []
+  },
+  "evidence": [],
+  "notes": [],
+  "provenance": {
+    "legacyWorkbookRow": null,
+    "workbookInstitutions": null
+  }
 }

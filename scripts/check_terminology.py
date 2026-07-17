@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check schema-v4 SDAtlas prose against the maintained terminology table.
+"""Check schema-v5 SDAtlas prose against the maintained terminology table.
 
 The checker reads taxonomy prose from ``data/catalog.json`` and paper prose
 from every ``data/papers/*.json`` source. Generated catalog files are skipped
@@ -56,6 +56,23 @@ def iter_paper_prose(path: Path, paper: Dict[str, Any]) -> Iterable[Tuple[str, s
     prefix = str(path.relative_to(ROOT))
     yield f"{prefix}:methodOverview", str(paper.get("methodOverview", ""))
 
+    problem = paper.get("problemStatement", {})
+    if isinstance(problem, dict):
+        for field in ("background", "priorLimitation", "goal"):
+            value = problem.get(field)
+            if isinstance(value, str):
+                yield f"{prefix}:problemStatement.{field}", value
+
+    components = paper.get("methodComponents", [])
+    if isinstance(components, list):
+        for index, component in enumerate(components):
+            if not isinstance(component, dict):
+                continue
+            for field in ("name", "stage", "purpose", "mechanism", "differenceFromPrior"):
+                value = component.get(field)
+                if isinstance(value, str):
+                    yield f"{prefix}:methodComponents[{index}].{field}", value
+
     notes = paper.get("notes", [])
     if isinstance(notes, list):
         for index, note in enumerate(notes):
@@ -72,6 +89,42 @@ def iter_paper_prose(path: Path, paper: Dict[str, Any]) -> Iterable[Tuple[str, s
                     str(contribution.get(field, "")),
                 )
 
+    training = paper.get("training", {})
+    if isinstance(training, dict):
+        for field in ("summary", "data", "objective"):
+            value = training.get(field)
+            if isinstance(value, str):
+                yield f"{prefix}:training.{field}", value
+
+    results = paper.get("mainResults", [])
+    if isinstance(results, list):
+        for index, item in enumerate(results):
+            if not isinstance(item, dict):
+                continue
+            for field in ("condition", "comparison"):
+                value = item.get(field)
+                if isinstance(value, str):
+                    yield f"{prefix}:mainResults[{index}].{field}", value
+
+    limitations = paper.get("limitations", [])
+    if isinstance(limitations, list):
+        for index, item in enumerate(limitations):
+            if isinstance(item, dict) and isinstance(item.get("description"), str):
+                yield f"{prefix}:limitations[{index}].description", item["description"]
+
+    evidence = paper.get("evidence", [])
+    if isinstance(evidence, list):
+        for index, item in enumerate(evidence):
+            if isinstance(item, dict) and isinstance(item.get("claim"), str):
+                yield f"{prefix}:evidence[{index}].claim", item["claim"]
+
+    reproducibility = paper.get("reproducibility", {})
+    if isinstance(reproducibility, dict):
+        reproduction_notes = reproducibility.get("notes", [])
+        if isinstance(reproduction_notes, list):
+            for index, note in enumerate(reproduction_notes):
+                yield f"{prefix}:reproducibility.notes[{index}]", str(note)
+
     details = paper.get("institutionDetails", [])
     if isinstance(details, list):
         for index, detail in enumerate(details):
@@ -80,9 +133,6 @@ def iter_paper_prose(path: Path, paper: Dict[str, Any]) -> Iterable[Tuple[str, s
                     f"{prefix}:institutionDetails[{index}].explanation",
                     str(detail.get("explanation", "")),
                 )
-
-    if paper.get("localPdfNote"):
-        yield f"{prefix}:localPdfNote", str(paper["localPdfNote"])
 
 
 def line_number(source: str, offset: int) -> int:

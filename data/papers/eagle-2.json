@@ -9,8 +9,11 @@
     "Chao Zhang",
     "Hongyang Zhang"
   ],
-  "methodOverview": "根据当前上下文动态构造 Draft Tree。每条路径的价值由沿途 Token 置信度连乘得到，算法先扩展高价值节点，再从全局保留固定预算内、前缀闭合的最优树。",
-  "notes": [],
+  "venue": "EMNLP 2024",
+  "date": "2024-06",
+  "url": "https://aclanthology.org/2024.emnlp-main.422/",
+  "localPdf": "../Reference/EAGLE2.pdf",
+  "explanationPage": null,
   "institutionDetails": [
     {
       "name": "北京大学",
@@ -34,6 +37,24 @@
     }
   ],
   "institutionSource": "https://arxiv.org/pdf/2406.16858",
+  "methodOverview": "根据当前上下文动态构造 Draft Tree。每条路径的价值由沿途 Token 置信度连乘得到，算法先扩展高价值节点，再从全局保留固定预算内、前缀闭合的最优树。",
+  "problemStatement": {
+    "background": null,
+    "priorLimitation": null,
+    "goal": null
+  },
+  "methodComponents": [],
+  "characteristics": {
+    "requiresTraining": null,
+    "drafterType": null,
+    "draftGeneration": null,
+    "candidateStructure": null,
+    "verificationStrategy": null,
+    "usesTargetFeatures": null,
+    "dynamicDraftLength": null,
+    "dynamicVerifyLength": null,
+    "lossless": null
+  },
   "subproblemContributions": {
     "B": {
       "summary": "保持 EAGLE 的特征级 Drafter、训练和推理方式不变，利用其校准良好的 Token 置信度作为接受率的低成本代理。",
@@ -44,16 +65,43 @@
       "detail": "全局重排只让 path value 最高的 m 个连通节点进入 Verify，低收益分支不会占用 Target 的节点预算；展平后构造 Tree Attention 掩码，使每个 Token 仅能看到祖先并由 Target 一次并行处理。接受阶段仍沿用标准投机解码的 rejection sampling 规则且不放宽条件，因此动态选树不改变 Target 的输出分布。"
     }
   },
+  "training": {
+    "summary": null,
+    "data": null,
+    "objective": null
+  },
+  "evaluation": {
+    "targetModels": [],
+    "benchmarks": [],
+    "baselines": [],
+    "metrics": [],
+    "hardware": [],
+    "frameworks": []
+  },
+  "mainResults": [],
+  "limitations": [],
+  "relations": {
+    "extends": [],
+    "comparesAgainst": [],
+    "related": [],
+    "compatibleWith": []
+  },
   "citations": [
     "medusa",
     "eagle"
   ],
-  "venue": "EMNLP 2024",
-  "date": "2024-06",
-  "url": "https://aclanthology.org/2024.emnlp-main.422/",
+  "reproducibility": {
+    "codeUrl": null,
+    "modelUrl": null,
+    "projectPage": null,
+    "officialImplementation": null,
+    "status": "not-checked",
+    "notes": []
+  },
+  "evidence": [],
+  "notes": [],
   "provenance": {
     "legacyWorkbookRow": 4,
     "workbookInstitutions": "清华大学、美国加州大学圣塔芭芭拉分校（UCSB）"
-  },
-  "localPdf": "../Reference/EAGLE2.pdf"
+  }
 }
