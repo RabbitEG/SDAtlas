@@ -72,7 +72,11 @@
   "relations": {
     "extends": [],
     "comparesAgainst": [],
-    "related": [],
+    "related": [
+      "eagle",
+      "eagle-2",
+      "eagle-3"
+    ],
     "compatibleWith": []
   },
   "citations": [

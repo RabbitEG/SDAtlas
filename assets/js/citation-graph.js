@@ -1,16 +1,29 @@
 /*
- * Interactive citation graph shared by every SDAtlas result page.
+ * Interactive paper-relation graph shared by every SDAtlas result page.
  *
- * Citation data is never rewritten here. For each visible result set, the
- * component performs a display-only transitive reduction: when A -> C is
- * already implied by A -> B -> ... -> C, the direct A -> C stroke is omitted.
- * The remaining graph is layered so citing papers sit to the right of papers
- * they cite.
+ * Source relations are never rewritten here. For each visible result set, the
+ * component performs a display-only, relation-aware transitive reduction:
+ * when A -> C is already implied by an A -> B -> ... -> C path of the same
+ * relation type, the direct A -> C stroke is omitted. The remaining graph is
+ * layered so relation sources sit to the right of their targets.
  */
 (function () {
   "use strict";
 
   var graphSequence = 0;
+  var RELATION_DEFINITIONS = [
+    { key: "extends", label: "直接扩展" },
+    { key: "comparesAgainst", label: "实验比较" },
+    { key: "related", label: "相关工作" },
+    { key: "compatibleWith", label: "可组合" }
+  ];
+
+  function relationDefinition(key) {
+    for (var index = 0; index < RELATION_DEFINITIONS.length; index += 1) {
+      if (RELATION_DEFINITIONS[index].key === key) return RELATION_DEFINITIONS[index];
+    }
+    return { key: key, label: key };
+  }
 
   function escapeHtml(value) {
     return String(value == null ? "" : value)
@@ -69,7 +82,7 @@
     }).slice().sort(comparePapers);
   }
 
-  function pathExists(adjacency, startId, targetId, skippedEdge) {
+  function pathExists(adjacency, startId, targetId, skippedEdge, relationType) {
     var stack = [startId];
     var visited = new Set([startId]);
     while (stack.length) {
@@ -78,6 +91,7 @@
       for (var index = 0; index < nextEdges.length; index += 1) {
         var edge = nextEdges[index];
         if (edge === skippedEdge) continue;
+        if (relationType && edge.relationTypes.indexOf(relationType) === -1) continue;
         var nextId = String(edge.target.id);
         if (nextId === targetId) return true;
         if (!visited.has(nextId)) {
@@ -103,8 +117,30 @@
        * Cyclic graphs have no unique transitive reduction. Preserve edges
        * whose endpoints are mutually reachable and reduce the acyclic part.
        */
-      if (pathExists(adjacency, targetId, sourceId, null)) return true;
-      return !pathExists(adjacency, sourceId, targetId, edge);
+      return edge.relationTypes.some(function (relationType) {
+        if (pathExists(adjacency, targetId, sourceId, null, relationType)) return true;
+        return !pathExists(adjacency, sourceId, targetId, edge, relationType);
+      });
+    });
+  }
+
+  function collapseReciprocalRelatedEdges(rawEdges) {
+    var edgeByKey = new Map();
+    rawEdges.forEach(function (edge) { edgeByKey.set(edge.key, edge); });
+    return rawEdges.filter(function (edge) {
+      /*
+       * `related` is symmetric in meaning. If both source files record the
+       * same pure relation, draw it once so the display graph remains
+       * layerable from right to left. The stable paper order only chooses
+       * the visible arrow direction; neither source relation is rewritten.
+       */
+      if (edge.relationTypes.length !== 1 || edge.relationTypes[0] !== "related") {
+        return true;
+      }
+      var reverse = edgeByKey.get(String(edge.target.id) + "->" + String(edge.source.id));
+      if (!reverse || reverse.relationTypes.length !== 1 ||
+          reverse.relationTypes[0] !== "related") return true;
+      return comparePapers(edge.source, edge.target) > 0;
     });
   }
 
@@ -116,30 +152,55 @@
 
     papers.forEach(function (paper) {
       var sourceId = String(paper.id);
-      var seenTargets = new Set();
-      var references = Array.isArray(paper.citations)
-        ? paper.citations
-        : (Array.isArray(paper.cites) ? paper.cites : []);
-      references.forEach(function (reference) {
-        var targetId = referenceId(reference);
-        if (!targetId || targetId === sourceId || seenTargets.has(targetId)) return;
-        seenTargets.add(targetId);
+      var edgeByTarget = new Map();
+      var relations = paper.relations && typeof paper.relations === "object"
+        ? paper.relations : null;
+      var hasStructuredRelations = relations && RELATION_DEFINITIONS.some(function (definition) {
+        return Array.isArray(relations[definition.key]);
+      });
+      var definitions = hasStructuredRelations
+        ? RELATION_DEFINITIONS
+        : [{ key: "related", label: "相关工作", fallback: true }];
+
+      definitions.forEach(function (definition) {
+        var references = definition.fallback
+          ? (Array.isArray(paper.citations) ? paper.citations : [])
+          : relations[definition.key];
+        if (!Array.isArray(references)) return;
+        references.forEach(function (reference) {
+          var targetId = referenceId(reference);
+          if (!targetId || targetId === sourceId) return;
+          var edge = edgeByTarget.get(targetId);
+          if (!edge) {
+            edge = {
+              source: paper,
+              targetId: targetId,
+              relationTypes: [],
+              key: sourceId + "->" + targetId
+            };
+            edgeByTarget.set(targetId, edge);
+          }
+          if (edge.relationTypes.indexOf(definition.key) === -1) {
+            edge.relationTypes.push(definition.key);
+          }
+        });
+      });
+
+      edgeByTarget.forEach(function (edge, targetId) {
         if (!paperById.has(targetId)) {
           externalCount += 1;
           return;
         }
-        rawEdges.push({
-          source: paper,
-          target: paperById.get(targetId),
-          key: sourceId + "->" + targetId
-        });
+        edge.target = paperById.get(targetId);
+        rawEdges.push(edge);
       });
     });
 
     rawEdges.sort(function (left, right) {
       return comparePapers(left.source, right.source) || comparePapers(left.target, right.target);
     });
-    var edges = transitiveReduction(papers, rawEdges);
+    var directionalEdges = collapseReciprocalRelatedEdges(rawEdges);
+    var edges = transitiveReduction(papers, directionalEdges);
     var outgoing = new Map();
     var incoming = new Map();
     edges.forEach(function (edge) {
@@ -455,21 +516,21 @@
     }).join("");
   }
 
-  function edgePath(edge, layout) {
+  function edgePoints(edge, layout) {
     var source = layout.positions.get(String(edge.source.id));
     var target = layout.positions.get(String(edge.target.id));
-    if (!source || !target) return "";
+    if (!source || !target) return [];
     var offsets = layout.ports.get(edge) || { source: 0, target: 0 };
     var sourceY = source.y + source.height / 2 + offsets.source;
     var targetY = target.y + target.height / 2 + offsets.target;
     if (source.column === target.column) {
       var sideX = source.x + source.width + Math.min(46, layout.columnGap * 0.42);
-      return orthogonalPath([
+      return [
         { x: source.x + source.width, y: sourceY },
         { x: sideX, y: sourceY },
         { x: sideX, y: targetY },
         { x: target.x + target.width, y: targetY }
-      ]);
+      ];
     }
     var sourceIsRight = source.column > target.column;
     var sourceX = sourceIsRight ? source.x : source.x + source.width;
@@ -477,9 +538,12 @@
     var span = Math.abs(source.column - target.column);
     if (span === 1) {
       var middleX = (sourceX + targetX) / 2;
-      return "M " + sourceX + " " + sourceY +
-        " C " + middleX + " " + sourceY + ", " + middleX + " " + targetY +
-        ", " + targetX + " " + targetY;
+      return [
+        { x: sourceX, y: sourceY },
+        { x: middleX, y: sourceY },
+        { x: middleX, y: targetY },
+        { x: targetX, y: targetY }
+      ];
     }
     var route = layout.outerRoutes.get(edge) || { side: "top", lane: 0 };
     var sourceLaneX = sourceIsRight
@@ -491,14 +555,48 @@
     var laneY = route.side === "top"
       ? layout.paddingTop - 18 - route.lane * layout.laneGap
       : layout.contentBottom + 18 + route.lane * layout.laneGap;
-    return orthogonalPath([
+    return [
       { x: sourceX, y: sourceY },
       { x: sourceLaneX, y: sourceY },
       { x: sourceLaneX, y: laneY },
       { x: targetLaneX, y: laneY },
       { x: targetLaneX, y: targetY },
       { x: targetX, y: targetY }
-    ]);
+    ];
+  }
+
+  function routeMidpoint(points) {
+    var segments = [];
+    var total = 0;
+    for (var index = 1; index < points.length; index += 1) {
+      var start = points[index - 1];
+      var end = points[index];
+      var dx = end.x - start.x;
+      var dy = end.y - start.y;
+      var length = Math.sqrt(dx * dx + dy * dy);
+      segments.push({ start: start, end: end, length: length });
+      total += length;
+    }
+    var remaining = total / 2;
+    for (var segmentIndex = 0; segmentIndex < segments.length; segmentIndex += 1) {
+      var segment = segments[segmentIndex];
+      if (remaining <= segment.length || segmentIndex === segments.length - 1) {
+        var ratio = segment.length ? remaining / segment.length : 0;
+        return {
+          x: segment.start.x + (segment.end.x - segment.start.x) * ratio,
+          y: segment.start.y + (segment.end.y - segment.start.y) * ratio
+        };
+      }
+      remaining -= segment.length;
+    }
+    return points[0] || { x: 0, y: 0 };
+  }
+
+  function relationTypeText(edge, detailed) {
+    return edge.relationTypes.map(function (type) {
+      var definition = relationDefinition(type);
+      return detailed ? "relations." + definition.key + "（" + definition.label + "）" : definition.key;
+    }).join(detailed ? "、" : " / ");
   }
 
   function edgesMarkup(graph, layout, markerId) {
@@ -509,11 +607,31 @@
       var targetPosition = layout.positions.get(targetId);
       var routeClass = Math.abs(sourcePosition.column - targetPosition.column) === 1
         ? "" : " is-outer-route";
-      var label = paperLabel(edge.source) + " 引用了 " + paperLabel(edge.target);
-      return "<path class=\"citation-graph__edge" + routeClass + "\" data-source=\"" +
-        escapeHtml(sourceId) + "\" data-target=\"" + escapeHtml(targetId) + "\" d=\"" +
-        edgePath(edge, layout) + "\" marker-end=\"url(#" + markerId + ")\"><title>" +
-        escapeHtml(label) + "</title></path>";
+      var points = edgePoints(edge, layout);
+      var path = orthogonalPath(points);
+      var midpoint = routeMidpoint(points);
+      var typeText = relationTypeText(edge, true);
+      var shortTypeText = relationTypeText(edge, false);
+      var label = paperLabel(edge.source) + " → " + paperLabel(edge.target) + "｜" + typeText;
+      var typeClasses = edge.relationTypes.map(function (type) {
+        return " relation-" + type;
+      }).join("");
+      return [
+        "<g class=\"citation-graph__edge-group" + routeClass + typeClasses +
+          "\" data-source=\"" + escapeHtml(sourceId) + "\" data-target=\"" +
+          escapeHtml(targetId) + "\" data-relation-types=\"" +
+          escapeHtml(edge.relationTypes.join(",")) + "\">",
+        "<path class=\"citation-graph__edge" + routeClass + "\" d=\"" + path +
+          "\" marker-end=\"url(#" + markerId + ")\"><title>" +
+          escapeHtml(label) + "</title></path>",
+        "<path class=\"citation-graph__edge-hit\" d=\"" + path +
+          "\" tabindex=\"0\" role=\"img\" aria-label=\"" + escapeHtml(label) +
+          "\" data-edge-label=\"" + escapeHtml(label) + "\"><title>" +
+          escapeHtml(label) + "</title></path>",
+        "<text class=\"citation-graph__edge-relation\" x=\"" + midpoint.x + "\" y=\"" +
+          (midpoint.y - 5) + "\" text-anchor=\"middle\">" + escapeHtml(shortTypeText) + "</text>",
+        "</g>"
+      ].join("");
     }).join("");
   }
 
@@ -550,6 +668,7 @@
     var world = target.querySelector(".citation-graph__world");
     var controls = target.querySelector(".citation-graph__controls");
     var zoomValue = target.querySelector(".citation-graph__zoom-value");
+    var edgeTooltip = target.querySelector(".citation-graph__edge-tooltip");
     if (!viewport || !world || !controls) return function () {};
     var minimumScale = finiteNumber(options.minScale, 0.18);
     var maximumScale = finiteNumber(options.maxScale, 2.4);
@@ -557,13 +676,59 @@
     var drag = null;
     var resizeObserver = null;
     var frame = 0;
+    var relationLabelScale = finiteNumber(options.relationLabelScale, 1.05);
 
     function apply() {
       world.style.transform = "translate(" + state.x + "px," + state.y + "px) scale(" +
         state.scale + ")";
       if (zoomValue) zoomValue.textContent = Math.round(state.scale * 100) + "%";
+      viewport.classList.toggle("is-detail-scale", state.scale >= relationLabelScale);
+    }
+    function edgeHitTarget(event) {
+      return event.target && event.target.closest
+        ? event.target.closest(".citation-graph__edge-hit") : null;
+    }
+    function hideEdgeTooltip(mode) {
+      if (!edgeTooltip) return;
+      if (mode && edgeTooltip.getAttribute("data-mode") !== mode) return;
+      edgeTooltip.hidden = true;
+      edgeTooltip.removeAttribute("data-mode");
+    }
+    function showEdgeTooltip(hit, clientX, clientY, mode) {
+      if (!edgeTooltip || !hit) return;
+      var rectangle = viewport.getBoundingClientRect();
+      edgeTooltip.textContent = hit.getAttribute("data-edge-label") || hit.getAttribute("aria-label") || "";
+      edgeTooltip.hidden = false;
+      edgeTooltip.setAttribute("data-mode", mode);
+      var maximumX = Math.max(8, rectangle.width - edgeTooltip.offsetWidth - 8);
+      var maximumY = Math.max(8, rectangle.height - edgeTooltip.offsetHeight - 8);
+      edgeTooltip.style.left = clamp(clientX - rectangle.left + 12, 8, maximumX) + "px";
+      edgeTooltip.style.top = clamp(clientY - rectangle.top + 14, 8, maximumY) + "px";
+    }
+    function onEdgePointerMove(event) {
+      if (drag) return;
+      var hit = edgeHitTarget(event);
+      if (hit) {
+        showEdgeTooltip(hit, event.clientX, event.clientY, "pointer");
+      } else {
+        hideEdgeTooltip("pointer");
+      }
+    }
+    function onEdgeFocusIn(event) {
+      var hit = edgeHitTarget(event);
+      if (!hit) return;
+      var rectangle = hit.getBoundingClientRect();
+      showEdgeTooltip(hit, rectangle.left + rectangle.width / 2,
+        rectangle.top + rectangle.height / 2, "focus");
+    }
+    function onEdgeFocusOut(event) {
+      if (edgeHitTarget(event)) hideEdgeTooltip("focus");
+    }
+    function onEdgePointerLeave() {
+      hideEdgeTooltip("pointer");
     }
     function zoomAt(nextScale, clientX, clientY) {
+      hideEdgeTooltip();
       nextScale = clamp(nextScale, minimumScale, maximumScale);
       var rectangle = viewport.getBoundingClientRect();
       var localX = clientX - rectangle.left;
@@ -608,7 +773,9 @@
       zoomAt(state.scale * Math.exp(-event.deltaY * 0.0015), event.clientX, event.clientY);
     }
     function onPointerDown(event) {
-      if (event.button !== 0 || event.target.closest(".citation-graph__node")) return;
+      if (event.button !== 0 || event.target.closest(
+        ".citation-graph__node, .citation-graph__edge-hit")) return;
+      hideEdgeTooltip();
       drag = { pointerId: event.pointerId, x: event.clientX, y: event.clientY };
       viewport.setPointerCapture(event.pointerId);
       viewport.classList.add("is-dragging");
@@ -654,9 +821,13 @@
     viewport.addEventListener("wheel", onWheel, { passive: false });
     viewport.addEventListener("pointerdown", onPointerDown);
     viewport.addEventListener("pointermove", onPointerMove);
+    viewport.addEventListener("pointermove", onEdgePointerMove);
+    viewport.addEventListener("pointerleave", onEdgePointerLeave);
     viewport.addEventListener("pointerup", finishPointer);
     viewport.addEventListener("pointercancel", finishPointer);
     viewport.addEventListener("keydown", onKeyDown);
+    viewport.addEventListener("focusin", onEdgeFocusIn);
+    viewport.addEventListener("focusout", onEdgeFocusOut);
     controls.addEventListener("click", onControlClick);
     frame = window.requestAnimationFrame(function () { fit(true); });
     if (typeof ResizeObserver === "function") {
@@ -675,9 +846,13 @@
       viewport.removeEventListener("wheel", onWheel);
       viewport.removeEventListener("pointerdown", onPointerDown);
       viewport.removeEventListener("pointermove", onPointerMove);
+      viewport.removeEventListener("pointermove", onEdgePointerMove);
+      viewport.removeEventListener("pointerleave", onEdgePointerLeave);
       viewport.removeEventListener("pointerup", finishPointer);
       viewport.removeEventListener("pointercancel", finishPointer);
       viewport.removeEventListener("keydown", onKeyDown);
+      viewport.removeEventListener("focusin", onEdgeFocusIn);
+      viewport.removeEventListener("focusout", onEdgeFocusOut);
       controls.removeEventListener("click", onControlClick);
     };
   }
@@ -695,45 +870,46 @@
     graphSequence += 1;
     var titleId = "citation-graph-title-" + graphSequence;
     var markerId = "citation-arrow-" + graphSequence;
-    var title = options.title || "当前集合引用关系";
+    var title = options.title || "当前集合的论文关系";
     var emptyMessage = normalized.length
-      ? "当前集合中暂无已记录的内部引用。"
+      ? "当前集合中暂无已记录的内部论文关系。"
       : "当前集合没有可展示的论文。";
     var viewport = normalized.length ? [
       "<div class=\"citation-graph__interactionbar\"><div class=\"citation-graph__controls\" " +
-        "role=\"group\" aria-label=\"引用图缩放控制\">",
-      "<button type=\"button\" data-graph-action=\"zoom-out\" aria-label=\"缩小引用图\">−</button>",
+        "role=\"group\" aria-label=\"论文关系图缩放控制\">",
+      "<button type=\"button\" data-graph-action=\"zoom-out\" aria-label=\"缩小论文关系图\">−</button>",
       "<output class=\"citation-graph__zoom-value\" aria-live=\"polite\">100%</output>",
-      "<button type=\"button\" data-graph-action=\"zoom-in\" aria-label=\"放大引用图\">＋</button>",
+      "<button type=\"button\" data-graph-action=\"zoom-in\" aria-label=\"放大论文关系图\">＋</button>",
       "<button class=\"citation-graph__fit\" type=\"button\" data-graph-action=\"fit\">适配</button>",
       "</div></div>",
       "<div class=\"citation-graph__viewport\" tabindex=\"0\"",
-      " aria-label=\"引用关系图；拖动可平移，滚轮、加减键或按钮可缩放，方向键可移动\">",
+      " aria-label=\"论文关系图；拖动可平移，滚轮、加减键或按钮可缩放，方向键可移动；悬停或聚焦连线可查看关系类型\">",
       "<div class=\"citation-graph__world\" style=\"width:" + layout.width +
         "px;height:" + layout.height + "px\">",
       "<svg class=\"citation-graph__svg\" viewBox=\"0 0 " + layout.width + " " + layout.height +
-        "\" width=\"" + layout.width + "\" height=\"" + layout.height + "\" aria-hidden=\"true\">",
+        "\" width=\"" + layout.width + "\" height=\"" + layout.height +
+        "\" role=\"group\" aria-label=\"论文关系连线\">",
       "<defs><marker id=\"" + markerId +
-        "\" markerWidth=\"9\" markerHeight=\"9\" refX=\"8\" refY=\"4.5\" orient=\"auto\" markerUnits=\"strokeWidth\">",
-      "<path class=\"citation-graph__arrow\" d=\"M 0 0 L 9 4.5 L 0 9 z\"></path></marker></defs>",
+        "\" markerWidth=\"5\" markerHeight=\"5\" refX=\"4.6\" refY=\"2.5\" orient=\"auto\" markerUnits=\"strokeWidth\">",
+      "<path class=\"citation-graph__arrow\" d=\"M 0 0 L 5 2.5 L 0 5 z\"></path></marker></defs>",
       edgesMarkup(graph, layout, markerId), "</svg>",
       nodesMarkup(graph, layout, options),
-      "</div></div>"
+      "</div><div class=\"citation-graph__edge-tooltip\" role=\"tooltip\" hidden></div></div>"
     ].join("") : "";
     target.innerHTML = [
       "<section class=\"citation-graph\" aria-labelledby=\"" + titleId + "\">",
-      "<header class=\"citation-graph__header\"><div><p>PRUNED CITATION GRAPH</p><h2 id=\"" +
+      "<header class=\"citation-graph__header\"><div><p>PRUNED RELATION GRAPH</p><h2 id=\"" +
         titleId + "\">" + escapeHtml(title) + "</h2></div>",
       "<dl class=\"citation-graph__stats\"><div><dt>论文</dt><dd>" + normalized.length +
         "</dd></div><div><dt>显示边</dt><dd>" + graph.edges.length +
-        "</dd></div><div><dt>已约简</dt><dd>" + graph.prunedCount + "</dd></div></dl></header>",
+      "</dd></div><div><dt>已约简</dt><dd>" + graph.prunedCount + "</dd></div></dl></header>",
       "<p class=\"citation-graph__legend\"><span aria-hidden=\"true\">右 → 左</span> " +
-        "右侧论文引用左侧论文；可由其他引用路径表达的传递边仅在显示时省略。</p>",
+        "右侧论文指向左侧论文；同类型 relation 的传递边与双向 related 重复边仅在显示层省略。</p>",
       graph.edges.length ? "" : "<p class=\"citation-graph__notice\">" +
         escapeHtml(emptyMessage) + "</p>",
       viewport,
       graph.externalCount ? "<p class=\"citation-graph__outside\">另有 <strong>" +
-        graph.externalCount + "</strong> 条已记录引用指向当前集合之外。</p>" : "",
+        graph.externalCount + "</strong> 条已记录关系指向当前集合之外。</p>" : "",
       "</section>"
     ].join("");
     target._citationGraphCleanup = normalized.length

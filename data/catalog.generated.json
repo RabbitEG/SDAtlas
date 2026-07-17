@@ -164,7 +164,9 @@
       "relations": {
         "extends": [],
         "comparesAgainst": [],
-        "related": [],
+        "related": [
+          "specinfer"
+        ],
         "compatibleWith": []
       },
       "citations": [
@@ -301,7 +303,9 @@
       "relations": {
         "extends": [],
         "comparesAgainst": [],
-        "related": [],
+        "related": [
+          "medusa"
+        ],
         "compatibleWith": []
       },
       "citations": [
@@ -418,7 +422,10 @@
       "relations": {
         "extends": [],
         "comparesAgainst": [],
-        "related": [],
+        "related": [
+          "medusa",
+          "specinfer"
+        ],
         "compatibleWith": []
       },
       "citations": [
@@ -553,7 +560,10 @@
       "relations": {
         "extends": [],
         "comparesAgainst": [],
-        "related": [],
+        "related": [
+          "medusa",
+          "eagle"
+        ],
         "compatibleWith": []
       },
       "citations": [
@@ -685,7 +695,11 @@
       "relations": {
         "extends": [],
         "comparesAgainst": [],
-        "related": [],
+        "related": [
+          "medusa",
+          "eagle",
+          "eagle-2"
+        ],
         "compatibleWith": []
       },
       "citations": [
@@ -802,7 +816,13 @@
       "relations": {
         "extends": [],
         "comparesAgainst": [],
-        "related": [],
+        "related": [
+          "medusa",
+          "eagle",
+          "eagle-2",
+          "eagle-3",
+          "specinfer"
+        ],
         "compatibleWith": []
       },
       "citations": [
@@ -909,7 +929,14 @@
       "relations": {
         "extends": [],
         "comparesAgainst": [],
-        "related": [],
+        "related": [
+          "medusa",
+          "mtp",
+          "eagle",
+          "eagle-2",
+          "eagle-3",
+          "specinfer"
+        ],
         "compatibleWith": []
       },
       "citations": [
@@ -1033,7 +1060,13 @@
       "relations": {
         "extends": [],
         "comparesAgainst": [],
-        "related": [],
+        "related": [
+          "medusa",
+          "eagle",
+          "eagle-2",
+          "eagle-3",
+          "specinfer"
+        ],
         "compatibleWith": []
       },
       "citations": [
@@ -1146,7 +1179,11 @@
       "relations": {
         "extends": [],
         "comparesAgainst": [],
-        "related": [],
+        "related": [
+          "eagle",
+          "eagle-2",
+          "eagle-3"
+        ],
         "compatibleWith": []
       },
       "citations": [
@@ -1250,7 +1287,15 @@
       "relations": {
         "extends": [],
         "comparesAgainst": [],
-        "related": [],
+        "related": [
+          "medusa",
+          "eagle",
+          "eagle-2",
+          "eagle-3",
+          "pard",
+          "diffuspec",
+          "specdiff-2"
+        ],
         "compatibleWith": []
       },
       "citations": [
@@ -1319,63 +1364,204 @@
         {
           "name": "北京大学计算机学院",
           "order": 1,
-          "explanation": "一作、通讯作者及多数作者所属单位。"
+          "explanation": "论文单位 1；一作 Jiebin Zhang、通讯作者 Sujian Li 及多数作者所属单位。"
         },
         {
           "name": "腾讯",
           "order": 2,
-          "explanation": "其他作者所属单位。"
+          "explanation": "论文单位 2；Song Liu、Guanghua Yu 和 Jianchen Zhu 所属单位。"
         }
       ],
       "institutionSource": "https://arxiv.org/pdf/2606.02091",
-      "methodOverview": "在 DFlash 基础上，让每个 Drafter Layer 从更广泛的 Target Layer 中学习独立融合权重，并使用异构 KV Projection；配合更深 Drafter、更多数据和渐进式损失提升容量。",
+      "methodOverview": "在 DFlash 基础上，以逐 Drafter 层的 Target Hidden State 自适应融合和异构 KV Projection 解除共享条件表示造成的容量瓶颈，使更深的 Block-Diffusion Drafter 能继续受益于更多 Target 知识和更大训练数据。",
       "problemStatement": {
-        "background": null,
-        "priorLimitation": null,
-        "goal": null
+        "background": "Block-Diffusion Drafter 能在一次前向中并行预测一个候选块，Draft 延迟不会随候选长度线性增长，因此比自回归 Drafter 更有条件通过增加网络深度提升预测能力。",
+        "priorLimitation": "DFlash 将少量 Target Layer Hidden States 通过一个 FC 层融合为单一表示，并将同一份 Target Context 注入所有 Drafter 层；同时，Target Context 与 Drafter 内部状态共用 KV Projection。这限制了不同 Drafter 层的差异化表达，使增加 Drafter 深度或 Target 特征层数时收益逐渐饱和。",
+        "goal": "增强每个 Drafter 层独立提取和利用 Target 知识的能力，解除 Block-Diffusion Drafter 的深度扩展瓶颈，并通过扩大模型容量和训练规模提高接受长度与端到端推理速度。"
       },
-      "methodComponents": [],
+      "methodComponents": [
+        {
+          "name": "Adaptive Layer Fusion",
+          "stage": "Draft conditioning",
+          "purpose": "为不同 Drafter 层提供差异化且更丰富的 Target 条件信息。",
+          "mechanism": "每个 Drafter 层学习一组独立的 Softmax 标量权重，对多个 Target Layer Hidden States 加权求和并执行 RMSNorm。融合权重在训练完成后可以预计算；Qwen 配置使用 7 个 Drafter 层和 9 个 Target 特征层，仅需 7×9=63 个融合标量。",
+          "differenceFromPrior": "DFlash 将多个 Target Hidden States 拼接后通过一个 FC 层生成单一共享表示，并把相同表示注入所有 Drafter 层。"
+        },
+        {
+          "name": "Heterogeneous KV Projections",
+          "stage": "Draft attention",
+          "purpose": "避免 Target 语义上下文与 Drafter 内部状态被迫共用同一表示空间。",
+          "mechanism": "在每个 Drafter 层中，Target Context 使用专用的 Target K/V Projection，Target Decode Token 与 Mask 位置的 Drafter 状态使用另一套 Draft K/V Projection；两类 KV 随后拼接，由候选块位置产生的 Query 统一访问。",
+          "differenceFromPrior": "DFlash 让 Target Context、Target Decode Token 和 Drafter Mask State 共用相同的 K/V Projection。"
+        },
+        {
+          "name": "Progressive Position-Weighted Loss",
+          "stage": "Training",
+          "purpose": "兼顾决定接受前缀的早期位置和更难预测的后缀位置。",
+          "mechanism": "继续使用随位置指数衰减的 Token 预测损失，但让衰减参数 γ 随训练进程增大。Qwen 配置从 γ₀=4.5 开始，每个 Epoch 增加 1，使训练早期重点优化前部 Token，后期逐步提高尾部 Token 的相对权重。",
+          "differenceFromPrior": "DFlash 在整个训练过程中使用固定的 γ，较小的 γ 容易忽视尾部位置，较大的 γ 又会减慢关键前部位置的收敛。"
+        }
+      ],
       "characteristics": {
-        "requiresTraining": null,
-        "drafterType": null,
-        "draftGeneration": null,
-        "candidateStructure": null,
-        "verificationStrategy": null,
-        "usesTargetFeatures": null,
-        "dynamicDraftLength": null,
-        "dynamicVerifyLength": null,
-        "lossless": null
+        "requiresTraining": true,
+        "drafterType": "block-diffusion",
+        "draftGeneration": "parallel",
+        "candidateStructure": "chain",
+        "verificationStrategy": "fixed-prefix",
+        "usesTargetFeatures": true,
+        "dynamicDraftLength": false,
+        "dynamicVerifyLength": false,
+        "lossless": true
       },
       "subproblemContributions": {
         "A": {
-          "summary": "沿用 DFlash 的单次 Block-Diffusion Draft，但以 Adaptive Layer Fusion 为每个 Drafter 层学习一组 Softmax 标量权重，分别融合更广的 Target 层（Qwen 配置为 9 层），再用异构 K/V Projection 分离 Target 上下文与 Drafter 状态的表示空间。",
-          "detail": "沿用 DFlash 的单次 Block-Diffusion Draft，但以 Adaptive Layer Fusion 为每个 Drafter 层学习一组 Softmax 标量权重，分别融合更广的 Target 层（Qwen 配置为 9 层），再用异构 K/V Projection 分离 Target 上下文与 Drafter 状态的表示空间。层特异条件使 Qwen Drafter 可稳定扩展到 7 层；约 240 万条 Target 重生成训练样本和渐进位置损失进一步释放扩容后的能力。\n\n保留锚 Token 后 B−1 个 Mask 位置一次前向补全的 Block-Diffusion 流程；Adaptive Layer Fusion 仅新增 D×T 个标量权重（7 层 Drafter、9 个 Target 层时为 63 个），归一化权重可在训练后预计算，因此丰富逐层条件几乎不增加推理时延。\n\n每个 Drafter 层对所选 Target Hidden State 学习独立的 Softmax 加权和并做 RMSNorm，同时为 Target 上下文和演化中的 Drafter 状态设置两套 K/V Projection；不同层因而能专门吸收不同深度的知识，避免 DFlash 共享 FC 特征造成的深度饱和。"
+          "summary": "通过逐 Drafter 层的 Target 特征融合和异构 KV Projection，解除 DFlash 的共享条件瓶颈，使 Block-Diffusion Drafter 能稳定扩展到更深结构。",
+          "detail": "每个 Drafter 层分别学习对多个 Target Layer Hidden States 的 Softmax 加权组合，并将融合结果经 RMSNorm 后作为该层独有的 Target Context。Target Context 与 Drafter Block 使用独立的 K/V Projection，从而获得不同的表示子空间。\n\n推理流程仍沿用 DFlash：以一个 Target Decode Token 和 B−1 个 Mask 位置作为输入，一次 Drafter 前向并行生成单条候选链，再由 Target 验证最长连续前缀。Qwen 配置将 Drafter 扩展至 7 层、Block Size 设为 16，并从 Target 的第二层到倒数第三层之间均匀选取 9 层特征。"
         },
         "E": {
-          "summary": "将 Nemotron V2、CodeAlpaca 与 Step-3.5-Flash-SFT 扩展为约 240 万条提示，并用对应 Target 在温度 0.6 下重生成响应，训练规模是 DFlash 的 3 倍。",
-          "detail": "将 Nemotron V2、CodeAlpaca 与 Step-3.5-Flash-SFT 扩展为约 240 万条提示，并用对应 Target 在温度 0.6 下重生成响应，训练规模是 DFlash 的 3 倍。Qwen 训练从 γ₀=4.5 逐步增大指数位置权重的衰减参数，先聚焦决定接受链的前部 Token，再逐渐提高困难后缀的训练权重。"
+          "summary": "将 Target 重生成训练数据扩大至约 240 万条，并采用渐进位置加权损失，先优化关键前缀位置，再逐步加强困难后缀。",
+          "detail": "训练数据来自 NVIDIA Nemotron Post-Training Dataset V2、CodeAlpaca 和 Step-3.5-Flash-SFT。论文仅保留原始 Prompt，并使用对应 Target 模型在 Temperature=0.6 下重新生成 Response，使 Drafter 的训练分布与 Target 输出分布对齐。\n\nQwen 配置采用随训练进程增大的位置权重衰减参数：训练早期集中优化最影响接受长度的前部位置，后期逐步拉平权重分布，提高尾部位置的训练强度。"
         }
       },
       "training": {
-        "summary": "将 Nemotron V2、CodeAlpaca 与 Step-3.5-Flash-SFT 扩展为约 240 万条提示，并用对应 Target 在温度 0.6 下重生成响应，训练规模是 DFlash 的 3 倍。",
-        "data": null,
-        "objective": null
+        "summary": "冻结 Target 模型以及共享的 Token Embedding 和 LM Head，训练 DFlare Drafter、逐层融合权重和异构 KV Projection。完整训练运行 6 个 Epoch，使用 AdamW、6e-4 学习率、Cosine Schedule、0.04 Warmup Ratio、最大序列长度 3072，并从每条序列随机采样 512 个 Anchor Position。",
+        "data": "约 240 万条 Prompt，来源为 NVIDIA Nemotron Post-Training Dataset V2、CodeAlpaca 和 Step-3.5-Flash-SFT。所有 Response 均由对应 Target 模型以 Temperature=0.6 重新生成，训练时只预测重生成的 Response Token。完整训练使用 Global Batch Size 64。",
+        "objective": "采用按候选块位置加权的 Token 预测损失，位置权重为指数衰减形式。Qwen 配置从 γ₀=4.5 开始，每个 Epoch 将 γ 增加 1；GPT-OSS-20B 因 Block Size 仅为 8，全程固定 γ=4。"
       },
       "evaluation": {
-        "targetModels": [],
-        "benchmarks": [],
-        "baselines": [],
-        "metrics": [],
-        "hardware": [],
-        "frameworks": []
+        "targetModels": [
+          "Qwen3-4B",
+          "Qwen3-8B",
+          "GPT-OSS-20B"
+        ],
+        "benchmarks": [
+          "GSM8K",
+          "MATH500",
+          "AIME25",
+          "HumanEval",
+          "MBPP",
+          "MT-Bench"
+        ],
+        "baselines": [
+          "Autoregressive Decoding",
+          "EAGLE-3",
+          "DFlash"
+        ],
+        "metrics": [
+          "Average Acceptance Length",
+          "End-to-end Wall-clock Speedup",
+          "Serving Throughput"
+        ],
+        "hardware": [
+          "NVIDIA H20"
+        ],
+        "frameworks": [
+          "Transformers",
+          "SGLang"
+        ]
       },
-      "mainResults": [],
-      "limitations": [],
+      "mainResults": [
+        {
+          "condition": "Qwen3-4B，Temperature=0，六个基准宏平均",
+          "metric": "End-to-end Wall-clock Speedup",
+          "result": "5.52×",
+          "comparison": "DFlash 为 4.99×，DFlare 相对提升约 10.6%。",
+          "source": "Table 1"
+        },
+        {
+          "condition": "Qwen3-4B，Temperature=0，六个基准宏平均",
+          "metric": "Average Acceptance Length",
+          "result": "7.47",
+          "comparison": "DFlash 为 6.47，DFlare 相对提升约 15.5%。",
+          "source": "Table 1"
+        },
+        {
+          "condition": "Qwen3-8B，Temperature=0，六个基准宏平均",
+          "metric": "End-to-end Wall-clock Speedup",
+          "result": "5.46×",
+          "comparison": "DFlash 为 5.05×，DFlare 相对提升约 8.1%。",
+          "source": "Table 1"
+        },
+        {
+          "condition": "Qwen3-8B，Temperature=0，六个基准宏平均",
+          "metric": "Average Acceptance Length",
+          "result": "7.33",
+          "comparison": "DFlash 为 6.39，DFlare 相对提升约 14.7%。",
+          "source": "Table 1"
+        },
+        {
+          "condition": "GPT-OSS-20B，Temperature=0，六个基准宏平均",
+          "metric": "End-to-end Wall-clock Speedup",
+          "result": "3.91×",
+          "comparison": "DFlash 为 3.71×，DFlare 相对提升约 5.4%。",
+          "source": "Table 1"
+        },
+        {
+          "condition": "GPT-OSS-20B，Temperature=0，六个基准宏平均",
+          "metric": "Average Acceptance Length",
+          "result": "4.93",
+          "comparison": "DFlash 为 4.66，DFlare 相对提升约 5.8%。",
+          "source": "Table 1"
+        },
+        {
+          "condition": "Qwen3-8B，Temperature=0，训练数据从 270K 扩展到 800K 和 2.4M，六个基准宏平均",
+          "metric": "Data Scaling",
+          "result": "Speedup 从 3.74× 提升至 4.97× 和 5.46×；Acceptance Length 从 4.90 提升至 6.59 和 7.33。",
+          "comparison": "结果显示扩大 Target 重生成数据仍能持续释放更深 Drafter 的容量。",
+          "source": "Figure 1; Table 6"
+        },
+        {
+          "condition": "Qwen3-8B，GSM8K，SGLang，单张 H20，Concurrency=16",
+          "metric": "Serving Throughput",
+          "result": "1828.7 tokens/s",
+          "comparison": "DFlash 为 1045.5 tokens/s，Autoregressive Baseline 为 1046.9 tokens/s。",
+          "source": "Table 3"
+        }
+      ],
+      "limitations": [
+        {
+          "type": "training-cost",
+          "description": "更深的 Drafter 和约 240 万条训练语料导致训练成本较高。完整训练使用 32 张 GPU；论文报告 Qwen3-8B Drafter 约需 160 小时墙钟时间，Qwen3-4B 和 GPT-OSS-20B 分别约需 100 小时和 90 小时。",
+          "sourceType": "paper"
+        },
+        {
+          "type": "evaluation",
+          "description": "论文认为继续扩大训练数据可能进一步提高接受长度，但受计算资源限制，没有验证超过 240 万条数据后的扩展趋势。",
+          "sourceType": "paper"
+        },
+        {
+          "type": "algorithmic",
+          "description": "DFlare 仍一次并行生成单条候选链，后部位置不会根据已经实际采样出的前部 Token 重新条件化，因此没有从根本上解决并行 Drafter 的后缀一致性和多模态碰撞问题。",
+          "sourceType": "analysis"
+        },
+        {
+          "type": "system",
+          "description": "使用固定 Block Size 和固定最长前缀验证，没有根据请求难度、置信度或实时 Serving 负载动态调整 Draft Length 或 Verify Length。",
+          "sourceType": "analysis"
+        },
+        {
+          "type": "evidence",
+          "description": "主结果同时扩大了 Drafter 深度、Target 特征层数和训练数据，并引入多个新组件，因此整体提升不能全部归因于 Adaptive Layer Fusion；各单项组件在结构消融中的独立收益相对有限。",
+          "sourceType": "analysis"
+        }
+      ],
       "relations": {
-        "extends": [],
-        "comparesAgainst": [],
-        "related": [],
-        "compatibleWith": []
+        "extends": [
+          "dflash"
+        ],
+        "comparesAgainst": [
+          "eagle-3",
+          "dflash"
+        ],
+        "related": [
+          "eagle-3",
+          "diffuspec",
+          "specdiff-2",
+          "dspark"
+        ],
+        "compatibleWith": [
+          "ddtree"
+        ]
       },
       "citations": [
         "medusa",
@@ -1389,15 +1575,65 @@
         "specinfer"
       ],
       "reproducibility": {
-        "codeUrl": null,
+        "codeUrl": "https://github.com/Tencent/AngelSlim",
         "modelUrl": null,
         "projectPage": null,
-        "officialImplementation": null,
-        "status": "not-checked",
-        "notes": []
+        "officialImplementation": true,
+        "status": "not-reproduced",
+        "notes": [
+          "论文代码集成在腾讯 AngelSlim 仓库中。",
+          "主要软件依赖包括 torch 2.9.1、transformers 4.57.1、datasets 4.8.4、sglang 0.5.6 和 numpy 2.4.3。"
+        ]
       },
-      "evidence": [],
-      "notes": [],
+      "evidence": [
+        {
+          "claim": "DFlash 的共享 Target Context 限制不同 Drafter 层的专门化，并导致深度扩展收益饱和。",
+          "location": "Section 1, Pages 1–2; Section 3.1, Page 3",
+          "type": "method"
+        },
+        {
+          "claim": "DFlare 为每个 Drafter 层学习独立的 Target Layer 融合权重，并分离 Target 与 Draft 的 KV Projection。",
+          "location": "Sections 4.1–4.2, Figure 2, Pages 5–6",
+          "type": "method"
+        },
+        {
+          "claim": "渐进位置加权损失随训练过程增大 γ，使优化重点从前部位置逐步扩展到后部位置。",
+          "location": "Section 4.3, Page 6",
+          "type": "training"
+        },
+        {
+          "claim": "Qwen 配置使用 7 个 Drafter 层、Block Size 16，并从 9 个 Target 层提取 Hidden Features。",
+          "location": "Section 5.1, Page 6",
+          "type": "configuration"
+        },
+        {
+          "claim": "训练数据规模约为 240 万条，Response 由对应 Target 在 Temperature=0.6 下重新生成。",
+          "location": "Section 5.1, Page 6; Appendix A.1, Page 11",
+          "type": "training"
+        },
+        {
+          "claim": "DFlare 在 Qwen3-4B、Qwen3-8B 和 GPT-OSS-20B 上分别达到 5.52×、5.46× 和 3.91× 的贪心解码平均速度。",
+          "location": "Table 1, Page 7",
+          "type": "result"
+        },
+        {
+          "claim": "完整 2.4M 数据训练使用 32 张 GPU，Qwen3-8B Drafter 约需 160 小时墙钟时间。",
+          "location": "Appendix A.3, Page 11",
+          "type": "training"
+        },
+        {
+          "claim": "SGLang Serving 实验在单张 H20 上测试 Qwen3-8B 的不同并发吞吐量。",
+          "location": "Appendix A.4 and Table 3, Pages 11–12",
+          "type": "system"
+        }
+      ],
+      "notes": [
+        "Qwen3-8B 的平均接受长度相对 DFlash 提升约 14.7%，但最终速度只提升约 8.1%，说明更深 Drafter 的额外计算消耗了部分接受收益。",
+        "结构消融中，完整方法平均 Speedup/Acceptance Length 为 3.37×/4.52；去掉 Softmax、异构 KV Projection 或渐进 Loss 后分别约为 3.31×/4.47、3.35×/4.48 和 3.34×/4.47。单个组件有效，但没有任何一项单独解释全部提升。",
+        "训练数据扩展带来的增益非常显著：Qwen3-8B 从 800K 扩展到 2.4M 后，平均速度由 4.97× 提升到 5.46×，接受长度由 6.59 提升到 7.33。评价 DFlare 时应把架构扩展和数据扩展分开看。",
+        "论文正文称 DFlare 在 SGLang 的所有并发设置下吞吐最高，但 Table 3 中 HumanEval、Concurrency=1 时 DFlare 为 554.5 tokens/s，略低于 DFlash 的 561.1 tokens/s。",
+        "DFlare 改善的是 Drafter 容量和 Target 条件注入，与 DDTree 的候选树组织较为正交；它本身没有处理动态验证预算和高负载调度。"
+      ],
       "provenance": {
         "legacyWorkbookRow": 11,
         "workbookInstitutions": "北京大学、腾讯"
@@ -1507,7 +1743,17 @@
       "relations": {
         "extends": [],
         "comparesAgainst": [],
-        "related": [],
+        "related": [
+          "medusa",
+          "eagle",
+          "eagle-2",
+          "eagle-3",
+          "pard",
+          "diffuspec",
+          "dflash",
+          "specinfer",
+          "dart"
+        ],
         "compatibleWith": []
       },
       "citations": [
@@ -1657,7 +1903,23 @@
       "relations": {
         "extends": [],
         "comparesAgainst": [],
-        "related": [],
+        "related": [
+          "medusa",
+          "mtp",
+          "eagle",
+          "eagle-2",
+          "eagle-3",
+          "pard",
+          "diffuspec",
+          "specdiff-2",
+          "dflash",
+          "dflare",
+          "domino",
+          "specinfer",
+          "dart",
+          "ddtree",
+          "taps"
+        ],
         "compatibleWith": []
       },
       "citations": [
@@ -1933,7 +2195,10 @@
       "relations": {
         "extends": [],
         "comparesAgainst": [],
-        "related": [],
+        "related": [
+          "medusa",
+          "eagle"
+        ],
         "compatibleWith": []
       },
       "citations": [
@@ -2046,7 +2311,14 @@
       "relations": {
         "extends": [],
         "comparesAgainst": [],
-        "related": [],
+        "related": [
+          "medusa",
+          "eagle",
+          "eagle-2",
+          "eagle-3",
+          "diffuspec",
+          "specdiff-2"
+        ],
         "compatibleWith": []
       },
       "citations": [
@@ -2156,7 +2428,17 @@
       "relations": {
         "extends": [],
         "comparesAgainst": [],
-        "related": [],
+        "related": [
+          "medusa",
+          "eagle",
+          "eagle-2",
+          "eagle-3",
+          "pard",
+          "dflash",
+          "specinfer",
+          "opt-tree",
+          "dart"
+        ],
         "compatibleWith": []
       },
       "citations": [
@@ -2263,7 +2545,16 @@
       "relations": {
         "extends": [],
         "comparesAgainst": [],
-        "related": [],
+        "related": [
+          "medusa",
+          "eagle",
+          "eagle-2",
+          "eagle-3",
+          "dflash",
+          "specinfer",
+          "dart",
+          "ddtree"
+        ],
         "compatibleWith": []
       },
       "citations": [
@@ -2371,7 +2662,14 @@
       "relations": {
         "extends": [],
         "comparesAgainst": [],
-        "related": [],
+        "related": [
+          "medusa",
+          "dflash",
+          "eagle",
+          "eagle-2",
+          "eagle-3",
+          "specinfer"
+        ],
         "compatibleWith": []
       },
       "citations": [
@@ -2487,7 +2785,12 @@
       "relations": {
         "extends": [],
         "comparesAgainst": [],
-        "related": [],
+        "related": [
+          "medusa",
+          "eagle",
+          "eagle-2",
+          "specinfer"
+        ],
         "compatibleWith": []
       },
       "citations": [
@@ -2597,7 +2900,15 @@
       "relations": {
         "extends": [],
         "comparesAgainst": [],
-        "related": [],
+        "related": [
+          "medusa",
+          "eagle",
+          "eagle-2",
+          "eagle-3",
+          "diffuspec",
+          "dflash",
+          "specinfer"
+        ],
         "compatibleWith": []
       },
       "citations": [
@@ -2707,7 +3018,13 @@
       "relations": {
         "extends": [],
         "comparesAgainst": [],
-        "related": [],
+        "related": [
+          "medusa",
+          "eagle",
+          "eagle-2",
+          "eagle-3",
+          "specinfer"
+        ],
         "compatibleWith": []
       },
       "citations": [
@@ -2807,7 +3124,14 @@
       "relations": {
         "extends": [],
         "comparesAgainst": [],
-        "related": [],
+        "related": [
+          "medusa",
+          "eagle",
+          "eagle-2",
+          "eagle-3",
+          "specinfer",
+          "opt-tree"
+        ],
         "compatibleWith": []
       },
       "citations": [
@@ -2909,7 +3233,11 @@
       "relations": {
         "extends": [],
         "comparesAgainst": [],
-        "related": [],
+        "related": [
+          "medusa",
+          "eagle",
+          "specinfer"
+        ],
         "compatibleWith": []
       },
       "citations": [
@@ -3023,7 +3351,14 @@
       "relations": {
         "extends": [],
         "comparesAgainst": [],
-        "related": [],
+        "related": [
+          "medusa",
+          "eagle",
+          "eagle-2",
+          "eagle-3",
+          "specinfer",
+          "opt-tree"
+        ],
         "compatibleWith": []
       },
       "citations": [

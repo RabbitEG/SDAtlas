@@ -77,7 +77,10 @@
   "relations": {
     "extends": [],
     "comparesAgainst": [],
-    "related": [],
+    "related": [
+      "medusa",
+      "eagle"
+    ],
     "compatibleWith": []
   },
   "citations": [

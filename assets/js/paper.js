@@ -28,9 +28,21 @@
       explanation + localPdf;
   }
 
+  function relationTargets(candidate) {
+    var relations = candidate && candidate.relations || {};
+    return ["extends", "comparesAgainst", "related", "compatibleWith"].reduce(
+      function (targets, type) {
+        return targets.concat(Array.isArray(relations[type]) ? relations[type] : []);
+      }, []
+    );
+  }
+
   function renderGraph() {
     if (!window.SDAtlasCitationGraph) return;
-    var ids = [paper.id].concat(paper.citations, paper.citedBy);
+    var ids = [paper.id].concat(relationTargets(paper));
+    ui.data.papers.forEach(function (candidate) {
+      if (relationTargets(candidate).indexOf(paper.id) !== -1) ids.push(candidate.id);
+    });
     var seen = new Set();
     var ego = ids.filter(function (id) {
       if (seen.has(id)) return false;
@@ -38,7 +50,7 @@
       return true;
     }).map(ui.getPaper).filter(Boolean);
     window.SDAtlasCitationGraph.render(document.getElementById("citation-graph"), ego, {
-      title: paper.shortName + " 的引用关系",
+      title: paper.shortName + " 的论文关系",
       focusId: paper.id
     });
   }
@@ -83,8 +95,8 @@
         "<h2>所属子问题</h2><div class=\"chip-row\">" + ui.subproblemBadges(paper) + "</div></section></aside></section>",
 
       "<section class=\"section section--tinted paper-citation-area\"><div class=\"page-shell\">",
-      "<header class=\"section-heading\"><p class=\"section-index\">CITATION GRAPH</p><h2>引用关系</h2>" +
-        "<p>图中从右向左表示引用方向，并自动省略可由其他路径表达的传递边。</p></header>",
+      "<header class=\"section-heading\"><p class=\"section-index\">RELATION GRAPH</p><h2>论文关系</h2>" +
+        "<p>图中从右向左表示关系方向；放大图形或悬停连线可查看 relation 类型。</p></header>",
       "<div id=\"citation-graph\"></div>",
       "</div></section>"
     ].join("");

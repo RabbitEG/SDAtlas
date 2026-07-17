@@ -83,7 +83,11 @@
   "relations": {
     "extends": [],
     "comparesAgainst": [],
-    "related": [],
+    "related": [
+      "medusa",
+      "eagle",
+      "eagle-2"
+    ],
     "compatibleWith": []
   },
   "citations": [

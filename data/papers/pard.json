@@ -74,7 +74,14 @@
   "relations": {
     "extends": [],
     "comparesAgainst": [],
-    "related": [],
+    "related": [
+      "medusa",
+      "mtp",
+      "eagle",
+      "eagle-2",
+      "eagle-3",
+      "specinfer"
+    ],
     "compatibleWith": []
   },
   "citations": [

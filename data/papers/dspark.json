@@ -110,7 +110,23 @@
   "relations": {
     "extends": [],
     "comparesAgainst": [],
-    "related": [],
+    "related": [
+      "medusa",
+      "mtp",
+      "eagle",
+      "eagle-2",
+      "eagle-3",
+      "pard",
+      "diffuspec",
+      "specdiff-2",
+      "dflash",
+      "dflare",
+      "domino",
+      "specinfer",
+      "dart",
+      "ddtree",
+      "taps"
+    ],
     "compatibleWith": []
   },
   "citations": [

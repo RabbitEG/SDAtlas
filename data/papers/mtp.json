@@ -83,7 +83,9 @@
   "relations": {
     "extends": [],
     "comparesAgainst": [],
-    "related": [],
+    "related": [
+      "medusa"
+    ],
     "compatibleWith": []
   },
   "citations": [

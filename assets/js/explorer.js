@@ -78,7 +78,7 @@
   function renderGraph(papers) {
     if (window.SDAtlasCitationGraph) {
       window.SDAtlasCitationGraph.render(document.getElementById("citation-graph"), papers, {
-        title: "当前筛选结果的引用关系"
+        title: "当前筛选结果的论文关系"
       });
     }
   }

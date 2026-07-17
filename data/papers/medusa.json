@@ -99,7 +99,9 @@
   "relations": {
     "extends": [],
     "comparesAgainst": [],
-    "related": [],
+    "related": [
+      "specinfer"
+    ],
     "compatibleWith": []
   },
   "citations": [

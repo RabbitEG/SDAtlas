@@ -646,7 +646,7 @@
       "<div class=\"footer-grid\"><a class=\"brand brand--footer\" href=\"index.html\">",
       "<span class=\"brand-mark\" aria-hidden=\"true\"><i></i><i></i><i></i></span>",
       "<span><strong>SDAtlas</strong><small>RESEARCH NAVIGATOR</small></span></a>",
-      "<p>投机解码论文的子问题、方法与引用关系索引。</p>",
+      "<p>投机解码论文的子问题、方法与论文关系索引。</p>",
       "<p class=\"footer-meta\">DATASET · " + ui.escapeHtml(data.meta.updated) + "<br>SCHEMA · v" +
         ui.escapeHtml(data.schemaVersion) + "</p></div>"
     ].join("");
