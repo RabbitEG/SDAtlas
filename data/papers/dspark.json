@@ -490,6 +490,7 @@
     "compatibleWith 中列出 DFlare 属于结构层面的正交兼容判断：DFlare 优化并行 Backbone 的 Target 条件注入，DSpark 优化其后部 Prefix 建模和 Verify 调度；论文没有直接实验验证两者组合。",
     "公开 DeepSpec 已足以检查算法、训练目标和 Table 1 Checkpoint，但生产部分仍依赖未公开模型、真实流量与定制 Kernel，复现状态因此记为 not-reproduced，而不是 fully-reproducible。"
   ],
+  "qaNotes": [],
   "provenance": {
     "legacyWorkbookRow": 13,
     "workbookInstitutions": "未知（arXiv作者团队）"

@@ -323,6 +323,7 @@
     "Appendix A.3 估算 Qwen3.5-35B-A3B 配置的额外 Target Feature Projection 参数约为 42 MB，相比约 70 GB Target 很小；但长期 KV、引擎接口和 Batch Verify 成本仍需在真实 Serving 中单独核算。",
     "DFlash 主要优化 Drafter 的速度与质量，和 DDTree/TAPS 的候选树组织、DSpark 的半自回归依赖建模与动态 Verify 调度基本正交。"
   ],
+  "qaNotes": [],
   "provenance": {
     "legacyWorkbookRow": 10,
     "workbookInstitutions": "中国科学院计算技术研究所、其他合作单位"

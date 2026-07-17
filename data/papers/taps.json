@@ -315,6 +315,7 @@
     "动态的是最终 Verify Tree 的节点数和形状，不是底层 Diffusion Draft Block 的长度。Qwen3 使用 Block Size 16，LLaMA-3.1-8B-Instruct 使用 Block Size 10。",
     "论文报告的无损性质来自标准投机解码与 Tree Attention 验证过程；当前实证范围仅覆盖 Greedy Decoding。"
   ],
+  "qaNotes": [],
   "provenance": {
     "legacyWorkbookRow": 18,
     "workbookInstitutions": "未知（arXiv作者团队）"

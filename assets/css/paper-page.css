@@ -495,6 +495,67 @@
   border: 1px solid var(--line);
 }
 
+.qa-note-list {
+  display: grid;
+  gap: .85rem;
+}
+
+.qa-note {
+  overflow: hidden;
+  background: #f8f6ef;
+  border: 1px solid var(--line);
+}
+
+.qa-note > header {
+  padding: .45rem .8rem;
+  color: var(--muted);
+  background: #ebe8df;
+  border-bottom: 1px solid var(--line);
+  font-size: .65rem;
+  font-weight: 820;
+  letter-spacing: .1em;
+}
+
+.qa-note__row {
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr);
+  gap: .75rem;
+  align-items: start;
+  padding: 1rem 1.05rem;
+}
+
+.qa-note__row + .qa-note__row {
+  border-top: 1px solid var(--line);
+}
+
+.qa-note__row > strong {
+  display: grid;
+  place-items: center;
+  width: 1.8rem;
+  height: 1.8rem;
+  color: white;
+  background: var(--brand);
+  border-radius: 50%;
+  font-family: var(--font-serif);
+  font-size: .88rem;
+}
+
+.qa-note__answer {
+  background: #f0f5f1;
+}
+
+.qa-note__answer > strong {
+  color: var(--brand);
+  background: white;
+  border: 1px solid #8eb0a7;
+}
+
+.qa-note__row .math-rich-text {
+  color: var(--ink-2);
+  font-size: .92rem;
+  line-height: 1.7;
+}
+
 .evidence-list article {
   padding: 1rem;
   background: #f7f6f0;

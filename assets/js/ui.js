@@ -606,10 +606,13 @@
     var institutionText = (paper.institutionDetails || []).map(function (item) {
       return [item.name, item.explanation].join(" ");
     }).join(" ");
+    var qaText = (paper.qaNotes || []).map(function (item) {
+      return [item.question || "", item.answer || ""].join(" ");
+    }).join(" ");
     return ui.normalize([
       paper.index, paper.id, paper.title, paper.shortName, (paper.authors || []).join(" "),
       paper.methodOverview, (paper.notes || []).join(" "), paper.institutions,
-      institutionText, paper.venue, paper.date, contributionText
+      qaText, institutionText, paper.venue, paper.date, contributionText
     ].join(" ")).indexOf(q) !== -1;
   }
 

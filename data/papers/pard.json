@@ -370,6 +370,7 @@
     "PARD 的 Draft Bandwidth 对 K 近似恒定，是因为模型权重只需在一次并行前向中读取；这不意味着整个投机轮次的 Target Verify 成本也与 K 无关。",
     "Tree Attention 被论文视为正交扩展。PARD 本身只解决 Drafter 的并行生成和训练成本，不负责多分支候选组织或动态 Verify 调度。"
   ],
+  "qaNotes": [],
   "provenance": {
     "legacyWorkbookRow": 7,
     "workbookInstitutions": "香港中文大学（深圳）、其他合作单位"

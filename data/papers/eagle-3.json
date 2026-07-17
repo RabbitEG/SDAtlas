@@ -335,6 +335,7 @@
     "SGLang 和 vLLM 的大 Batch 实验采用短 Chain 而非完整动态 Tree；阅读吞吐数字时应区分 Drafter Head 本身的收益与 Tree Verification 的额外成本。",
     "从技术谱系看，EAGLE-3 解决的是 Feature Drafter 的表达约束和训练分布错位，仍属于自回归 Draft 路线；后续并行或半自回归工作针对的是其串行 Draft 延迟这一不同瓶颈。"
   ],
+  "qaNotes": [],
   "provenance": {
     "legacyWorkbookRow": 5,
     "workbookInstitutions": "清华大学"

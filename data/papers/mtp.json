@@ -324,6 +324,7 @@
     "Q：多个 Head 是不是像自回归 Drafter 一样，后一个预测会看到前一个 Draft Token？\nA：不是。各 Head 都只读取同一历史上下文的主干表示，并分别预测第 i 个未来位置；论文中的线性候选块是这些独立位置预测的 top-1 拼接，因此块内没有显式因果依赖。",
     "Q：为什么它能称为 lossless 自投机解码？\nA：论文实际采用 greedy blockwise 验证：Target 的 next-token Head 重新计算候选位置，只提交与 Target greedy 选择连续一致的最长前缀，因此结果与普通 greedy 解码一致；这不等于论文已经完整验证所有随机采样配置。"
   ],
+  "qaNotes": [],
   "provenance": {
     "legacyWorkbookRow": 2,
     "workbookInstitutions": "Meta FAIR"

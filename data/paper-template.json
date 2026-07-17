@@ -76,6 +76,12 @@
   },
   "evidence": [],
   "notes": [],
+  "qaNotes": [
+    {
+      "question": "阅读时产生的问题。",
+      "answer": null
+    }
+  ],
   "provenance": {
     "legacyWorkbookRow": null,
     "workbookInstitutions": null

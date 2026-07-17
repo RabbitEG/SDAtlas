@@ -384,6 +384,7 @@
     "候选树结构不能只追求更大的平均接受长度。论文的 Roofline 与树消融表明，候选过多会将原本 Memory-bound 的解码推向 Compute-bound，导致真实 Tokens/s 下降。",
     "论文主要研究 Batch Size=1，不应把其约 2.3×–2.8× 的低并发结果直接外推为高并发在线 Serving 的吞吐提升。"
   ],
+  "qaNotes": [],
   "provenance": {
     "legacyWorkbookRow": 1,
     "workbookInstitutions": "美国卡内基梅隆大学（CMU）、Meta"

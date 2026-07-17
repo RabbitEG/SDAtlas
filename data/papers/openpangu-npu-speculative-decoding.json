@@ -283,6 +283,7 @@
     "论文结果表明静态图改造能消除明显的软件执行障碍，但并未解决长上下文下多候选验证本身带来的内存流量增长。",
     "主结果采用论文 arXiv v1 的 Figure 3 数值；官方仓库 README 中不同测试口径的结果未并入主结果。"
   ],
+  "qaNotes": [],
   "provenance": {
     "legacyWorkbookRow": null,
     "workbookInstitutions": "中国科学技术大学软件学院"

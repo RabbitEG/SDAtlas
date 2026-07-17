@@ -96,6 +96,21 @@
       }).join("") + "</ol>";
   }
 
+  function qaNotesMarkup() {
+    var qaNotes = Array.isArray(paper.qaNotes) ? paper.qaNotes : [];
+    if (!qaNotes.length) return missingMarkup("暂无阅读问答");
+    return "<div class=\"qa-note-list\">" + qaNotes.map(function (item, index) {
+      return [
+        "<article class=\"qa-note\"><header><span>Q", String(index + 1), "</span></header>",
+        "<div class=\"qa-note__row qa-note__question\"><strong>Q</strong>",
+        richText(item.question), "</div>",
+        "<div class=\"qa-note__row qa-note__answer\"><strong>A</strong>",
+        hasText(item.answer) ? richText(item.answer) : missingMarkup("待回答"),
+        "</div></article>"
+      ].join("");
+    }).join("") + "</div>";
+  }
+
   function actions() {
     var links = [
       "<a class=\"button button-primary\" href=\"" + ui.escapeHtml(paper.url) +
@@ -275,7 +290,8 @@
       ["overview", "研究概览"], ["components", "方法组件"], ["profile", "技术画像"],
       ["contributions", "子问题贡献"], ["training-evaluation", "Training 与评测"],
       ["results", "主要结果"], ["limitations", "局限"], ["relations", "方法关系"],
-      ["reproducibility", "复现"], ["evidence", "证据定位"], ["notes", "研究笔记"],
+      ["reproducibility", "复现"], ["evidence", "证据定位"], ["qa-notes", "阅读问答"],
+      ["notes", "研究笔记"],
       ["citation-graph-section", "引用脉络"]
     ];
     return [
@@ -323,6 +339,8 @@
         "这里展示结构化方法关系；引用关系仅在下方 CiteGraph 中呈现。"),
       recordSection("reproducibility", "REPRODUCIBILITY", "复现信息", reproducibilityMarkup()),
       recordSection("evidence", "EVIDENCE", "证据定位", evidenceMarkup()),
+      recordSection("qa-notes", "Q&A NOTES", "阅读问答", qaNotesMarkup(),
+        "用于保存阅读过程中产生的问题与随后得到的回答。"),
       recordSection("notes", "NOTES", "研究笔记", notesMarkup())
     ].join("");
 

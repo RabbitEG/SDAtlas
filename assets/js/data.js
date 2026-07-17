@@ -456,6 +456,7 @@ window.SD_ATLAS_DATA = {
         "候选树结构不能只追求更大的平均接受长度。论文的 Roofline 与树消融表明，候选过多会将原本 Memory-bound 的解码推向 Compute-bound，导致真实 Tokens/s 下降。",
         "论文主要研究 Batch Size=1，不应把其约 2.3×–2.8× 的低并发结果直接外推为高并发在线 Serving 的吞吐提升。"
       ],
+      "qaNotes": [],
       "provenance": {
         "legacyWorkbookRow": 1,
         "workbookInstitutions": "美国卡内基梅隆大学（CMU）、Meta"
@@ -818,6 +819,7 @@ window.SD_ATLAS_DATA = {
         "Q：多个 Head 是不是像自回归 Drafter 一样，后一个预测会看到前一个 Draft Token？\nA：不是。各 Head 都只读取同一历史上下文的主干表示，并分别预测第 i 个未来位置；论文中的线性候选块是这些独立位置预测的 top-1 拼接，因此块内没有显式因果依赖。",
         "Q：为什么它能称为 lossless 自投机解码？\nA：论文实际采用 greedy blockwise 验证：Target 的 next-token Head 重新计算候选位置，只提交与 Target greedy 选择连续一致的最长前缀，因此结果与普通 greedy 解码一致；这不等于论文已经完整验证所有随机采样配置。"
       ],
+      "qaNotes": [],
       "provenance": {
         "legacyWorkbookRow": 2,
         "workbookInstitutions": "Meta FAIR"
@@ -939,6 +941,7 @@ window.SD_ATLAS_DATA = {
       },
       "evidence": [],
       "notes": [],
+      "qaNotes": [],
       "provenance": {
         "legacyWorkbookRow": 3,
         "workbookInstitutions": "清华大学、美国加州大学圣塔芭芭拉分校（UCSB）"
@@ -1077,6 +1080,7 @@ window.SD_ATLAS_DATA = {
       },
       "evidence": [],
       "notes": [],
+      "qaNotes": [],
       "provenance": {
         "legacyWorkbookRow": 4,
         "workbookInstitutions": "清华大学、美国加州大学圣塔芭芭拉分校（UCSB）"
@@ -1444,6 +1448,7 @@ window.SD_ATLAS_DATA = {
         "SGLang 和 vLLM 的大 Batch 实验采用短 Chain 而非完整动态 Tree；阅读吞吐数字时应区分 Drafter Head 本身的收益与 Tree Verification 的额外成本。",
         "从技术谱系看，EAGLE-3 解决的是 Feature Drafter 的表达约束和训练分布错位，仍属于自回归 Draft 路线；后续并行或半自回归工作针对的是其串行 Draft 延迟这一不同瓶颈。"
       ],
+      "qaNotes": [],
       "provenance": {
         "legacyWorkbookRow": 5,
         "workbookInstitutions": "清华大学"
@@ -1789,6 +1794,7 @@ window.SD_ATLAS_DATA = {
         }
       ],
       "notes": [],
+      "qaNotes": [],
       "provenance": {
         "legacyWorkbookRow": 6,
         "workbookInstitutions": "清华大学"
@@ -2172,6 +2178,7 @@ window.SD_ATLAS_DATA = {
         "PARD 的 Draft Bandwidth 对 K 近似恒定，是因为模型权重只需在一次并行前向中读取；这不意味着整个投机轮次的 Target Verify 成本也与 K 无关。",
         "Tree Attention 被论文视为正交扩展。PARD 本身只解决 Drafter 的并行生成和训练成本，不负责多分支候选组织或动态 Verify 调度。"
       ],
+      "qaNotes": [],
       "provenance": {
         "legacyWorkbookRow": 7,
         "workbookInstitutions": "香港中文大学（深圳）、其他合作单位"
@@ -2568,6 +2575,7 @@ window.SD_ATLAS_DATA = {
         "与 DFlash 的路线区别很直接：DiffuSpec 不训练 Drafter、使用完整的 7B 预训练 DLM，并靠推理时 CPS/ADL 修正；DFlash 训练小型 Target-conditioned Block-Diffusion Drafter，以更低模型开销直接提高并行 Draft 质量。",
         "正文与 Appendix A 对 3-gram KenLM 的训练语料描述存在差异，严格复现时应优先检查作者后续代码或向作者确认。"
       ],
+      "qaNotes": [],
       "provenance": {
         "legacyWorkbookRow": 8,
         "workbookInstitutions": "香港中文大学（深圳）、其他合作单位"
@@ -2932,6 +2940,7 @@ window.SD_ATLAS_DATA = {
         "附录部分图表使用 SpecDiff-2.0 命名，指代同一套 Streak-Distillation + Self-Selection 方法，并非独立版本。",
         "Self-Selection 的候选在实现中可用 Tree-Style Attention 合并评分，但最终只选择并验证一条链；因此 candidateStructure 记录为 multiple-chains-with-selection，而不是持续提交多分支树。"
       ],
+      "qaNotes": [],
       "provenance": {
         "legacyWorkbookRow": 9,
         "workbookInstitutions": "美国加州大学圣塔芭芭拉分校（UCSB）等"
@@ -3274,6 +3283,7 @@ window.SD_ATLAS_DATA = {
         "Appendix A.3 估算 Qwen3.5-35B-A3B 配置的额外 Target Feature Projection 参数约为 42 MB，相比约 70 GB Target 很小；但长期 KV、引擎接口和 Batch Verify 成本仍需在真实 Serving 中单独核算。",
         "DFlash 主要优化 Drafter 的速度与质量，和 DDTree/TAPS 的候选树组织、DSpark 的半自回归依赖建模与动态 Verify 调度基本正交。"
       ],
+      "qaNotes": [],
       "provenance": {
         "legacyWorkbookRow": 10,
         "workbookInstitutions": "中国科学院计算技术研究所、其他合作单位"
@@ -3606,6 +3616,7 @@ window.SD_ATLAS_DATA = {
         }
       ],
       "notes": [],
+      "qaNotes": [],
       "provenance": {
         "legacyWorkbookRow": 11,
         "workbookInstitutions": "北京大学、腾讯"
@@ -3981,6 +3992,7 @@ window.SD_ATLAS_DATA = {
         "Table 1 的主结果使用公开 Baseline Checkpoint，可能混入 Training Data 差异；Table 3 的 ShareGPT 同数据实验才是更干净的架构对照。",
         "Domino 主要解决 Draft 质量与串行成本的矛盾，不处理候选树选择、动态 Verify Budget 或 Batch-Aware Scheduling。"
       ],
+      "qaNotes": [],
       "provenance": {
         "legacyWorkbookRow": 12,
         "workbookInstitutions": "未知（arXiv作者团队）"
@@ -4487,6 +4499,7 @@ window.SD_ATLAS_DATA = {
         "compatibleWith 中列出 DFlare 属于结构层面的正交兼容判断：DFlare 优化并行 Backbone 的 Target 条件注入，DSpark 优化其后部 Prefix 建模和 Verify 调度；论文没有直接实验验证两者组合。",
         "公开 DeepSpec 已足以检查算法、训练目标和 Table 1 Checkpoint，但生产部分仍依赖未公开模型、真实流量与定制 Kernel，复现状态因此记为 not-reproduced，而不是 fully-reproducible。"
       ],
+      "qaNotes": [],
       "provenance": {
         "legacyWorkbookRow": 13,
         "workbookInstitutions": "未知（arXiv作者团队）"
@@ -4624,6 +4637,7 @@ window.SD_ATLAS_DATA = {
       },
       "evidence": [],
       "notes": [],
+      "qaNotes": [],
       "provenance": {
         "legacyWorkbookRow": 14,
         "workbookInstitutions": "美国加州大学圣迭戈分校（UCSD）、其他合作单位"
@@ -4976,6 +4990,7 @@ window.SD_ATLAS_DATA = {
         }
       ],
       "notes": [],
+      "qaNotes": [],
       "provenance": {
         "legacyWorkbookRow": 15,
         "workbookInstitutions": "未知（arXiv作者团队）"
@@ -5348,6 +5363,7 @@ window.SD_ATLAS_DATA = {
         }
       ],
       "notes": [],
+      "qaNotes": [],
       "provenance": {
         "legacyWorkbookRow": 16,
         "workbookInstitutions": "未知（arXiv作者团队）"
@@ -5674,6 +5690,7 @@ window.SD_ATLAS_DATA = {
         "论文表格中的 DDTree 数值对每个数据集、模型和温度选用了 {16, 32, 64, 128, 256, 512, 1024} 中的最佳节点预算，不能直接视为无需调参的固定部署配置。",
         "节点预算控制的是一次 Target 前向中被 Verify 的树节点总数；树的形状随每轮 Draft 概率变化，但论文没有动态改变每轮节点预算。"
       ],
+      "qaNotes": [],
       "provenance": {
         "legacyWorkbookRow": 17,
         "workbookInstitutions": "未知（arXiv作者团队）"
@@ -6005,6 +6022,7 @@ window.SD_ATLAS_DATA = {
         "动态的是最终 Verify Tree 的节点数和形状，不是底层 Diffusion Draft Block 的长度。Qwen3 使用 Block Size 16，LLaMA-3.1-8B-Instruct 使用 Block Size 10。",
         "论文报告的无损性质来自标准投机解码与 Tree Attention 验证过程；当前实证范围仅覆盖 Greedy Decoding。"
       ],
+      "qaNotes": [],
       "provenance": {
         "legacyWorkbookRow": 18,
         "workbookInstitutions": "未知（arXiv作者团队）"
@@ -6118,6 +6136,7 @@ window.SD_ATLAS_DATA = {
       },
       "evidence": [],
       "notes": [],
+      "qaNotes": [],
       "provenance": {
         "legacyWorkbookRow": 19,
         "workbookInstitutions": "未知（arXiv作者团队）"
@@ -6237,6 +6256,7 @@ window.SD_ATLAS_DATA = {
       },
       "evidence": [],
       "notes": [],
+      "qaNotes": [],
       "provenance": {
         "legacyWorkbookRow": 20,
         "workbookInstitutions": "未知（arXiv作者团队）"
@@ -6358,6 +6378,7 @@ window.SD_ATLAS_DATA = {
       },
       "evidence": [],
       "notes": [],
+      "qaNotes": [],
       "provenance": {
         "legacyWorkbookRow": null,
         "workbookInstitutions": "斯坦福大学 → Together AI → 普林斯顿大学"
@@ -6472,6 +6493,7 @@ window.SD_ATLAS_DATA = {
       },
       "evidence": [],
       "notes": [],
+      "qaNotes": [],
       "provenance": {
         "legacyWorkbookRow": null,
         "workbookInstitutions": "宾夕法尼亚州立大学 → eBay"
@@ -6580,6 +6602,7 @@ window.SD_ATLAS_DATA = {
       },
       "evidence": [],
       "notes": [],
+      "qaNotes": [],
       "provenance": {
         "legacyWorkbookRow": null,
         "workbookInstitutions": "首尔大学"
@@ -6876,6 +6899,7 @@ window.SD_ATLAS_DATA = {
         "论文结果表明静态图改造能消除明显的软件执行障碍，但并未解决长上下文下多候选验证本身带来的内存流量增长。",
         "主结果采用论文 arXiv v1 的 Figure 3 数值；官方仓库 README 中不同测试口径的结果未并入主结果。"
       ],
+      "qaNotes": [],
       "provenance": {
         "legacyWorkbookRow": null,
         "workbookInstitutions": "中国科学技术大学软件学院"
@@ -7000,6 +7024,7 @@ window.SD_ATLAS_DATA = {
       },
       "evidence": [],
       "notes": [],
+      "qaNotes": [],
       "provenance": {
         "legacyWorkbookRow": null,
         "workbookInstitutions": "清华大学 → 北京航空航天大学、匹兹堡大学"

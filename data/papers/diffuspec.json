@@ -378,6 +378,7 @@
     "与 DFlash 的路线区别很直接：DiffuSpec 不训练 Drafter、使用完整的 7B 预训练 DLM，并靠推理时 CPS/ADL 修正；DFlash 训练小型 Target-conditioned Block-Diffusion Drafter，以更低模型开销直接提高并行 Draft 质量。",
     "正文与 Appendix A 对 3-gram KenLM 的训练语料描述存在差异，严格复现时应优先检查作者后续代码或向作者确认。"
   ],
+  "qaNotes": [],
   "provenance": {
     "legacyWorkbookRow": 8,
     "workbookInstitutions": "香港中文大学（深圳）、其他合作单位"

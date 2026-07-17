@@ -120,6 +120,28 @@ def validate_sources(catalog: Dict[str, Any], papers: List[Dict[str, Any]]) -> N
         check(isinstance(paper.get("authors"), list) and bool(paper.get("authors")),
               f"{label}: authors must be a non-empty array")
         check(isinstance(paper.get("notes"), list), f"{label}: notes must be an array")
+        qa_notes = paper.get("qaNotes")
+        check(isinstance(qa_notes, list), f"{label}: qaNotes must be an array")
+        if isinstance(qa_notes, list):
+            questions = []  # type: List[str]
+            for qa_index, item in enumerate(qa_notes):
+                qa_label = f"{label}: qaNotes[{qa_index}]"
+                check(isinstance(item, dict), f"{qa_label} must be an object")
+                if not isinstance(item, dict):
+                    continue
+                check(tuple(item) == ("question", "answer"),
+                      f"{qa_label} fields/order must be question, answer")
+                question = item.get("question")
+                answer = item.get("answer")
+                check(isinstance(question, str) and bool(question.strip()),
+                      f"{qa_label}.question must be non-empty text")
+                check(answer is None or
+                      (isinstance(answer, str) and bool(answer.strip())),
+                      f"{qa_label}.answer must be null or non-empty text")
+                if isinstance(question, str) and question.strip():
+                    questions.append(question.strip())
+            check(len(questions) == len(set(questions)),
+                  f"{label}: qaNotes questions must be unique")
         check("localPdf" in paper, f"{label}: localPdf must be present (null is allowed)")
         local_pdf = paper.get("localPdf")
         check(local_pdf is None or (isinstance(local_pdf, str) and bool(local_pdf.strip())),
@@ -169,6 +191,7 @@ def validate_sources(catalog: Dict[str, Any], papers: List[Dict[str, Any]]) -> N
             "relations": dict,
             "reproducibility": dict,
             "evidence": list,
+            "qaNotes": list,
             "provenance": dict,
         }
         for field, expected_type in structured_fields.items():

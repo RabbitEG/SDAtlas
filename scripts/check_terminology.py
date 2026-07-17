@@ -78,6 +78,16 @@ def iter_paper_prose(path: Path, paper: Dict[str, Any]) -> Iterable[Tuple[str, s
         for index, note in enumerate(notes):
             yield f"{prefix}:notes[{index}]", str(note)
 
+    qa_notes = paper.get("qaNotes", [])
+    if isinstance(qa_notes, list):
+        for index, item in enumerate(qa_notes):
+            if not isinstance(item, dict):
+                continue
+            for field in ("question", "answer"):
+                value = item.get(field)
+                if isinstance(value, str):
+                    yield f"{prefix}:qaNotes[{index}].{field}", value
+
     contributions = paper.get("subproblemContributions", {})
     if isinstance(contributions, dict):
         for code, contribution in contributions.items():

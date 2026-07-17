@@ -57,7 +57,9 @@ python3 -m http.server 8000 --directory SDAtlas
 - `limitations[]` / `relations`：带来源性质的限制，以及与引用关系分离的方法谱系；
 - `citations[]`：当前图谱范围内由该论文指向被引用论文的有向边；
 - `reproducibility` / `evidence[]`：复现状态与重要断言的回查位置；
-- `notes[]` / `provenance`：个人研究笔记与不面向读者的迁移来源；
+- `notes[]`：个人研究笔记；
+- `qaNotes[]`：阅读问题与回答，每项固定使用 `question` / `answer`；尚未得到答案时 `answer` 写 `null`；
+- `provenance`：不面向读者的迁移来源；
 - `explanationPage`：可选的站内论文解读 HTML，相对于 `SDAtlas/`；未提供或设为 `null` 时不显示入口；
 - `localPdf`：相对于 `SDAtlas/` 的本地 PDF 路径；没有正确本地文件时写 `null`。
 
@@ -69,6 +71,19 @@ python3 -m http.server 8000 --directory SDAtlas
 - `detail`：论文展开区域与详情页使用的相对详细说明。
 
 `subproblemCodes`、`institutions` 和 `citedBy` 不写入论文源文件。它们分别由贡献键、单位明细和全站 `citations` 自动派生，避免维护两份会漂移的数据。独立解读页统一放在 [`explanations/`](explanations/)；建议使用自包含 HTML，文件名可以与论文简称一致。
+
+阅读问答使用固定结构：
+
+```json
+"qaNotes": [
+  {
+    "question": "为什么这里选择固定 Block Size？",
+    "answer": null
+  }
+]
+```
+
+`question` 必须是非空文本且在同一论文内不能重复；`answer` 可以是非空文本或 `null`，不能用空字符串代替待回答状态。
 
 ### 引用与论文关系口径
 
@@ -82,7 +97,19 @@ python3 -m http.server 8000 --directory SDAtlas
 
 ## 修改与检查
 
-修改 `data/catalog.json` 或任一论文源文件后运行：
+修改 `data/catalog.json` 或任一论文源文件后，直接运行一键更新脚本：
+
+```bash
+python3 scripts/update_site.py
+```
+
+它会依次同步两份网页生成物、执行完整 Schema/目录验证，并再次确认生成物没有过期。需要同时把术语检查作为阻断条件时运行：
+
+```bash
+python3 scripts/update_site.py --with-terminology
+```
+
+也可以分别运行底层脚本：
 
 ```bash
 python3 scripts/sync_catalog.py

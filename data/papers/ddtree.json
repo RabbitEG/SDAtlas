@@ -308,6 +308,7 @@
     "论文表格中的 DDTree 数值对每个数据集、模型和温度选用了 {16, 32, 64, 128, 256, 512, 1024} 中的最佳节点预算，不能直接视为无需调参的固定部署配置。",
     "节点预算控制的是一次 Target 前向中被 Verify 的树节点总数；树的形状随每轮 Draft 概率变化，但论文没有动态改变每轮节点预算。"
   ],
+  "qaNotes": [],
   "provenance": {
     "legacyWorkbookRow": 17,
     "workbookInstitutions": "未知（arXiv作者团队）"

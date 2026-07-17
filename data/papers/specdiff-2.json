@@ -343,6 +343,7 @@
     "附录部分图表使用 SpecDiff-2.0 命名，指代同一套 Streak-Distillation + Self-Selection 方法，并非独立版本。",
     "Self-Selection 的候选在实现中可用 Tree-Style Attention 合并评分，但最终只选择并验证一条链；因此 candidateStructure 记录为 multiple-chains-with-selection，而不是持续提交多分支树。"
   ],
+  "qaNotes": [],
   "provenance": {
     "legacyWorkbookRow": 9,
     "workbookInstitutions": "美国加州大学圣塔芭芭拉分校（UCSB）等"

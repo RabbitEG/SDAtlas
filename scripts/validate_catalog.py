@@ -69,12 +69,13 @@ LIMITATION_SOURCE_TYPES = {"paper", "analysis", "observed-data"}
 EVIDENCE_TYPES = {
     "method", "configuration", "result", "ablation", "limitation", "training", "system",
 }
+QA_NOTE_FIELDS = ("question", "answer")
 EXPECTED_PAPER_FIELDS = (
     "id", "index", "title", "shortName", "authors", "venue", "date", "url",
     "localPdf", "explanationPage", "institutionDetails", "institutionSource",
     "methodOverview", "problemStatement", "methodComponents", "characteristics",
     "subproblemContributions", "training", "evaluation", "mainResults", "limitations",
-    "relations", "citations", "reproducibility", "evidence", "notes", "provenance",
+    "relations", "citations", "reproducibility", "evidence", "notes", "qaNotes", "provenance",
 )
 
 
@@ -185,12 +186,41 @@ def validate_taxonomy(catalog: Dict[str, Any], result: Validation) -> List[str]:
     return [code for code in codes if isinstance(code, str)]
 
 
+def validate_qa_notes(
+    paper: Dict[str, Any], label: str, result: Validation, require_example: bool = False
+) -> None:
+    """Validate ordered question/answer pairs; unanswered questions use null."""
+    qa_notes = paper.get("qaNotes")
+    result.check(isinstance(qa_notes, list), f"{label}: qaNotes 必须是 array，可为空")
+    if not isinstance(qa_notes, list):
+        return
+    if require_example:
+        result.check(bool(qa_notes), f"{label}: qaNotes 应保留一条 question/answer 模板示例")
+    questions = []  # type: List[str]
+    for index, item in enumerate(qa_notes):
+        qa_label = f"{label}: qaNotes[{index}]"
+        result.check(isinstance(item, dict), f"{qa_label} 必须是 object")
+        if not isinstance(item, dict):
+            continue
+        result.check(tuple(item) == QA_NOTE_FIELDS,
+                     f"{qa_label} 字段及顺序必须为 question、answer")
+        question = item.get("question")
+        answer = item.get("answer")
+        result.check(nonempty_text(question), f"{qa_label}.question 必须是非空文本")
+        result.check(answer is None or nonempty_text(answer),
+                     f"{qa_label}.answer 必须是 null 或非空文本")
+        if nonempty_text(question):
+            questions.append(question.strip())
+    result.check(len(questions) == len(set(questions)), f"{label}: qaNotes 问题不能重复")
+
+
 def validate_template(template: Dict[str, Any], result: Validation) -> None:
     """Keep every independently maintained paper aligned with one ordered template."""
     result.check(
         tuple(template) == EXPECTED_PAPER_FIELDS,
         "data/paper-template.json 的顶层字段或顺序与 schema v5 不一致",
     )
+    validate_qa_notes(template, "data/paper-template.json", result, require_example=True)
 
 
 def validate_institutions(paper: Dict[str, Any], label: str, result: Validation) -> None:
@@ -521,6 +551,7 @@ def validate_papers(
         if isinstance(notes, list):
             result.check(all(nonempty_text(note) for note in notes),
                          f"{label}: notes 中的每项必须是非空字符串")
+        validate_qa_notes(paper, label, result)
 
         validate_institutions(paper, label, result)
         validate_problem_statement(paper, label, result)

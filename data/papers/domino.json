@@ -360,6 +360,7 @@
     "Table 1 的主结果使用公开 Baseline Checkpoint，可能混入 Training Data 差异；Table 3 的 ShareGPT 同数据实验才是更干净的架构对照。",
     "Domino 主要解决 Draft 质量与串行成本的矛盾，不处理候选树选择、动态 Verify Budget 或 Batch-Aware Scheduling。"
   ],
+  "qaNotes": [],
   "provenance": {
     "legacyWorkbookRow": 12,
     "workbookInstitutions": "未知（arXiv作者团队）"
