@@ -27,21 +27,50 @@
   "institutionSource": "https://arxiv.org/pdf/2604.12989",
   "methodOverview": "利用 DFlash 为各位置给出的边缘概率，通过 Best-First Search 在节点预算下选择代理路径概率最高的候选，并用仅允许访问祖先的 Attention Mask 一次 Verify 整棵树。",
   "problemStatement": {
-    "background": null,
-    "priorLimitation": null,
-    "goal": null
+    "background": "Block-Diffusion Drafter 能在一次前向中并行输出多个未来位置的 Token 分布，从而避免自回归 Drafter 随 Draft 长度线性增长的串行成本。DFlash 已利用这种能力一次生成完整 Token Block，但其一次前向实际上提供的是每个未来位置的完整边缘分布，而不只是一条确定序列。",
+    "priorLimitation": "Vanilla DFlash 将逐位置分布压缩为一条 Top-1 Draft 轨迹，每轮只 Verify 这一条路径，大量次优但仍可能被 Target 选中的候选没有得到利用。直接扩展更多路径又会快速增加 Verify 节点数；同时，一次并行前向只提供逐位置边缘概率，无法获得依赖具体前缀的 Target 路径条件概率，因此不能直接优化真实 Target 分布下的期望接受长度。",
+    "goal": "在不增加 Drafter 前向次数、也不引入外部 N-gram 评分器的前提下，从一次 Block-Diffusion 前向的边缘分布中构造紧凑、前缀闭合的候选树；在固定节点预算内最大化可计算的替代期望接受长度，并通过一次 Target 前向完成整棵树的无损 Verify。"
   },
-  "methodComponents": [],
+  "methodComponents": [
+    {
+      "name": "逐位置边缘分布保留",
+      "stage": "Draft 输出读取",
+      "purpose": "保留单次 DFlash 前向中除 Top-1 Token 之外的候选信息，为多路径覆盖提供概率基础。",
+      "mechanism": "给定上一轮 Bonus Token 和 Mask Block，DFlash 一次前向输出未来 L 个位置的 Logits，并分别归一化为边缘分布 q_i。DDTree不立即采样成一条序列，而是保留各位置按概率排序的候选 Token 及其概率。",
+      "differenceFromPrior": "Vanilla DFlash 每个位置只选择一个 Token 并组成单链；DDTree利用同一次前向已经产生的完整逐位置分布，不增加额外 Drafter 计算。"
+    },
+    {
+      "name": "因子化路径概率与替代接受目标",
+      "stage": "候选评分",
+      "purpose": "在缺少 Target 路径条件概率时，为候选前缀建立可计算且具有明确含义的排序目标。",
+      "mechanism": "将一条长度为 d 的前缀 u 的代理概率定义为 q(u)=∏_{i=1}^{d}q_i(u_i)，即在 Block-Diffusion 逐位置边缘分布诱导的因子化分布 Q 下的前缀概率。论文证明，任意前缀闭合树在 Q 下的期望接受长度等于树内所有节点前缀概率之和，因此固定预算下应选择概率最高的 B 个前缀。",
+      "differenceFromPrior": "该最优性只针对 Drafter 因子化分布 Q 下的替代目标，不声称恢复不可获得的 Target 路径概率；目标形式继承 OPT-Tree 的期望接受长度思想，但所有概率由一次并行 Drafter 前向获得。"
+    },
+    {
+      "name": "Best-First Heap 候选树构造",
+      "stage": "候选组织",
+      "purpose": "避免枚举指数规模的所有 Token 前缀，以较低开销恢复节点预算内概率最高的前缀集合。",
+      "mechanism": "用各位置候选 Token 的概率名次表示一个前缀，并以对数路径概率作为 Max-Heap 分数。从全 Top-1 前缀开始，每次弹出当前最高分节点后，只加入其下一个兄弟和概率最高的孩子。弹出 B 次后得到 B 个最高概率前缀；由于父前缀概率总不低于子前缀，结果自动满足前缀闭合。Heap 阶段时间复杂度为 O(B log B)。",
+      "differenceFromPrior": "自回归树方法通常需要按树深执行多次 Drafter 前向；DART 还使用外部 N-gram 连贯性评分和运行时 Trie。DDTree只依赖一次 DFlash 前向的概率，不需要额外模型调用或外部评分结构。"
+    },
+    {
+      "name": "Tree Attention Verify 与 KV Cache 压缩",
+      "stage": "Target Verify",
+      "purpose": "在一次 Target 前向中同时计算所有候选分支，并确保不同分支之间不会发生信息泄漏。",
+      "mechanism": "将候选树展平为 Token 序列，按节点深度设置 Position ID，并构造仅允许节点访问历史 KV Cache、根节点、祖先节点和自身的 Attention Mask。Target 一次前向为所有节点产生分布，随后按 Target 自身的贪心或采样规则沿匹配子节点行走；首个不在树中的 Target Token 成为下一轮 Bonus Token，KV Cache 只保留已接受路径。",
+      "differenceFromPrior": "相较 DFlash 的单链 Verify，DDTree在同一轮覆盖多条候选路径；相较无约束的多分支验证，祖先可见 Mask 隔离各分支，固定节点预算则直接限制 Target Verify 成本。"
+    }
+  ],
   "characteristics": {
-    "requiresTraining": null,
-    "drafterType": null,
-    "draftGeneration": null,
-    "candidateStructure": null,
-    "verificationStrategy": null,
-    "usesTargetFeatures": null,
-    "dynamicDraftLength": null,
-    "dynamicVerifyLength": null,
-    "lossless": null
+    "requiresTraining": false,
+    "drafterType": "block-diffusion",
+    "draftGeneration": "parallel",
+    "candidateStructure": "adaptive-tree",
+    "verificationStrategy": "tree-verification",
+    "usesTargetFeatures": true,
+    "dynamicDraftLength": false,
+    "dynamicVerifyLength": false,
+    "lossless": true
   },
   "subproblemContributions": {
     "B": {
@@ -54,23 +83,126 @@
     }
   },
   "training": {
-    "summary": null,
-    "data": null,
-    "objective": null
+    "summary": "DDTree 本身是 Training-Free 的候选组织与 Verify 算法，不新增可训练参数，直接复用已经训练完成的 DFlash Drafter checkpoint。",
+    "data": "不使用额外 Training 数据。论文实验直接加载与 Qwen3-4B、Qwen3-8B 和 Qwen3-Coder-30B-A3B-Instruct 配套的官方 DFlash checkpoints。",
+    "objective": "不存在参数学习目标；运行时优化的是因子化 Draft 分布 Q 下的替代期望接受长度，即最大化候选树中所有前缀概率质量之和。"
   },
   "evaluation": {
-    "targetModels": [],
-    "benchmarks": [],
-    "baselines": [],
-    "metrics": [],
-    "hardware": [],
-    "frameworks": []
+    "targetModels": [
+      "Qwen3-4B",
+      "Qwen3-8B",
+      "Qwen3-Coder-30B-A3B-Instruct"
+    ],
+    "benchmarks": [
+      "MATH-500",
+      "GSM8K",
+      "AIME 2024",
+      "AIME 2025",
+      "HumanEval",
+      "MBPP",
+      "LiveCodeBench",
+      "SWE-bench Lite",
+      "MT-Bench",
+      "Alpaca"
+    ],
+    "baselines": [
+      "Autoregressive decoding",
+      "Vanilla DFlash"
+    ],
+    "metrics": [
+      "End-to-end speedup relative to autoregressive decoding",
+      "Mean acceptance length τ including the Target-generated Bonus Token",
+      "Acceptance length histogram",
+      "Node-budget versus speedup and acceptance-length tradeoff"
+    ],
+    "hardware": [
+      "8× NVIDIA H200 GPUs"
+    ],
+    "frameworks": [
+      "Hugging Face Transformers",
+      "PyTorch scaled dot product attention for Target Tree Attention",
+      "FlashAttention-2 for the DFlash Drafter"
+    ]
   },
-  "mainResults": [],
-  "limitations": [],
+  "mainResults": [
+    {
+      "condition": "10 个数据集、3 个目标模型、温度 0.0 与 1.0，共 60 个数据集–模型–温度设置",
+      "metric": "端到端加速比与平均接受长度 τ",
+      "result": "DFlash+DDTree 在 Table 1 的 60 个设置中全部优于 Vanilla DFlash。",
+      "comparison": "提升覆盖数学推理、代码生成、软件工程、通用指令与对话任务，并同时出现在贪心解码和温度采样中。",
+      "source": "Section 5.2；Table 1"
+    },
+    {
+      "condition": "Qwen3-8B，MATH-500，temperature=0.0",
+      "metric": "端到端加速比 / 平均接受长度 τ",
+      "result": "DDTree 达到 7.52× / 10.73。",
+      "comparison": "Vanilla DFlash 为 5.56× / 7.79。",
+      "source": "Table 1"
+    },
+    {
+      "condition": "Qwen3-Coder-30B-A3B-Instruct，HumanEval，temperature=0.0",
+      "metric": "端到端加速比 / 平均接受长度 τ",
+      "result": "DDTree 达到 8.22× / 10.72，为论文表格中的最高加速结果。",
+      "comparison": "Vanilla DFlash 为 6.09× / 8.02。",
+      "source": "Figure 1；Table 1"
+    },
+    {
+      "condition": "Qwen3-4B，Alpaca，temperature=0.0",
+      "metric": "端到端加速比 / 平均接受长度 τ",
+      "result": "DDTree 达到 3.32× / 5.35。",
+      "comparison": "Vanilla DFlash 为 2.03× / 3.11，说明多分支覆盖在开放式对话任务上仍能带来明显收益。",
+      "source": "Table 1"
+    },
+    {
+      "condition": "Qwen3-8B，MATH-500，temperature=0.0，节点预算从 16 增至 1024",
+      "metric": "节点预算–接受长度–端到端加速权衡",
+      "result": "接受长度随节点预算持续上升，但端到端加速在约 256–512 个节点时达到峰值；继续增至 1024 后 Verify 开销开始压过接受长度收益。",
+      "comparison": "预算为 16 时 DDTree 已能在相近概念预算下超过只验证一条长度 16 序列的 Vanilla DFlash。",
+      "source": "Section 5.3；Figure 3"
+    },
+    {
+      "condition": "Qwen3-8B，MATH-500，temperature=0.0，DDTree 节点预算 B=512",
+      "metric": "接受长度分布",
+      "result": "DDTree 显著减少低于 4 的短接受轮次，并提高完整接受长度 16 的出现频率。",
+      "comparison": "相较 Vanilla DFlash，概率质量整体向更长接受 Prefix 移动，因此生成相同 Token 数所需的 Target Verify 轮次更少。",
+      "source": "Section 5.4；Figure 4"
+    }
+  ],
+  "limitations": [
+    {
+      "type": "algorithmic",
+      "description": "Best-First Search 的最优性仅针对由逐位置边缘概率诱导的因子化 Draft 分布 Q，以及该分布下的替代期望接受长度；它不保证所选树对真实 Target 路径条件分布最优。",
+      "sourceType": "paper"
+    },
+    {
+      "type": "latency",
+      "description": "更大的节点预算虽然通常能提高接受长度，但会直接增加 Target Verify 的 Token 数；实验中预算增至 1024 后，额外 Verify 开销已经可能降低端到端加速。",
+      "sourceType": "paper"
+    },
+    {
+      "type": "deployment",
+      "description": "最优节点预算依赖具体模型、数据、硬件与实现。论文结果为每个数据集–模型–温度组合从多个候选预算中选择最佳值，并未提供面向实时负载的动态预算调度器。",
+      "sourceType": "analysis"
+    },
+    {
+      "type": "deployment",
+      "description": "FlashAttention-2 不支持论文所需的非标准 Tree Attention 模式，因此 Target 侧使用标准 PyTorch scaled dot product attention；这会限制其在高度优化 Serving 框架中的直接性能与集成便利性。",
+      "sourceType": "paper"
+    },
+    {
+      "type": "evaluation",
+      "description": "评测集中在 Qwen3 系列的三个目标模型和 NVIDIA H200 离线环境，没有报告其他模型家族、其他加速器、长上下文、高并发 Batch Serving 或线上负载下的效果。",
+      "sourceType": "analysis"
+    }
+  ],
   "relations": {
-    "extends": [],
-    "comparesAgainst": [],
+    "extends": [
+      "dflash",
+      "opt-tree"
+    ],
+    "comparesAgainst": [
+      "dflash"
+    ],
     "related": [
       "medusa",
       "eagle",
@@ -96,15 +228,86 @@
     "dart"
   ],
   "reproducibility": {
-    "codeUrl": null,
-    "modelUrl": null,
-    "projectPage": null,
-    "officialImplementation": null,
-    "status": "not-checked",
-    "notes": []
+    "codeUrl": "https://github.com/liranringel/ddtree",
+    "modelUrl": "https://huggingface.co/collections/z-lab/dflash",
+    "projectPage": "https://liranringel.github.io/ddtree/",
+    "officialImplementation": true,
+    "status": "code-available",
+    "notes": [
+      "官方仓库提供 DDTree 与 DFlash 推理实现、benchmark.py、run_benchmark.sh、绘图脚本和 LaTeX 表格生成脚本。",
+      "仓库面向启用 CUDA 的 PyTorch 环境，依赖可通过 requirements.txt 安装，并可用 run_benchmark.sh 运行论文实验。",
+      "DDTree 不发布独立训练权重；modelUrl 指向论文实验所复用的官方 DFlash checkpoint 集合。",
+      "官方代码采用 MIT License。"
+    ]
   },
-  "evidence": [],
-  "notes": [],
+  "evidence": [
+    {
+      "claim": "Vanilla DFlash 每轮只 Verify 一条轨迹，未充分利用单次 Block-Diffusion 前向产生的多个可能延续。",
+      "location": "Introduction，第 2 页",
+      "type": "method"
+    },
+    {
+      "claim": "单次 Block-Diffusion 前向提供的是各位置边缘分布，而不是依赖已选择前缀的路径条件分布。",
+      "location": "Section 3，Equation 1–2，第 4 页",
+      "type": "method"
+    },
+    {
+      "claim": "因子化分布 Q 下的期望接受长度可分解为候选树内所有前缀概率质量之和。",
+      "location": "Section 4.2，Proposition 1，Equation 8，第 7 页",
+      "type": "method"
+    },
+    {
+      "claim": "固定节点预算下，概率最高的 B 个前缀自动形成前缀闭合树，并对替代目标最优。",
+      "location": "Section 4.2，Proposition 2，第 7 页",
+      "type": "method"
+    },
+    {
+      "claim": "Best-First Heap 通过加入下一兄弟和最优孩子恢复最高概率前缀，复杂度为 O(B log B)。",
+      "location": "Section 4.3，Algorithm 1、Proposition 3 与 Remark 2，第 8–9 页",
+      "type": "method"
+    },
+    {
+      "claim": "候选树通过祖先可见 Tree Attention 在一次 Target 前向中 Verify，之后 KV Cache 只保留接受路径。",
+      "location": "Section 4.4，第 9 页",
+      "type": "system"
+    },
+    {
+      "claim": "实验覆盖三个 Qwen3 目标模型、十个 Benchmark、温度 0.0 和 1.0，并在 8 张 H200 GPU 上运行。",
+      "location": "Section 5.1，第 10 页；Appendix B，第 17 页",
+      "type": "configuration"
+    },
+    {
+      "claim": "DDTree 在全部 60 个数据集–模型–温度设置中均提升 Vanilla DFlash。",
+      "location": "Section 5.2；Table 1，第 10–11 页",
+      "type": "result"
+    },
+    {
+      "claim": "接受长度随节点预算增加，但端到端加速在中间预算达到峰值，继续扩树会受 Verify 成本限制。",
+      "location": "Section 5.3；Figure 3，第 11 页",
+      "type": "ablation"
+    },
+    {
+      "claim": "DDTree 将接受长度分布推向更长 Prefix，并显著提高完整接受长度 16 的比例。",
+      "location": "Section 5.4；Figure 4，第 11–12 页",
+      "type": "result"
+    },
+    {
+      "claim": "Target Tree Attention 使用 PyTorch SDPA，因为 FlashAttention-2 不支持所需树状 Attention Pattern。",
+      "location": "Appendix B，第 17 页",
+      "type": "limitation"
+    },
+    {
+      "claim": "论文提供官方 Project Page 和代码仓库，仓库包含运行 Benchmark 及生成论文图表的脚本。",
+      "location": "论文第 1 页 Project Page / Code 链接；官方 GitHub README",
+      "type": "system"
+    }
+  ],
+  "notes": [
+    "论文中的“最优候选树”必须带上限定：它是在因子化 Draft 分布 Q 与固定节点预算下对替代目标最优，不是对真实 Target 路径分布最优。",
+    "DDTree本质上不提升 DFlash Drafter 的单点预测能力，而是把原本被丢弃的边缘分布概率质量重新组织成可 Verify 的多分支覆盖。",
+    "论文表格中的 DDTree 数值对每个数据集、模型和温度选用了 {16, 32, 64, 128, 256, 512, 1024} 中的最佳节点预算，不能直接视为无需调参的固定部署配置。",
+    "节点预算控制的是一次 Target 前向中被 Verify 的树节点总数；树的形状随每轮 Draft 概率变化，但论文没有动态改变每轮节点预算。"
+  ],
   "provenance": {
     "legacyWorkbookRow": 17,
     "workbookInstitutions": "未知（arXiv作者团队）"

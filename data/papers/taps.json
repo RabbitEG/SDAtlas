@@ -23,21 +23,50 @@
   "institutionSource": "https://arxiv.org/pdf/2606.00487",
   "methodOverview": "Training 一个轻量 Target-Aware Scorer 来估计每条边在 Target 下被接受的条件概率，沿 Prefix 连乘后选出紧凑的前缀闭合子树。",
   "problemStatement": {
-    "background": null,
-    "priorLimitation": null,
-    "goal": null
+    "background": "Block-Diffusion Drafter 能在一次前向中并行预测多个未来位置，显著压低 Draft 阶段延迟；但当 Draft 变得足够便宜后，端到端瓶颈会转移到 Target Verify。单路径验证成本低，却限制平均接受长度；大规模 Token Tree 虽能覆盖更多候选路径，却会显著增加 Tree Attention 和 Target 前向成本。",
+    "priorLimitation": "DFlash 每轮只验证一条序列，没有充分利用扩散 Drafter 在各位置输出的多个候选。DDTree 虽将这些边缘分布扩展成树，却主要按各位置的 Marginal Probability 选择节点，没有考虑树验证的 Prefix-Conditioned 性质：只有祖先全部通过时，后代节点才可能被访问。因此，错误 Prefix 下具有较高边缘概率的后代仍可能占用 Verify 预算。与此同时，固定扩大树节点预算会产生明显的边际收益递减，更多接受 Token 未必足以抵消更高的 Target Verify 延迟。",
+    "goal": "学习 Target 在具体 Prefix 下的接受偏好，将扩散 Drafter 的逐位置边缘置信度转换为路径条件可达概率，并在节点预算与验证成本约束下动态选择紧凑的前缀闭合子树，以提高期望接受收益与 Target 计算成本之间的比值，同时保持投机解码的无损性质。"
   },
-  "methodComponents": [],
+  "methodComponents": [
+    {
+      "name": "Marginal Candidate Pool Construction",
+      "description": "沿用 DFlash 类 Block-Diffusion Drafter，在一次前向中产生未来 d 个位置的 Marginal Logits。每个位置保留 Top-K Token，并将这些局部候选组合成最多包含 N_pool 个节点的大型候选树。该阶段只负责提供高召回候选池，不直接决定最终需要验证的树。"
+    },
+    {
+      "name": "Target-Aware Edge Scorer",
+      "description": "对每条父子边 u→v 预测条件接受概率 q_cond(u→v)=Pr(accept v | reach u)。Scorer 输入包括父 Token、子 Token、边深度、子 Token 的 Draft Log Probability，以及该位置的预测熵；同一父节点的所有子节点经过 Sibling-Wise Softmax，表示在已经到达该父 Prefix 时 Target 对各候选孩子的相对偏好。"
+    },
+    {
+      "name": "Path Reach Probability Propagation",
+      "description": "将根节点到当前节点路径上的条件概率连乘，得到 q_reach(v)=∏q_cond。该分数表示节点真正能在 Verify 过程中被访问的概率，会自然压低错误或低概率 Prefix 下的所有后代，而不是把每个位置的 Token 独立排序。"
+    },
+    {
+      "name": "Cost-Aware Adaptive Prefix Tree Selection",
+      "description": "为每个候选节点定义 utility(v)=q_reach(v)/(λ₁+λ₂·depth(v))。其中 λ₁刻画 Tree Attention 的逐节点固定成本，λ₂惩罚更深、KV Cache 复用机会更低的节点。选择器按 Utility 贪心加入节点，并同步补齐全部祖先，保证结果始终为根连通的 Prefix-Closed Subtree；达到 N_max 或剩余节点 Utility 低于阈值 τ 时停止。"
+    },
+    {
+      "name": "Dynamic Verification Budget",
+      "description": "最终树大小随当前上下文难度变化。高置信轮次中更多节点超过阈值，树会接近节点预算；低置信轮次中只保留少量高收益节点，避免机械耗尽固定 Verify 预算。论文主实验中，TAPS 动态剪枝后平均约验证 64 个树节点。"
+    },
+    {
+      "name": "Tree-Attention Verification",
+      "description": "将最终选出的前缀闭合子树交给 Target Model，通过 Tree Attention 在一次前向中并行计算所有保留分支。解码时沿 Target 实际选择的路径逐层匹配并提交最长可接受 Prefix。TAPS 只改变 Verify 前的候选选择，不修改 Target 分布。"
+    },
+    {
+      "name": "Path-Aware Offline Distillation",
+      "description": "离线运行 Target Verify 并记录接受轨迹，以 Target 实际接受路径监督轻量 Scorer。训练同时学习每个已到达 Prefix 下的局部子节点分布，并校准沿完整路径累乘得到的 Reach Probability；推理阶段不需要为选树额外调用 Target Model。"
+    }
+  ],
   "characteristics": {
-    "requiresTraining": null,
-    "drafterType": null,
-    "draftGeneration": null,
-    "candidateStructure": null,
-    "verificationStrategy": null,
-    "usesTargetFeatures": null,
-    "dynamicDraftLength": null,
-    "dynamicVerifyLength": null,
-    "lossless": null
+    "requiresTraining": true,
+    "drafterType": "Block-Diffusion Drafter（实验中沿用对应的 DFlash Drafter）",
+    "draftGeneration": "固定 Block 长度的一次前向并行生成；每个未来位置输出 Marginal Distribution，并取 Top-K 构造候选池",
+    "candidateStructure": "Target-Aware、动态大小、前缀闭合的 Token Tree",
+    "verificationStrategy": "对动态选出的子树执行单次 Tree-Attention Target 前向，并沿 Target 路径接受最长 Prefix",
+    "usesTargetFeatures": true,
+    "dynamicDraftLength": false,
+    "dynamicVerifyLength": true,
+    "lossless": true
   },
   "subproblemContributions": {
     "B": {
@@ -50,23 +79,143 @@
     }
   },
   "training": {
-    "summary": null,
-    "data": null,
-    "objective": null
+    "summary": "只训练额外的轻量 Target-Aware Scorer；底层 DFlash Drafter 与 Target Model 不需要因 TAPS 重新训练。Scorer 通过离线蒸馏 Target Verify 轨迹，学习局部条件接受概率及完整 Prefix 的累计可达概率。",
+    "data": "离线收集的 Target Model 验证轨迹。每条轨迹包含扩散候选树、各已到达 Prefix 下的 Target 局部偏好、Target 实际接受路径及各节点是否可达的监督标签。论文未披露训练轨迹的具体来源、样本数量、数据划分、优化器或训练轮数。",
+    "objective": "L_TAPS = Σ_{j∈P} D_KL(p_T^j || q_θ^j) + λ Σ_{v∈T} BCE(r̂_v, q_v^reach)。KL 项在实际到达的 Prefix 上蒸馏 Target 对兄弟候选的局部条件分布；BCE 项校准由各边条件概率连乘得到的路径 Reach Probability，使训练目标直接对应紧凑子树能否覆盖 Target 接受路径。"
   },
   "evaluation": {
-    "targetModels": [],
-    "benchmarks": [],
-    "baselines": [],
-    "metrics": [],
-    "hardware": [],
-    "frameworks": []
+    "targetModels": [
+      "Qwen3-4B",
+      "Qwen3-8B",
+      "LLaMA-3.1-8B-Instruct"
+    ],
+    "benchmarks": [
+      "AIME25",
+      "GSM8K",
+      "MATH500",
+      "HumanEval",
+      "LiveCodeBench",
+      "MBPP",
+      "MT-Bench"
+    ],
+    "baselines": [
+      "Vanilla Autoregressive Decoding",
+      "EAGLE-3",
+      "DFlash",
+      "DDTree"
+    ],
+    "metrics": [
+      "End-to-End Decoding Speedup",
+      "Average Acceptance Length τ",
+      "End-to-End Throughput",
+      "Target Verification Latency",
+      "Tree Selection Overhead",
+      "Average Verification Node Count",
+      "Acceptance Length under Matched Node Budget"
+    ],
+    "hardware": [
+      "NVIDIA A40-48GB GPU",
+      "NVIDIA A800-SXM4-80GB GPU"
+    ],
+    "frameworks": [
+      "单请求、Batch Size = 1 的研究原型",
+      "论文未披露具体底层推理框架；明确说明尚未集成 vLLM 或 SGLang"
+    ]
   },
-  "mainResults": [],
-  "limitations": [],
+  "mainResults": [
+    {
+      "metric": "跨模型与硬件平均加速",
+      "value": "5.44×",
+      "context": "在 Qwen3-4B、Qwen3-8B、LLaMA-3.1-8B-Instruct，以及 A40、A800 两个平台的六组平均结果上，TAPS 的平均端到端加速为 5.44×；相对 DFlash 和 DDTree 分别提高 1.36× 与 1.74×。"
+    },
+    {
+      "metric": "最高端到端加速",
+      "value": "7.90×",
+      "context": "在 NVIDIA A40 上的 Qwen3-4B + MATH500 设置中达到 7.90× 无损加速，平均接受长度 τ=9.11。"
+    },
+    {
+      "metric": "A40 · Qwen3-4B 平均结果",
+      "value": "6.73× speedup，τ=7.92",
+      "context": "七个基准平均；DFlash 为 4.91×、τ=6.00，DDTree 为 3.50×、τ=8.90。TAPS 接受长度略低于 512 节点 DDTree，但端到端速度明显更高。"
+    },
+    {
+      "metric": "A40 · Qwen3-8B 平均结果",
+      "value": "6.14× speedup，τ=7.91",
+      "context": "七个基准平均；DFlash 为 4.86×、τ=6.03，DDTree 为 2.65×、τ=8.95。"
+    },
+    {
+      "metric": "A40 · LLaMA-3.1-8B-Instruct 平均结果",
+      "value": "3.87× speedup，τ=5.74",
+      "context": "七个基准平均；DFlash 为 2.99×、τ=4.19，DDTree 为 1.61×、τ=6.47。"
+    },
+    {
+      "metric": "A800 · Qwen3-4B 平均结果",
+      "value": "5.91× speedup，τ=7.89",
+      "context": "七个基准平均；DFlash 为 4.24×、τ=5.69，DDTree 为 5.13×、τ=8.89。"
+    },
+    {
+      "metric": "A800 · Qwen3-8B 平均结果",
+      "value": "5.72× speedup，τ=7.83",
+      "context": "七个基准平均；DFlash 为 4.03×、τ=5.48，DDTree 为 3.48×、τ=8.88。"
+    },
+    {
+      "metric": "A800 · LLaMA-3.1-8B-Instruct 平均结果",
+      "value": "4.28× speedup，τ=5.75",
+      "context": "七个基准平均；DFlash 为 2.97×、τ=4.20，DDTree 为 2.39×、τ=6.48。"
+    },
+    {
+      "metric": "相同节点预算下的接受长度",
+      "value": "6.93 → 7.92，提升 14.2%",
+      "context": "TAPS 主实验动态树平均约包含 64 个 Verify 节点。将 DDTree 同样限制为 64 个节点后，在 Qwen3-4B 七个数据集上的平均接受长度由 DDTree 的 6.93 提升至 TAPS 的 7.92，说明收益并非来自更大的树。"
+    },
+    {
+      "metric": "Target Verify 延迟",
+      "value": "TAPS 1.57 s",
+      "context": "在 Qwen3-8B、A800、七个数据集平均设置中，论文报告 DFlash、DDTree、TAPS 的验证阶段延迟分别为 2.32 s、2.88 s 和 1.57 s。TAPS 额外选树开销为 0.083 s，仅占总端到端时间约 4.2%。"
+    },
+    {
+      "metric": "Path-Conditional Scorer 消融",
+      "value": "平均接受长度下降 4.8%",
+      "context": "移除 Scorer、退化为按 Drafter Marginal Confidence 选树后，七个基准的接受长度下降 2.6%–7.4%，平均下降 4.8%。"
+    },
+    {
+      "metric": "Cost-Aware Dynamic Pruning 消融",
+      "value": "接受长度平均下降 13.3%，吞吐平均下降 11.7%",
+      "context": "保留 Target-Aware Scorer 但移除按接受收益与 Verify 成本进行的动态剪枝后，接受长度下降 10.2%–16.7%，吞吐下降 8.7%–15.1%。"
+    }
+  ],
+  "limitations": [
+    {
+      "name": "仅评估 Greedy Decoding",
+      "description": "全部实验采用 temperature=0。此时 Scorer 标签可定义为候选 Token 是否等于 Target 的唯一 Greedy Token；在 Sampling-Based Decoding 中，同一位置可能有多个 Token 随 Target 采样结果被接受，需要重新设计或校准 Scorer 标签以及剪枝效用目标。"
+    },
+    {
+      "name": "缺少 Batched Serving 验证",
+      "description": "当前实现是 Batch Size=1 的单请求研究原型，尚未接入 vLLM 或 SGLang。动态树在 Continuous Batching、Paged Attention、KV-Cache 管理和请求调度下会形成不同的实际成本曲线，因此单请求实验不能直接等价为生产吞吐收益。"
+    },
+    {
+      "name": "受候选池召回率限制",
+      "description": "TAPS 只优化 Candidate Selection，不提高底层 Diffusion Drafter 的预测质量。如果 Target 偏好的 Token 未进入各位置 Top-K 候选，尤其是在分布外 Prompt 上，后续 Scorer 和剪枝策略无法将其恢复。"
+    },
+    {
+      "name": "训练细节披露不完整",
+      "description": "论文给出了 Scorer 特征与损失函数，但没有披露训练轨迹规模、训练数据来源、Scorer 的完整网络结构、优化器、学习率、训练轮数、N_pool、N_max、λ₁、λ₂、τ 等主要超参数，独立复现实验仍需要参考随附代码。"
+    },
+    {
+      "name": "成本模型较为简化",
+      "description": "节点 Utility 使用 λ₁+λ₂·depth(v) 近似验证开销，主要建模逐节点 Tree Attention 成本与深层节点较低的 KV 复用价值，没有显式纳入 Batch 形状、Context Length、硬件 Kernel 离散性能区间或 Serving 负载。"
+    }
+  ],
   "relations": {
-    "extends": [],
-    "comparesAgainst": [],
+    "extends": [
+      "dflash",
+      "ddtree"
+    ],
+    "comparesAgainst": [
+      "eagle-3",
+      "dflash",
+      "ddtree"
+    ],
     "related": [
       "medusa",
       "eagle",
@@ -77,7 +226,9 @@
       "dart",
       "ddtree"
     ],
-    "compatibleWith": []
+    "compatibleWith": [
+      "dflash"
+    ]
   },
   "citations": [
     "medusa",
@@ -90,15 +241,80 @@
     "ddtree"
   ],
   "reproducibility": {
-    "codeUrl": null,
+    "codeUrl": "https://anonymous.4open.science/r/TAPS-EMNLP2026-53DD",
     "modelUrl": null,
-    "projectPage": null,
-    "officialImplementation": null,
-    "status": "not-checked",
-    "notes": []
+    "projectPage": "https://anonymous.4open.science/r/TAPS-EMNLP2026-53DD",
+    "officialImplementation": true,
+    "status": "anonymous-code-available",
+    "notes": [
+      "论文首页给出了作者匿名发布的 4open.science 实现地址。",
+      "未给出独立的 Hugging Face 模型或 Scorer Checkpoint 地址。",
+      "论文说明当前实现仅为单请求研究原型，尚未集成 vLLM 或 SGLang。",
+      "正文未披露完整训练配置和树选择超参数，复现时需要以匿名代码仓库为准。"
+    ]
   },
-  "evidence": [],
-  "notes": [],
+  "evidence": [
+    {
+      "source": "Abstract / Figure 2",
+      "claim": "TAPS 在三个 Target 模型和两种 GPU 平台上的平均加速为 5.44×，相对 DFlash 和 DDTree 分别提高 1.36× 与 1.74×，最高达到 7.9×。"
+    },
+    {
+      "source": "Figure 3(a)",
+      "claim": "Target 实际接受 Token 在 DFlash Marginal Top-8 中的覆盖率约为 99%，说明主要问题通常不是局部候选缺失，而是正确 Token 被放在错误 Prefix 下。"
+    },
+    {
+      "source": "Figure 3(b)",
+      "claim": "即使每个位置的 Top-8 候选几乎覆盖正确 Token，受预算限制的前缀树在后部位置仍出现约 10%–15% 的正确 Token 覆盖损失。"
+    },
+    {
+      "source": "Figure 3(c)",
+      "claim": "将树预算从 64 增至 512 个节点时，Verify 延迟从约 33 ms 增至约 81 ms，而单位 Verify 成本带来的收益持续下降。"
+    },
+    {
+      "source": "Section 4.2 / Equation 1–2",
+      "claim": "TAPS 在边上建模 q_cond(u→v)，再沿根路径连乘为 q_reach(v)，从机制上区分局部高概率与真正能够到达的高价值节点。"
+    },
+    {
+      "source": "Section 4.3 / Equation 3 / Algorithm 1",
+      "claim": "选择器按 q_reach(v)/(λ₁+λ₂·depth(v)) 贪心选点，同时加入全部祖先，并在达到 N_max 或 Utility 阈值 τ 时停止。"
+    },
+    {
+      "source": "Section 4.4 / Equation 4",
+      "claim": "Scorer 使用局部 Target 分布的 KL 蒸馏与路径 Reach Probability 的 BCE 校准联合训练。"
+    },
+    {
+      "source": "Table 2",
+      "claim": "在所有三种 Target、两种 GPU 和七个数据集的组合中，TAPS 都取得最高的平均端到端 Speedup。"
+    },
+    {
+      "source": "Figure 6",
+      "claim": "Qwen3-8B+A800 设置下，TAPS 将论文报告的验证阶段延迟降至 1.57 s，选树本身只增加 0.083 s、约占端到端时间 4.2%。"
+    },
+    {
+      "source": "Figure 7",
+      "claim": "相同约 64 节点预算下，TAPS 将 Qwen3-4B 的七数据集平均接受长度从 DDTree 的 6.93 提升至 7.92。"
+    },
+    {
+      "source": "Figure 8",
+      "claim": "移除 Path-Conditional Scorer 后，接受长度平均下降 4.8%。"
+    },
+    {
+      "source": "Figure 9",
+      "claim": "移除 Cost-Aware Dynamic Pruning 后，接受长度和吞吐平均分别下降 13.3% 与 11.7%。"
+    },
+    {
+      "source": "Limitations",
+      "claim": "作者明确限定当前结果为 temperature=0、单请求原型，并指出 Sampling、生产级 Batched Serving 和候选池召回是后续工作。"
+    }
+  ],
+  "notes": [
+    "TAPS 的核心不是生成更大的树，而是在扩散 Drafter 已给出的候选池中更聪明地分配 Target Verify 预算。",
+    "其 Target-Aware 性来自对 Target Verify 轨迹的离线蒸馏；推理选树阶段不需要额外执行 Target Model。",
+    "与 DDTree 的本质差异是：DDTree 使用 Drafter Marginal Probability 的因子化代理目标，TAPS 学习 Prefix-Conditioned Target Acceptance，并显式计算整条路径的 Reach Probability。",
+    "TAPS 不改造 DFlash 的 Drafter 结构，因此可与提高 Draft Quality 的方法叠加；其主要贡献落在 B 候选组织和 C Verify 策略。",
+    "动态的是最终 Verify Tree 的节点数和形状，不是底层 Diffusion Draft Block 的长度。Qwen3 使用 Block Size 16，LLaMA-3.1-8B-Instruct 使用 Block Size 10。",
+    "论文报告的无损性质来自标准投机解码与 Tree Attention 验证过程；当前实证范围仅覆盖 Greedy Decoding。"
+  ],
   "provenance": {
     "legacyWorkbookRow": 18,
     "workbookInstitutions": "未知（arXiv作者团队）"

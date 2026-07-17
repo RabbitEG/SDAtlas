@@ -178,6 +178,13 @@
       "result": "1828.7 tokens/s",
       "comparison": "DFlash 为 1045.5 tokens/s，Autoregressive Baseline 为 1046.9 tokens/s。",
       "source": "Table 3"
+    },
+    {
+      "condition": "Qwen3-4B，GSM8K、HumanEval 与 MT-Bench 平均，结构消融实验",
+      "metric": "Component Ablation",
+      "result": "完整 DFlare 的平均 Speedup/Acceptance Length 为 3.37×/4.52；移除 Softmax、异构 KV Projection、渐进位置损失后分别为 3.31×/4.47、3.35×/4.48、3.34×/4.47；融合后额外增加 FC 层为 3.35×/4.51。",
+      "comparison": "移除三项核心设计均会降低整体表现，其中去掉 Softmax 的下降最大；额外增加 FC 层没有提高平均接受长度。",
+      "source": "Table 2"
     }
   ],
   "limitations": [
@@ -205,6 +212,16 @@
       "type": "evidence",
       "description": "主结果同时扩大了 Drafter 深度、Target 特征层数和训练数据，并引入多个新组件，因此整体提升不能全部归因于 Adaptive Layer Fusion；各单项组件在结构消融中的独立收益相对有限。",
       "sourceType": "analysis"
+    },
+    {
+      "type": "latency",
+      "description": "Qwen3-8B 上，DFlare 相对 DFlash 的平均接受长度提升约 14.7%，但端到端速度仅提升约 8.1%。更深的 Drafter 及新增的逐层 Target 特征处理和异构 KV Projection 增加了每轮 Draft 成本，抵消了部分接受长度收益。",
+      "sourceType": "analysis"
+    },
+    {
+      "type": "evidence",
+      "description": "Appendix A.4 概括称 DFlare 在 GSM8K 和 HumanEval 的所有并发设置下均取得最高吞吐，但 Table 3 中 HumanEval、Concurrency=1 时 DFlare 为 554.5 tokens/s，略低于 DFlash 的 561.1 tokens/s，因此该概括并不严格成立。",
+      "sourceType": "observed-data"
     }
   ],
   "relations": {
@@ -216,7 +233,6 @@
       "dflash"
     ],
     "related": [
-      "eagle-3",
       "diffuspec",
       "specdiff-2",
       "dspark"
@@ -284,18 +300,17 @@
       "type": "training"
     },
     {
-      "claim": "SGLang Serving 实验在单张 H20 上测试 Qwen3-8B 的不同并发吞吐量。",
+      "claim": "Appendix A.4 声称 DFlare 在全部并发设置下吞吐最高，但 Table 3 显示 HumanEval、Concurrency=1 时 DFlare 的 554.5 tokens/s 略低于 DFlash 的 561.1 tokens/s。",
       "location": "Appendix A.4 and Table 3, Pages 11–12",
       "type": "system"
+    },
+    {
+      "claim": "结构消融中，移除 Softmax、异构 KV Projection 或渐进位置损失都会降低平均速度和接受长度；额外增加 FC 层没有改善平均接受长度。",
+      "location": "Section 6.3, Table 2, Page 8",
+      "type": "ablation"
     }
   ],
-  "notes": [
-    "Qwen3-8B 的平均接受长度相对 DFlash 提升约 14.7%，但最终速度只提升约 8.1%，说明更深 Drafter 的额外计算消耗了部分接受收益。",
-    "结构消融中，完整方法平均 Speedup/Acceptance Length 为 3.37×/4.52；去掉 Softmax、异构 KV Projection 或渐进 Loss 后分别约为 3.31×/4.47、3.35×/4.48 和 3.34×/4.47。单个组件有效，但没有任何一项单独解释全部提升。",
-    "训练数据扩展带来的增益非常显著：Qwen3-8B 从 800K 扩展到 2.4M 后，平均速度由 4.97× 提升到 5.46×，接受长度由 6.59 提升到 7.33。评价 DFlare 时应把架构扩展和数据扩展分开看。",
-    "论文正文称 DFlare 在 SGLang 的所有并发设置下吞吐最高，但 Table 3 中 HumanEval、Concurrency=1 时 DFlare 为 554.5 tokens/s，略低于 DFlash 的 561.1 tokens/s。",
-    "DFlare 改善的是 Drafter 容量和 Target 条件注入，与 DDTree 的候选树组织较为正交；它本身没有处理动态验证预算和高负载调度。"
-  ],
+  "notes": [],
   "provenance": {
     "legacyWorkbookRow": 11,
     "workbookInstitutions": "北京大学、腾讯"

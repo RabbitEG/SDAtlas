@@ -58,21 +58,78 @@
   "institutionSource": "https://arxiv.org/pdf/2607.05147",
   "methodOverview": "并行 Backbone 负责整体候选，廉价 Markov/RNN 串行模块补回 Prefix 依赖；额外的置信度 Head 估计 Prefix 能存活到多远，调度器再按实时负载和 SPS 为每个请求分配 Verify 长度。",
   "problemStatement": {
-    "background": null,
-    "priorLimitation": null,
-    "goal": null
+    "background": "投机解码通过廉价 Drafter 一次提出多个候选 Token，再由 Target 模型在一次前向中并行验证连续 Prefix，以减少生成每个 Token 所需的 Target 前向次数。并行 Drafter 可在一次前向中生成长候选块，使 Draft 延迟近似不随块长线性增加；但最终加速还同时取决于候选接受长度和 Target Verify 对 Serving Batch 容量的占用。",
+    "priorLimitation": "纯并行 Drafter 的各位置无法根据块内已经实际采样的前部 Token 进行条件化，容易把多条合理语义路径混合成不连贯序列，造成后部条件接受率快速下降，即 Multi-modal Collision 与 Suffix Decay。另一方面，固定验证整个长候选块会把 Target Batch 容量浪费在高拒绝风险的尾部 Token 上；静态置信度阈值又无法反映低负载时额外 Verify 几乎免费、高负载时额外 Verify 会挤占其他请求容量的差异。",
+    "goal": "在保留并行 Backbone 高吞吐和深层建模容量的同时，以极低成本恢复块内 Prefix 依赖，并根据候选存活概率、实时 Batch 负载和硬件 SPS 曲线动态分配每个请求的 Verify 长度，从而同时提高接受长度、减少无效验证，并在保持 Target 输出分布不变的前提下最大化系统级 Token Throughput。"
   },
-  "methodComponents": [],
+  "methodComponents": [
+    {
+      "name": "DFlash-based Parallel Backbone",
+      "stage": "Draft generation",
+      "purpose": "承担候选生成中的主要计算，在一次前向中提供整块 Hidden States 与 Base Logits，使昂贵 Draft 计算近似不随候选块长度线性增长。",
+      "mechanism": "以 DFlash 的 Block-Diffusion Drafter 为基础，对 Anchor Token 与 γ−1 个 Mask Token 执行一次双向块注意力前向，得到 γ 个位置的 Hidden State h₁…hγ 和 Base Logits U₁…Uγ。离线实验使用 5 层 Backbone；生产版 DeepSeek-V4 Drafter 则使用 3 个带 mHC 的 MoE 层和长度 128 的 Sliding-Window Attention。",
+      "differenceFromPrior": "原始 DFlash 输入一个 Anchor 加 γ 个 Mask，只预测 Mask 位置；DSpark 将 Anchor 本身也视为第一个预测位置，使 γ 个输入位置直接产生 γ 组 Draft Logits，在基本保持质量的同时减少一次块位置计算。"
+    },
+    {
+      "name": "Lightweight Sequential Block",
+      "stage": "Draft generation",
+      "purpose": "在不重复执行 Transformer Rollout 的情况下，为后部候选显式补回对已采样 Prefix 的依赖，缓解并行生成的多模态碰撞和 Suffix Decay。",
+      "mechanism": "逐位置将 Prefix-dependent Transition Bias Bₖ 加到并行 Backbone 的 Base Logits Uₖ 上，再从 Softmax(Uₖ+Bₖ) 左到右采样。默认 Markov Head 仅依赖上一枚 Token，以 rank-256 的 W₁W₂ 低秩分解近似词表转移矩阵；可选 RNN Head 还将历史状态、上一 Token Embedding 和当前位置 Backbone Hidden State输入单门控循环更新，从而累积完整块内 Prefix。",
+      "differenceFromPrior": "纯 DFlash 的每个位置只输出独立边缘分布；传统自回归 Drafter 则需要为每个候选重复执行较重的 Transformer 前向。DSpark 只串行执行廉价词表投影或单门控状态更新，将主要计算继续留在并行 Backbone 中。"
+    },
+    {
+      "name": "Conditional Acceptance Confidence Head",
+      "stage": "Verification estimation",
+      "purpose": "估计候选 Token 在此前 Prefix 已全部接受的条件下继续通过 Target Verify 的概率，为按请求裁剪候选尾部提供可学习信号。",
+      "mechanism": "对每个位置输出 cₖ=σ(wᵀ[hₖ;W₁[xₖ₋₁]])，输入由 Backbone Hidden State 和前一 Draft Token 的 Markov Embedding 拼接而成。监督软标签为 cₖ*=1−½‖pₖᵈ−pₖᵗ‖₁，即 Draft 与 Target 分布总变差所对应的理论逐步接受率。",
+      "differenceFromPrior": "常见置信度启发式通常只要求分数能排序候选质量；DSpark 需要概率的绝对数值来计算 Prefix 累计存活率和期望接受长度，因此直接学习与理论接受概率对应的软标签。"
+    },
+    {
+      "name": "Sequential Temperature Scaling",
+      "stage": "Confidence calibration",
+      "purpose": "修正 Confidence Head 的系统性过度自信，使累计 Prefix 存活概率能够可靠参与硬件吞吐量计算。",
+      "mechanism": "将位置 j 的 Prefix 存活率写为 aⱼ=∏ᵢ≤ⱼcᵢ，并在独立验证集上从左到右逐位置搜索温度系数；每次固定已校准的前部位置，选择使当前累计概率 Expected Calibration Error 最小的温度。温度缩放保持原有排序，但校准概率绝对值。",
+      "differenceFromPrior": "单个静态温度或未校准置信度无法保证多个条件概率连乘后的 Prefix 概率仍准确；STS 直接针对每个 Prefix 深度的累计存活概率顺序校准。"
+    },
+    {
+      "name": "Hardware-Aware Prefix Scheduler",
+      "stage": "Target verification scheduling",
+      "purpose": "在一个 Serving Batch 内联合决定各请求的 Verify Prefix 长度，把有限 Target Batch 容量分配给预期收益最高的候选 Token。",
+      "mechanism": "初始化时 Profiling 引擎在不同 Verify Token Batch Size B 下的 SPS(B) 曲线。运行时计算每个请求各 Prefix 位置的累计存活率 aᵣ,ⱼ，按 aᵣ,ⱼ 全局降序逐个加入候选；每加入一个 Token，更新总 Verify Batch B、期望接受数 τ 和预计吞吐 Θ=τ·SPS(B)，选择吞吐最高时对应的每请求 Prefix 长度。理论算法在 Θ 首次下降时立即停止，以避免未来 Token 影响此前 Token 的准入决策。",
+      "differenceFromPrior": "固定 Verify 长度忽略请求难度，静态置信度阈值又忽略系统负载；DSpark 同时考虑数据侧 Prefix 存活率和系统侧 SPS 容量曲线，并在整个 Batch 中联合分配而不是逐请求独立决策。"
+    },
+    {
+      "name": "Asynchronous Production Scheduler",
+      "stage": "Production serving scheduling",
+      "purpose": "在不阻塞 GPU Pipeline 的前提下兼容 Zero-Overhead Scheduling、持续 CUDA Graph Replay 和离散非平滑的真实 SPS 曲线。",
+      "mechanism": "使用两轮前的置信度结果预估下一轮可容纳的总候选数 K，但当前轮具体选择哪些候选仍依据最新累计置信度执行 Top-K。由于 K 只依赖历史信息，生产实现可移除理论算法面对非平滑 SPS 曲线时容易陷入局部最优的 Early Stop，并进行完整吞吐搜索，而不会让当前 Token 的取值反向影响自身准入。",
+      "differenceFromPrior": "同步执行理论调度会等待当前轮结束并打断 GPU 流水线；直接对当前 Token 事后全局搜索又会产生 Selection Bias。两轮延迟的容量预测形成因果屏障，在兼容生产调度基础设施的同时维持 Lossless。"
+    },
+    {
+      "name": "Flattened Variable-Length Verification",
+      "stage": "Production target execution",
+      "purpose": "避免不同请求 Verify 长度不一致所导致的 Padding、负载不均和 GPU 利用率下降。",
+      "mechanism": "将 Batch 内各请求的所有 Verify Token 摊平为统一物理 Token 流，Kernel 对其等价处理；逻辑上的序列边界和块内因果关系通过 Sparse Attention Marker Tensor 传递。DeepSeek-V4 中仅需修改 Index-Attention 与 Compress Kernel，即可支持动态变长 Prefix。",
+      "differenceFromPrior": "传统 Decode Kernel 假设每个请求 Query Length 固定，直接处理 Ragged Prefix 会产生大量 Padding 或复杂重排；DSpark 将物理执行与逻辑序列跟踪解耦。"
+    },
+    {
+      "name": "Scalable Draft Training Pipeline",
+      "stage": "Production training",
+      "purpose": "降低大规模 Target–Draft 联合监督中的全词表通信、长上下文显存占用和 Padding 开销。",
+      "mechanism": "不在并行 Worker 间传输 V≈10⁵ 的 Target Logits，而只传输 LM Head 前的 Hidden States，并在 Drafter Worker 上仅对采样 Anchor 位置执行 LM Head Projection，使单 Token 通信复杂度降为 O(d)。同时从长序列固定采样若干 Anchor，将独立预测块密集打包，并以 Token-level Attention Indices 表达跨序列和跨 Anchor 的因果隔离。",
+      "differenceFromPrior": "直接传输完整 Target Logits 带来显著带宽压力；按原始文档长度训练又会让 Drafter 成本和 Padding 随上下文增长。Anchor-bounded Packing 将 Drafter 训练成本与完整 Target Context 长度解耦。"
+    }
+  ],
   "characteristics": {
-    "requiresTraining": null,
-    "drafterType": null,
-    "draftGeneration": null,
-    "candidateStructure": null,
-    "verificationStrategy": null,
-    "usesTargetFeatures": null,
-    "dynamicDraftLength": null,
-    "dynamicVerifyLength": null,
-    "lossless": null
+    "requiresTraining": true,
+    "drafterType": "semi-autoregressive block-diffusion",
+    "draftGeneration": "parallel backbone with lightweight sequential correction",
+    "candidateStructure": "chain",
+    "verificationStrategy": "confidence-scheduled dynamic prefix",
+    "usesTargetFeatures": true,
+    "dynamicDraftLength": false,
+    "dynamicVerifyLength": true,
+    "lossless": true
   },
   "subproblemContributions": {
     "A": {
@@ -94,22 +151,196 @@
   },
   "training": {
     "summary": "Target、共享 Embedding 与 LM Head 全程冻结；从每条 Target 序列随机抽取多个 Anchor 组成 γ-Token Block，只更新并行 Backbone、顺序模块和 Confidence Head。",
-    "data": null,
-    "objective": null
+    "data": "离线实验使用 Open-PerfectBlend 的 130 万条 Prompt，其中 Chat、Math、Code 和 Instruction Following 分别约占 17.6%、39.4%、38.9% 和 4.1%。仅保留原始 Prompt，并由每个对应 Target 模型使用推荐采样参数重新生成 Response；数据生成和评测均采用 Non-thinking Mode。每个 Drafter 训练 10 个 Epoch，并从每条 Target 序列随机采样多个 Anchor，构造 γ-Token 训练块。DeepSeek-V4 生产版所用训练语料及规模未披露。",
+    "objective": "三个目标均使用位置权重 wₖ=exp(−(k−1)/γ)：交叉熵 Lce 监督正确 Token；总变差匹配损失 Ltv=Σwₖ‖pₖᵈ−pₖᵗ‖₁ 直接提高理论接受率；置信度 BCE Lconf 使用 cₖ*=1−½‖pₖᵈ−pₖᵗ‖₁ 作为软标签。总损失为 L=0.1Lce+0.9Ltv+1.0Lconf。Target、共享 Token Embedding 和 LM Head 保持冻结，仅训练并行 Backbone、Sequential Block 与 Confidence Head；训练完成后再在 Held-out Validation Set 上执行 STS 校准。"
   },
   "evaluation": {
-    "targetModels": [],
-    "benchmarks": [],
-    "baselines": [],
-    "metrics": [],
-    "hardware": [],
-    "frameworks": []
+    "targetModels": [
+      "Qwen3-4B",
+      "Qwen3-8B",
+      "Qwen3-14B",
+      "Gemma4-12B",
+      "DeepSeek-V4-Flash (preview)",
+      "DeepSeek-V4-Pro (preview)"
+    ],
+    "benchmarks": [
+      "GSM8K",
+      "MATH500",
+      "AIME25",
+      "MBPP",
+      "HumanEval",
+      "Live-CodeBench",
+      "MT-Bench",
+      "Alpaca",
+      "Arena-Hard",
+      "DeepSeek-V4 Live User Traffic"
+    ],
+    "baselines": [
+      "Eagle3",
+      "DFlash",
+      "MTP-1"
+    ],
+    "metrics": [
+      "Average Accepted Length",
+      "Position-wise Conditional Acceptance",
+      "Acceptance Rate",
+      "Per-round Engine Latency",
+      "ROC-AUC",
+      "Expected Calibration Error",
+      "Aggregate Output Throughput",
+      "Per-user Generation Speed",
+      "Average Verification Budget"
+    ],
+    "hardware": [
+      "离线 Qwen3/Gemma4 实验：论文未披露具体 GPU 型号",
+      "DeepSeek-V4 线上生产 GPU 集群：论文未披露具体 GPU 型号"
+    ],
+    "frameworks": [
+      "DeepSpec",
+      "HAI-LLM",
+      "DeepSeek-V4 Production Serving Engine",
+      "Zero-Overhead Scheduling",
+      "CUDA Graph",
+      "Sparse Attention"
+    ]
   },
-  "mainResults": [],
-  "limitations": [],
+  "mainResults": [
+    {
+      "condition": "Qwen3-4B，Temperature=1.0，固定 Draft Block Size 7，九个离线基准宏平均",
+      "metric": "Average Accepted Length",
+      "result": "4.73",
+      "comparison": "Eagle3 为 3.61，DFlash 为 4.06；DSpark 分别相对提升 30.9% 和 16.3%。",
+      "source": "Table 1"
+    },
+    {
+      "condition": "Qwen3-8B，Temperature=1.0，固定 Draft Block Size 7，九个离线基准宏平均",
+      "metric": "Average Accepted Length",
+      "result": "4.81",
+      "comparison": "Eagle3 为 3.80，DFlash 为 4.07；DSpark 分别相对提升 26.7% 和 18.4%。",
+      "source": "Table 1"
+    },
+    {
+      "condition": "Qwen3-14B，Temperature=1.0，固定 Draft Block Size 7，九个离线基准宏平均",
+      "metric": "Average Accepted Length",
+      "result": "4.78",
+      "comparison": "Eagle3 为 3.68，DFlash 为 4.04；DSpark 分别相对提升 30.0% 和 18.3%。",
+      "source": "Table 1"
+    },
+    {
+      "condition": "Gemma4-12B，Temperature=1.0，固定 Draft Block Size 7，九个离线基准宏平均",
+      "metric": "Average Accepted Length",
+      "result": "4.66",
+      "comparison": "Eagle3 为 4.38，DFlash 为 4.02；按 Table 1 数值计算，DSpark 分别相对提升约 6.6% 和 16.1%，说明效果可跨模型家族迁移。",
+      "source": "Table 1"
+    },
+    {
+      "condition": "四个 Target、九个离线基准，共 36 个 Target–Benchmark 组合",
+      "metric": "Accepted Length Ranking",
+      "result": "36/36 项均为最高",
+      "comparison": "DSpark 在表中每个模型和任务上都同时超过 Eagle3 与 DFlash。",
+      "source": "Table 1"
+    },
+    {
+      "condition": "Qwen3-4B，Draft Block Size 7，Drafter 深度消融",
+      "metric": "Parameter Efficiency",
+      "result": "2-layer DSpark 已在全部九个基准上超过 5-layer DFlash",
+      "comparison": "说明局部顺序建模带来的序列一致性收益，高于单纯继续堆叠纯并行 Drafter 层。",
+      "source": "Figure 3"
+    },
+    {
+      "condition": "Qwen3-4B，5-layer Drafter，将输入块长扩展至 16，即 γ=15 个预测位置",
+      "metric": "Long-block Accepted Length Gain and Latency",
+      "result": "相对 DFlash 在 Math、Code、Chat 上分别提升约 30%、26% 和 22%；完整轮次延迟仅增加 0.2%–1.3%",
+      "comparison": "随着候选块加长，DFlash 的 Suffix Decay 使边际收益快速下降，而 DSpark 的优势继续扩大。延迟在 Batch Size 128、Context Length 512–4096 的均值上测量。",
+      "source": "Figure 4"
+    },
+    {
+      "condition": "Qwen3-4B，离线 Confidence Threshold Sweep",
+      "metric": "Acceptance Rate",
+      "result": "Math 由 76.9% 升至 92.5%，Code 由 67.6% 升至 92.0%，Chat 由 45.7% 升至 95.7%",
+      "comparison": "置信度越高，Confidence Head 越能裁掉最终会被拒绝的尾部 Token；高熵 Chat 的裁剪最明显。",
+      "source": "Figure 5"
+    },
+    {
+      "condition": "Qwen3-4B，Alpaca，Prefix 位置 1、3、5、7",
+      "metric": "Confidence Discrimination and Calibration",
+      "result": "ROC-AUC 约为 0.81–0.90；STS 将原始 3%–8% 的 ECE 降至平均约 1%",
+      "comparison": "原始 Confidence Head 排序能力较强但明显过度自信，STS 使累计存活率可用于吞吐量估计。",
+      "source": "Figure 6"
+    },
+    {
+      "condition": "DeepSeek-V4-Flash (preview)，Live User Traffic",
+      "metric": "Throughput–Interactivity Pareto Frontier",
+      "result": "80 tok/s/user SLA 下 Aggregate Throughput 提升 51%；匹配实用吞吐水平时 Per-user Generation Speed 提升 60%–85%",
+      "comparison": "在严格的 120 tok/s/user SLA 下，MTP-1 已接近容量崩溃，DSpark 的名义吞吐提升为 661%；论文明确将该数值解释为可行 Interactivity Frontier 的扩展，而非一般性的稳定倍数提升。",
+      "source": "Figure 7"
+    },
+    {
+      "condition": "DeepSeek-V4-Pro (preview)，Live User Traffic",
+      "metric": "Throughput–Interactivity Pareto Frontier",
+      "result": "35 tok/s/user SLA 下 Aggregate Throughput 提升 52%；匹配系统容量时 Per-user Generation Speed 提升 57%–78%",
+      "comparison": "在严格的 50 tok/s/user SLA 下名义吞吐提升为 406%，同样主要反映 MTP-1 在该约束下进入低并发退化区间。",
+      "source": "Figure 7"
+    },
+    {
+      "condition": "DeepSeek-V4-Flash 少于约 200 个并发请求、V4-Pro 少于约 150 个并发请求的常见生产负载",
+      "metric": "Dynamic Verification Budget",
+      "result": "平均每请求 Verify Budget 由 MTP-1 的固定 2 个 Token 扩展到约 4–6 个 Token，并在并发继续升高时自动收缩",
+      "comparison": "低负载时利用空闲 Target Compute 换取更长接受 Prefix；高负载时裁掉低置信度候选，避免吞吐量因 Verify Batch 膨胀而塌陷。",
+      "source": "Figure 8"
+    }
+  ],
+  "limitations": [
+    {
+      "type": "fixed-draft-cost",
+      "description": "Prefix Scheduler 只能减少 Target 侧无效 Verify，无法回收并行 Backbone 生成完整 γ-Token 初始块的固定成本。对于天然接受率很低的复杂请求，这部分 Draft Compute 会被直接浪费；论文提出未来可加入 Difficulty-aware Draft Early Exit。",
+      "sourceType": "paper"
+    },
+    {
+      "type": "public-evaluation",
+      "description": "公开 Qwen3/Gemma4 离线实验为隔离 Drafter 质量而关闭 Hardware-Aware Scheduler，只报告 Accepted Length、置信度和局部延迟分析，没有给出完整公开模型上的端到端 Speedup 或并发吞吐结果。",
+      "sourceType": "analysis"
+    },
+    {
+      "type": "hardware-disclosure",
+      "description": "论文没有披露离线实验和 DeepSeek-V4 生产部署所使用的具体 GPU 型号、集群规模与底层硬件配置，因此公开结果难以直接转换为可复现的绝对时延或算力成本。",
+      "sourceType": "analysis"
+    },
+    {
+      "type": "production-reproducibility",
+      "description": "最强的 Serving 结果来自未完全公开的 DeepSeek-V4 Preview、HAI-LLM、ZOS、定制 Sparse Attention Kernel 和真实用户流量。公开 DeepSpec 能复现离线 Draft 质量，但不能完整复现论文的生产 Pareto Frontier。",
+      "sourceType": "analysis"
+    },
+    {
+      "type": "scheduler-assumption",
+      "description": "理论吞吐目标将引擎 SPS 主要视为总 Verify Token 数 B 的函数，弱化了各请求 Context Length 差异。论文依据 Decode 负载均衡和常见上下文长度远低于极端长度来论证该近似，但在超长上下文或负载不均场景中可能不再成立。",
+      "sourceType": "paper"
+    },
+    {
+      "type": "asynchronous-lag",
+      "description": "生产调度使用两轮前的置信度预测下一轮容量 K。它消除了同步调度停顿并形成因果屏障，但当请求集合、系统负载或候选难度在短时间内突变时，容量估计可能存在两轮滞后。",
+      "sourceType": "analysis"
+    },
+    {
+      "type": "sequential-modeling-capacity",
+      "description": "默认 Markov Head 只建模相邻 Token 的一阶转移，无法显式记住更长 Prefix；RNN Head 能累积完整历史，但论文观察到其额外接受收益较小、实现和部署复杂度更高，因此没有作为默认生产方案。",
+      "sourceType": "analysis"
+    },
+    {
+      "type": "candidate-structure",
+      "description": "DSpark 每轮仍生成并验证一条候选链，没有利用 Candidate Tree 同时覆盖多条可能语义分支；同时它始终先生成完整最大块，只动态调整 Verify Length，而不是根据难度动态缩短 Draft Backbone 本身的计算。",
+      "sourceType": "analysis"
+    }
+  ],
   "relations": {
-    "extends": [],
-    "comparesAgainst": [],
+    "extends": [
+      "dflash"
+    ],
+    "comparesAgainst": [
+      "eagle-3",
+      "dflash",
+      "mtp"
+    ],
     "related": [
       "medusa",
       "mtp",
@@ -127,7 +358,9 @@
       "ddtree",
       "taps"
     ],
-    "compatibleWith": []
+    "compatibleWith": [
+      "dflare"
+    ]
   },
   "citations": [
     "medusa",
@@ -147,15 +380,116 @@
     "taps"
   ],
   "reproducibility": {
-    "codeUrl": null,
-    "modelUrl": null,
-    "projectPage": null,
-    "officialImplementation": null,
-    "status": "not-checked",
-    "notes": []
+    "codeUrl": "https://github.com/deepseek-ai/DeepSpec",
+    "modelUrl": "https://huggingface.co/collections/deepseek-ai/deepspec",
+    "projectPage": "https://github.com/deepseek-ai/DeepSpec",
+    "officialImplementation": true,
+    "status": "not-reproduced",
+    "notes": [
+      "官方 DeepSpec 提供数据准备、Target Response 重生成、Target Cache 构建、Drafter 训练和离线评测脚本，并同时实现 DSpark、DFlash 与 Eagle3。",
+      "官方发布了 Table 1 对应的 Qwen3-4B、Qwen3-8B、Qwen3-14B 和 Gemma4-12B 的 DSpark、DFlash 与 Eagle3 Checkpoint。",
+      "DeepSpec 默认训练配置假设单节点 8 张 GPU；减少 GPU 数量时需要调整 CUDA_VISIBLE_DEVICES。",
+      "仓库提示默认 Qwen3-4B 数据准备产生的 Target Cache 约为 38 TB，复现的主要门槛不只是训练显存，也包括大规模存储与 Target 数据生成成本。",
+      "论文还声明发布 DeepSeek-V4-Flash 与 DeepSeek-V4-Pro Preview 的 DSpark Checkpoint，但完整 HAI-LLM 和生产 Serving Stack 未开源，因此线上调度结果不能仅依靠 DeepSpec 完整复现。"
+    ]
   },
-  "evidence": [],
-  "notes": [],
+  "evidence": [
+    {
+      "claim": "纯并行 Drafter 缺少块内 Token 依赖，导致 Multi-modal Collision、Suffix Decay 和后部接受率下降；固定长块 Verify 在高并发下浪费 Target Batch 容量。",
+      "location": "Abstract; Section 1, Pages 1–3",
+      "type": "problem"
+    },
+    {
+      "claim": "DSpark 使用 DFlash 式并行 Backbone，并将 Anchor 位置改为第一个预测位置，使 γ 个输入位置直接产生 γ 组 Draft Logits。",
+      "location": "Section 3.1, Page 5",
+      "type": "method"
+    },
+    {
+      "claim": "默认 Markov Head 使用 rank-256 的低秩转移矩阵；可选 RNN Head 维护完整块内 Prefix 状态。",
+      "location": "Section 3.1, Page 6",
+      "type": "method"
+    },
+    {
+      "claim": "Confidence Head 根据 Backbone Hidden State 与上一 Draft Token Embedding 预测条件接受率，软标签由 Draft–Target Total Variation Distance 得到。",
+      "location": "Section 3.2.1, Page 7",
+      "type": "method"
+    },
+    {
+      "claim": "STS 从左到右逐位置校准累计 Prefix 存活概率，以满足吞吐调度对概率绝对值而非仅排序的要求。",
+      "location": "Section 3.2.1, Page 7",
+      "type": "method"
+    },
+    {
+      "claim": "Hardware-Aware Prefix Scheduler 使用一次 Profiling 得到的 SPS(B) 表，并最大化期望系统吞吐 Θ=τ·SPS(B)。",
+      "location": "Section 3.2.2 and Algorithm 1, Pages 8–9",
+      "type": "method"
+    },
+    {
+      "claim": "理论 Scheduler 必须满足 Non-anticipating Property；Early Stop 防止未来候选影响此前 Token 的准入并保持 Target 分布。",
+      "location": "Section 3.2.2, Page 9; Appendix A, Pages 32–33",
+      "type": "correctness"
+    },
+    {
+      "claim": "训练联合使用位置加权 Cross-Entropy、Total Variation Matching 和 Confidence BCE，权重分别为 0.1、0.9 和 1.0。",
+      "location": "Section 3.3, Pages 9–10",
+      "type": "training"
+    },
+    {
+      "claim": "离线训练使用 130 万条 Open-PerfectBlend Prompt，由对应 Target 重生成响应，并在 Non-thinking Mode 下训练 10 个 Epoch。",
+      "location": "Section 4.1, Page 10",
+      "type": "training"
+    },
+    {
+      "claim": "DSpark 在 Qwen3-4B、8B、14B 和 Gemma4-12B 的全部九个离线基准上均取得最高 Accepted Length。",
+      "location": "Table 1, Page 11",
+      "type": "result"
+    },
+    {
+      "claim": "长块实验中，DSpark 相对 DFlash 的接受长度优势随块长扩大，而完整轮次延迟只增加 0.2%–1.3%。",
+      "location": "Figure 4 and Section 4.3.2, Pages 13–14",
+      "type": "result"
+    },
+    {
+      "claim": "Confidence Head 可大量裁剪最终会被拒绝的 Token；STS 将原始 3%–8% 的 ECE 降至约 1%。",
+      "location": "Figures 5–6 and Section 4.3.3, Pages 14–15",
+      "type": "result"
+    },
+    {
+      "claim": "DeepSeek-V4 生产 Drafter 使用 3 个 MoE 层、mHC、128 Sliding-Window Attention、最大 γ=5 和 Markov Head。",
+      "location": "Section 5.1, Page 16",
+      "type": "configuration"
+    },
+    {
+      "claim": "生产调度使用两轮前置信度预测容量 K，当前轮仍按最新累计置信度执行 Top-K，并借助历史信息形成因果屏障。",
+      "location": "Section 5.2, Pages 16–17",
+      "type": "system"
+    },
+    {
+      "claim": "生产 Kernel 将不同请求的变长 Verify Token 摊平，并以 Sparse Attention Marker 表达逻辑依赖。",
+      "location": "Section 5.3, Page 17",
+      "type": "system"
+    },
+    {
+      "claim": "在 DeepSeek-V4 Live Traffic 中，DSpark 将匹配吞吐水平下的单用户生成速度提高 60%–85% 和 57%–78%。",
+      "location": "Figures 7–8 and Section 5.4, Pages 17–19",
+      "type": "result"
+    },
+    {
+      "claim": "论文明确指出固定的完整块 Draft 成本无法被 Prefix Scheduler 回收，低接受率请求可能浪费这部分计算。",
+      "location": "Limitations, Page 19",
+      "type": "limitation"
+    }
+  ],
+  "notes": [
+    "论文中的 Accepted Length 和 Acceptance Rate 默认包含 Target 在每轮额外生成的 Bonus Token，比较外部工作时需要先统一指标口径。",
+    "Table 1 为刻意关闭 Confidence Scheduler 后的纯 Drafter 质量比较：Temperature=1.0、Chain-based Drafting、Block Size 7、Non-thinking Mode，不能直接视为生产调度后的端到端速度。",
+    "离线默认 DSpark 为 5 层 DFlash Backbone 加 Markov Head；生产 DSpark-5 则为 3 层 MoE Backbone、γ=5。两部分使用的模型架构、块长和工作负载不同，不能把离线接受长度和线上 TPS 直接一一对应。",
+    "Figure 7 中 661% 和 406% 的严格 SLA 吞吐提升看起来极大，但原因之一是 MTP-1 已进入接近失效的低并发区。论文自身也不把它们解释为常规负载下的稳定倍数加速。",
+    "RNN Head 理论上能够利用完整块内 Prefix，但实验只表现出边际额外收益，主要出现在较长块；默认采用部署更简单的 Markov Head。",
+    "DSpark 的关键不只是把 Draft 做得更准，而是把 Expected Accepted Tokens 与硬件 SPS 曲线相乘进行系统级决策。单独观察平均接受长度会漏掉其最核心的高并发收益。",
+    "compatibleWith 中列出 DFlare 属于结构层面的正交兼容判断：DFlare 优化并行 Backbone 的 Target 条件注入，DSpark 优化其后部 Prefix 建模和 Verify 调度；论文没有直接实验验证两者组合。",
+    "公开 DeepSpec 已足以检查算法、训练目标和 Table 1 Checkpoint，但生产部分仍依赖未公开模型、真实流量与定制 Kernel，复现状态因此记为 not-reproduced，而不是 fully-reproducible。"
+  ],
   "provenance": {
     "legacyWorkbookRow": 13,
     "workbookInstitutions": "未知（arXiv作者团队）"

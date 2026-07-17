@@ -39,21 +39,50 @@
   "institutionSource": "https://proceedings.neurips.cc/paper_files/paper/2025/hash/c7b5a35ea98b62512a869c19ea7b03cb-Abstract-Conference.html",
   "methodOverview": "从 Feature 回归转为直接预测 Token，并融合 Target 的浅层、中层和深层 Feature。Training-Time Test 在 Training 时模拟多步 Rollout，使训练分布更贴近真正的投机解码过程。",
   "problemStatement": {
-    "background": null,
-    "priorLimitation": null,
-    "goal": null
+    "background": "EAGLE 系列通过复用 Target 模型内部 Feature，让一个极轻量的 Drafter 比独立小模型更准确地生成候选 Token；EAGLE-2 又以 Drafter 置信度构造上下文相关的动态候选树，提高固定验证预算的利用率。",
+    "priorLimitation": "原始 EAGLE 要求 Drafter 同时拟合 Target 顶层 Feature 和 Token 分布。Feature 回归是额外约束，限制了 Drafter 的表达能力，使扩大训练数据后收益很快饱和；若直接删除 Feature Loss，训练时使用真实 Target Feature、测试时回灌 Drafter 自身输出又会造成严重的 Train-Test Distribution Shift。此外，Target 顶层 Feature 主要服务下一 Token Logit，只依赖它难以预测更远位置。",
+    "goal": "移除 Feature 回归约束并直接优化 Token 预测，同时在训练阶段显式模拟真实多步 Draft Rollout；再融合 Target 低、中、高层语义，使轻量 Drafter 能稳定利用更大训练数据，提高多步接受率、动态树深度和端到端推理速度。"
   },
-  "methodComponents": [],
+  "methodComponents": [
+    {
+      "name": "Direct Token Prediction",
+      "stage": "Draft objective",
+      "purpose": "解除 Feature 回归对 Drafter 表达能力和数据扩展收益的限制。",
+      "mechanism": "删除 EAGLE 中将 Drafter 输出拟合到 Target 顶层 Feature 的 Feature Prediction Loss，只保留经 Target LM Head 得到的 Token Prediction 目标。Drafter 输出不再必须落入某个指定 Target Feature 空间，可直接为候选 Token 分布优化。",
+      "differenceFromPrior": "EAGLE 和 HASS 都保留 Feature Prediction Constraint，并在 Feature 空间执行自回归；EAGLE-3 改为直接预测 Token。"
+    },
+    {
+      "name": "Multi-Layer Feature Fusion",
+      "stage": "Target conditioning",
+      "purpose": "为多步未来 Token 预测提供比单一顶层 Feature 更丰富的语法、语义和下一 Token 信息。",
+      "mechanism": "从 Target 模型提取低层、中层和高层 Hidden States，在每个上下文位置拼接为 3k 维向量，再通过全连接层压回 k 维，形成融合 Feature g。该 Feature 与已采样 Token Embedding 拼接、投影后输入单层 Transformer Decoder。",
+      "differenceFromPrior": "EAGLE、EAGLE-2、Medusa 和 HASS 主要复用 LM Head 前的顶层 Feature；EAGLE-3 改为融合低、中、高三个层级。"
+    },
+    {
+      "name": "Training-Time Test",
+      "stage": "Training",
+      "purpose": "消除删除 Feature Loss 后，训练阶段真实 Feature 输入与测试阶段 Drafter 自回归输出之间的分布偏移。",
+      "mechanism": "训练中执行 5 步模拟 Rollout：每一步将 Drafter 生成的中间表示和采样 Token 回灌为下一步输入，并使用树状依赖的特制 Attention Mask 一次组织多轮分支；每个模拟位置仍以训练序列中的真实下一 Token 为监督。",
+      "differenceFromPrior": "普通 Teacher Forcing 只让 Drafter 看到真实 Target Feature；EAGLE-3 在训练时直接执行与测试一致的自回归输入回灌。HASS 也模拟多步过程，但仍保留 Feature 回归约束且只使用顶层 Feature。"
+    },
+    {
+      "name": "Context-Aware Dynamic Draft Tree",
+      "stage": "Candidate construction",
+      "purpose": "将更稳定的多步 Token 预测转化为更高的候选覆盖率，同时避免静态树在不同上下文中浪费验证节点。",
+      "mechanism": "直接继承 EAGLE-2 的置信度驱动动态 Draft Tree：在 Draft 阶段扩展多个候选并按置信度剪枝，保持与 EAGLE-2 相同的节点预算；由于后续位置接受率更稳定，最大树深由 6 提高到 8。",
+      "differenceFromPrior": "EAGLE 和 Medusa 使用预定义、上下文无关的静态树；动态树本身来自 EAGLE-2，EAGLE-3 的贡献是提高 Drafter 质量并允许更深扩展。"
+    }
+  ],
   "characteristics": {
-    "requiresTraining": null,
-    "drafterType": null,
-    "draftGeneration": null,
-    "candidateStructure": null,
-    "verificationStrategy": null,
-    "usesTargetFeatures": null,
-    "dynamicDraftLength": null,
-    "dynamicVerifyLength": null,
-    "lossless": null
+    "requiresTraining": true,
+    "drafterType": "feature-assisted-autoregressive",
+    "draftGeneration": "autoregressive",
+    "candidateStructure": "dynamic-tree",
+    "verificationStrategy": "tree-attention",
+    "usesTargetFeatures": true,
+    "dynamicDraftLength": false,
+    "dynamicVerifyLength": false,
+    "lossless": true
   },
   "subproblemContributions": {
     "A": {
@@ -67,22 +96,161 @@
   },
   "training": {
     "summary": "Training-Time Test 在训练中把每轮 Drafter 输出作为下一轮输入，并用树状依赖注意力掩码一次模拟 5 步推理，以训练数据 Token 监督各步预测。",
-    "data": null,
-    "objective": null
+    "data": "通用 Drafter 使用约 68K 条 ShareGPT 和约 464K 条 UltraChat-200K Prompt，共约 532K 条；不直接使用数据集原始 Response，而是调用对应 Target 模型重新生成训练 Response。DeepSeek-R1-Distill-LLaMA-8B 的 Drafter 额外加入 OpenThoughts-114k-math。论文总体训练数据规模约为原始 EAGLE 的 8 倍。",
+    "objective": "移除 Feature Prediction Loss，仅以真实下一 Token 监督经 Target LM Head 输出的 Token 分布；训练中模拟 5 步 Training-Time Test Rollout 并回灌 Drafter 自身输出。优化器为 AdamW，β=(0.9, 0.95)，学习率 5e-5，Gradient Clipping 0.5。"
   },
   "evaluation": {
-    "targetModels": [],
-    "benchmarks": [],
-    "baselines": [],
-    "metrics": [],
-    "hardware": [],
-    "frameworks": []
+    "targetModels": [
+      "Vicuna-13B",
+      "LLaMA-3.1-8B-Instruct",
+      "LLaMA-3.3-70B-Instruct",
+      "DeepSeek-R1-Distill-LLaMA-8B"
+    ],
+    "benchmarks": [
+      "MT-Bench",
+      "HumanEval",
+      "GSM8K",
+      "Alpaca",
+      "CNN/Daily Mail"
+    ],
+    "baselines": [
+      "Autoregressive Decoding",
+      "Standard Speculative Sampling",
+      "PLD",
+      "Medusa",
+      "Lookahead",
+      "Hydra",
+      "HASS",
+      "EAGLE",
+      "EAGLE-2"
+    ],
+    "metrics": [
+      "Speedup Ratio",
+      "Average Acceptance Length",
+      "Position-wise Conditional Acceptance Rate",
+      "Serving Throughput"
+    ],
+    "hardware": [
+      "NVIDIA A100",
+      "NVIDIA RTX 3090",
+      "NVIDIA H100",
+      "16× NVIDIA A100（70B Drafter 训练）"
+    ],
+    "frameworks": [
+      "Hugging Face Transformers",
+      "PyTorch",
+      "SGLang v0.4.4",
+      "vLLM"
+    ]
   },
-  "mainResults": [],
-  "limitations": [],
+  "mainResults": [
+    {
+      "condition": "Vicuna-13B，Temperature=0，五个基准宏平均",
+      "metric": "Speedup Ratio / Average Acceptance Length",
+      "result": "5.51× / 6.62",
+      "comparison": "EAGLE-2 为 4.22× / 4.83；EAGLE-3 的平均速度提升约 30.6%。",
+      "source": "Table 1"
+    },
+    {
+      "condition": "Vicuna-13B，HumanEval，Temperature=0",
+      "metric": "Speedup Ratio / Average Acceptance Length",
+      "result": "6.47× / 7.54",
+      "comparison": "为论文报告的最高端到端速度与接受长度；摘要将最高速度概括为 6.5×。",
+      "source": "Table 1"
+    },
+    {
+      "condition": "LLaMA-3.1-8B-Instruct，Temperature=0，五个基准宏平均",
+      "metric": "Speedup Ratio / Average Acceptance Length",
+      "result": "4.44× / 6.23",
+      "comparison": "EAGLE-2 为 3.23× / 4.11，HASS 为 3.42× / 4.37。",
+      "source": "Table 1"
+    },
+    {
+      "condition": "LLaMA-3.3-70B-Instruct，Temperature=0，五个基准宏平均",
+      "metric": "Speedup Ratio / Average Acceptance Length",
+      "result": "4.12× / 5.88",
+      "comparison": "EAGLE-2 为 2.85× / 3.78。",
+      "source": "Table 1"
+    },
+    {
+      "condition": "DeepSeek-R1-Distill-LLaMA-8B，Temperature=0，五个基准宏平均",
+      "metric": "Speedup Ratio / Average Acceptance Length",
+      "result": "4.16× / 5.84",
+      "comparison": "EAGLE-2 为 3.26× / 3.92；在 GSM8K 上 EAGLE-3 达到 5.01× / 6.93，额外数学训练数据使该任务成为此模型的最优项。",
+      "source": "Table 1"
+    },
+    {
+      "condition": "LLaMA-3.1-8B-Instruct，MT-Bench，训练数据从 1× ShareGPT 扩展到 8×",
+      "metric": "Data Scaling",
+      "result": "EAGLE-3 的 Speedup 约从 3.7× 持续升至 4.4×，Acceptance Length 约从 5.2 升至 6.1。",
+      "comparison": "EAGLE-2 和 HASS 的曲线基本饱和，说明移除 Feature Constraint 后才出现明显的数据扩展收益。",
+      "source": "Figure 2; Figure 8"
+    },
+    {
+      "condition": "LLaMA-3.1-8B-Instruct，MT-Bench / GSM8K，Temperature=0",
+      "metric": "Architecture Ablation",
+      "result": "MT-Bench 从 EAGLE-2 的 3.16×/4.05，提高到去除 Feature Constraint 的 3.82×/5.37，再提高到融合多层 Feature 的 4.40×/6.13；GSM8K 对应为 3.39×/4.24 → 3.77×/5.22 → 4.48×/6.23。",
+      "comparison": "两项架构修改均产生独立增益，多层 Feature Fusion 的增益在 MT-Bench 上更明显。",
+      "source": "Table 2"
+    },
+    {
+      "condition": "LLaMA-3.1-8B-Instruct，MT-Bench，SGLang v0.4.4，单张 H100",
+      "metric": "Serving Throughput",
+      "result": "Batch Size=64 时为无投机 Baseline 的 1.38×；Batch Size=1 时吞吐为 373.25 tokens/s。",
+      "comparison": "Batch Size=1 的无投机 SGLang 为 158.34 tokens/s，EAGLE-2 为 244.10 tokens/s；EAGLE 在 Batch Size=64 时仅为 0.99×。",
+      "source": "Tables 3–4"
+    },
+    {
+      "condition": "LLaMA-3.1-8B-Instruct，MT-Bench，vLLM，RTX 3090",
+      "metric": "Large-Batch Throughput",
+      "result": "Batch Size 2–56 的相对吞吐依次为 1.75×、1.68×、1.58×、1.49×、1.42×、1.36×、1.21×、1.01×。",
+      "comparison": "EAGLE 从 Batch Size=32 起低于无投机 Baseline，而 EAGLE-3 到 Batch Size=56 仍未跌破 1×。",
+      "source": "Table 5"
+    }
+  ],
+  "limitations": [
+    {
+      "type": "evaluation-scale",
+      "description": "受 GPU 资源限制，论文只评测到 70B Target，没有验证在更大 Dense 或 MoE 模型上的接受率、训练成本和端到端收益。",
+      "sourceType": "paper"
+    },
+    {
+      "type": "training-cost",
+      "description": "每个 Target 都需要单独训练 Drafter；论文训练 LLaMA-3.3-70B 的 EAGLE-3 Head 使用 16 张 A100，持续约两周。扩大数据能够继续提升性能，但也直接提高 Target 重生成和 Drafter 训练成本。",
+      "sourceType": "paper"
+    },
+    {
+      "type": "algorithmic",
+      "description": "候选 Token 仍由单层 Transformer Drafter 多步自回归生成，Draft 延迟随 Rollout 深度增长。EAGLE-3 提高的是每一步的准确率和可用树深，并没有消除串行 Draft 本身。",
+      "sourceType": "analysis"
+    },
+    {
+      "type": "model-access",
+      "description": "方法需要读取 Target 的低、中、高层 Hidden States，并为具体 Target 训练匹配的 Drafter；对于不暴露中间表示的闭源 API，不能直接作为外挂式黑盒加速器。",
+      "sourceType": "analysis"
+    },
+    {
+      "type": "serving-evidence",
+      "description": "SGLang 与 vLLM 的大 Batch 实验都关闭了候选树，只使用长度 3 或 2 的短链，因此这些吞吐结果证明了 EAGLE-3 Head 的 Serving 适配性，但不能直接代表完整动态 Draft Tree 在大并发下的成本。",
+      "sourceType": "paper"
+    },
+    {
+      "type": "reporting",
+      "description": "论文的 NeurIPS Checklist 声称限制见 Section 6，但 Section 6 实际只有结论，没有单独、系统地讨论方法限制；对适用边界的说明主要散落在实验设置中。",
+      "sourceType": "analysis"
+    }
+  ],
   "relations": {
-    "extends": [],
-    "comparesAgainst": [],
+    "extends": [
+      "eagle",
+      "eagle-2"
+    ],
+    "comparesAgainst": [
+      "medusa",
+      "eagle",
+      "eagle-2",
+      "hass"
+    ],
     "related": [
       "medusa",
       "eagle",
@@ -96,15 +264,77 @@
     "eagle-2"
   ],
   "reproducibility": {
-    "codeUrl": null,
-    "modelUrl": null,
+    "codeUrl": "https://github.com/SafeAILab/EAGLE",
+    "modelUrl": "https://huggingface.co/yuhuili/EAGLE3-LLaMA3.1-Instruct-8B",
     "projectPage": null,
-    "officialImplementation": null,
-    "status": "not-checked",
-    "notes": []
+    "officialImplementation": true,
+    "status": "not-reproduced",
+    "notes": [
+      "官方 SafeAILab/EAGLE 仓库同时维护 EAGLE、EAGLE-2 和 EAGLE-3，实现中通过 --use_eagle3 启用 EAGLE-3。",
+      "官方 Hugging Face 账号 yuhuili 发布了 LLaMA-3.1-8B、LLaMA-3.3-70B、Vicuna-13B 和 DeepSeek-R1-Distill-LLaMA-8B 等 EAGLE-3 Checkpoint。",
+      "论文给出了主要优化器、学习率、Training-Time Test 步数、数据来源、硬件和各基线设置，但本文档尚未进行独立复现。"
+    ]
   },
-  "evidence": [],
-  "notes": [],
+  "evidence": [
+    {
+      "claim": "EAGLE 的 Feature Prediction Constraint 限制 Drafter 表达能力，使扩大训练数据的收益很快饱和。",
+      "location": "Abstract; Section 1, Figures 2–4, Pages 1–3",
+      "type": "motivation"
+    },
+    {
+      "claim": "EAGLE-3 删除 Feature Prediction Loss，改为直接预测 Token，并融合 Target 的低、中、高层 Feature。",
+      "location": "Section 1; Section 3.1, Figures 3 and 5, Pages 3–5",
+      "type": "method"
+    },
+    {
+      "claim": "Training-Time Test 将 Drafter 输出回灌为下一步输入，并通过特制 Attention Mask 模拟多步测试过程。",
+      "location": "Section 3.2, Figure 6, Pages 5–6",
+      "type": "training"
+    },
+    {
+      "claim": "EAGLE-3 继承 EAGLE-2 的上下文感知动态 Draft Tree，并将最大深度由 6 提高到 8。",
+      "location": "Section 2.2, Page 4; Appendix A, Page 12",
+      "type": "candidate-structure"
+    },
+    {
+      "claim": "通用训练数据由约 68K ShareGPT 和约 464K UltraChat-200K 组成，Response 由 Target 重生成；推理模型额外使用 OpenThoughts-114k-math。",
+      "location": "Section 4 Implementation, Page 7",
+      "type": "training"
+    },
+    {
+      "claim": "EAGLE-3 在四类 Target、五个任务和 Temperature 0/1 设置下显著超过 EAGLE-2，最高达到 6.47× Speedup 和 7.54 Average Acceptance Length。",
+      "location": "Table 1, Page 7",
+      "type": "result"
+    },
+    {
+      "claim": "去除 Feature Constraint 和融合多层 Feature 均能独立提高 Speedup 与 Acceptance Length。",
+      "location": "Section 4.2, Table 2, Page 8",
+      "type": "ablation"
+    },
+    {
+      "claim": "在单张 H100 的 SGLang 中，EAGLE-3 在 Batch Size=64 仍达到 1.38× 吞吐；Batch Size=1 为 373.25 tokens/s。",
+      "location": "Section 4.3, Tables 3–4, Pages 8–9",
+      "type": "system"
+    },
+    {
+      "claim": "vLLM 实验中 EAGLE-3 到 Batch Size=56 仍保持 1.01×，而 EAGLE 在更早的 Batch Size 下已经低于 Baseline。",
+      "location": "Section 4.4, Table 5, Page 9",
+      "type": "system"
+    },
+    {
+      "claim": "70B EAGLE-3 Head 的训练使用 16 张 A100，持续约两周；论文未测试超过 70B 的 Target。",
+      "location": "Section 4 Models and Implementation, Pages 6–7",
+      "type": "limitation"
+    }
+  ],
+  "notes": [
+    "EAGLE-3 的核心不是简单把 Feature Prediction 改成 Token Prediction；单独删除 Feature Loss 会让第二步接受率崩溃，Training-Time Test 才是使 Direct Token Prediction 可用于多步 Draft 的关键闭环。",
+    "论文的“数据 Scaling Law”主要在 LLaMA-3.1-8B + MT-Bench 上展示。它证明该架构在该设置下能继续吃数据，但不能直接推出所有 Target、任务和更大数据规模都按相同比例增长。",
+    "最高 6.5× 来自 Vicuna-13B 的 HumanEval 单项；更具代表性的宏平均为 Vicuna-13B 5.51×、LLaMA-3.1-8B 4.44×、LLaMA-3.3-70B 4.12×、DeepSeek-R1-Distill-LLaMA-8B 4.16×。",
+    "EAGLE-3 提高接受长度后把动态树最大深度从 6 提到 8，但节点预算保持不变。提升来自更可靠的深层路径，而不是无上限扩大验证树。",
+    "SGLang 和 vLLM 的大 Batch 实验采用短 Chain 而非完整动态 Tree；阅读吞吐数字时应区分 Drafter Head 本身的收益与 Tree Verification 的额外成本。",
+    "从技术谱系看，EAGLE-3 解决的是 Feature Drafter 的表达约束和训练分布错位，仍属于自回归 Draft 路线；后续并行或半自回归工作针对的是其串行 Draft 延迟这一不同瓶颈。"
+  ],
   "provenance": {
     "legacyWorkbookRow": 5,
     "workbookInstitutions": "清华大学"

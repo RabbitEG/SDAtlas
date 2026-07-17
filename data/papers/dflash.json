@@ -23,21 +23,50 @@
   "institutionSource": "https://arxiv.org/pdf/2602.06036",
   "methodOverview": "轻量级 Block-Diffusion Drafter 用一次前向同时预测一个 Token Block，并注入由 Target 多层 KV 融合得到的上下文。位置加权 Training 重点保护靠前 Token。",
   "problemStatement": {
-    "background": null,
-    "priorLimitation": null,
-    "goal": null
+    "background": "自回归 LLM 每生成一个 Token 都需要一次顺序前向，解码阶段延迟高且 GPU 利用率不足。投机解码可让轻量 Drafter 先提出多个候选，再由 Target 在一次前向中并行验证；其端到端收益取决于 Draft 延迟、接受长度和 Verify 成本之间的平衡。",
+    "priorLimitation": "EAGLE-3 等高质量 Drafter 仍按 Token 自回归生成，Draft 成本随候选长度线性增长，只能使用很浅的网络和较短候选。已有扩散式方案要么使用数十亿参数的 Drafter 并执行较重的搜索或去噪，内存与延迟开销过高；要么使用缺少 Target 内部特征的小模型并行预测，接受长度有限。仅在 Drafter 输入端融合 Target 特征时，条件信息还会随网络加深而稀释。",
+    "goal": "构建一个足够轻量、但能充分利用 Target 内部知识的 Block-Diffusion Drafter，使多个候选 Token 能以一次前向并行产生，同时保持较高接受长度，并通过标准投机验证保证最终输出分布与 Target 原始解码完全一致。"
   },
-  "methodComponents": [],
+  "methodComponents": [
+    {
+      "name": "Multi-Layer Target Context Fusion",
+      "stage": "Target prefill and verification",
+      "purpose": "从 Target 的内部表示中提取比最终 Logits 更丰富的上下文与未来 Token 线索，为轻量 Drafter 提供高质量条件信息。",
+      "mechanism": "从 Target 的浅层到深层均匀选取 5 层 Hidden State，按 Token 位置拼接，经共享投影 Wc 压缩到 Drafter Hidden Dimension，并执行 RMSNorm，形成紧凑的 Target Context Feature。Target 每次 Prefill 或 Verify 后产生的新 Hidden State 会继续扩展这份上下文。",
+      "differenceFromPrior": "无条件的小型扩散 Drafter 必须从 Token 历史中独立重建 Target 的推理结果；EAGLE-3 式方法则主要把 Target Feature 与 Token Embedding 在输入端融合，条件信息可能随 Drafter 深度增加而被稀释。"
+    },
+    {
+      "name": "Persistent KV Injection",
+      "stage": "Draft attention",
+      "purpose": "让每个 Drafter 层都能直接访问同一份 Target Context，避免 Target 信息只在输入层出现后逐层衰减。",
+      "mechanism": "在第 i 个 Drafter 层中，候选块状态产生 Query；Target Context 与候选块状态分别经过该层 K/V Projection 后沿序列维拼接。Target Context 仅作为附加 KV Entry，不经过 Drafter 的 Query、Attention Output、残差更新或 FFN，并被缓存在 Drafter KV Cache 中跨轮复用。",
+      "differenceFromPrior": "输入融合只在 Drafter 的第一层注入 Target Feature；DFlash 则在每个 Drafter 层的 Attention 中持续注入 Target KV，使接受长度能随 Drafter 深度更稳定地增长。"
+    },
+    {
+      "name": "Single-Pass Block-Diffusion Drafting",
+      "stage": "Draft generation",
+      "purpose": "解除候选长度与 Draft 前向次数之间的线性绑定，在低 Draft 延迟下使用更深的 Drafter 和更大的候选块。",
+      "mechanism": "每轮以 Target 产生的 Decode/Bonus Token 作为干净锚点，在其后放置 B−1 个 Mask Token。块内位置执行双向 Attention，并共同访问完整 Target Context；经过 5 层 Drafter 后复用 Target LM Head，一次前向并行得到所有 Mask 位置的 Token 分布并采样出一条候选链。主要 Qwen 配置使用 Block Size 16。",
+      "differenceFromPrior": "自回归 Drafter 需要为每个候选 Token 分别执行前向，成本近似随候选长度增长；DiffuSpec、SpecDiff-2 等方案使用更大的扩散 Drafter或更重的推理过程，而 DFlash 将去噪压缩为一次轻量前向。"
+    },
+    {
+      "name": "Speculative-Aligned Block Training",
+      "stage": "Training",
+      "purpose": "让训练输入结构与实际 Draft 场景一致，并优先提高决定最长接受前缀的早期位置准确率。",
+      "mechanism": "仅保留数据集 Prompt，并由对应 Target 重新生成 Response；从每条 Response 随机采样多个 Anchor Position，把 Anchor 之后 B−1 个位置遮蔽。多个 Mask Block 通过块间隔离、块内双向的 Sparse Attention 在一次前后向中联合训练。损失使用 w_k=exp(−(k−1)/γ) 的位置加权交叉熵，冻结 Target、共享 Token Embedding 和 LM Head，只更新 Drafter Transformer 与上下文投影。",
+      "differenceFromPrior": "标准 Block Diffusion 通常按固定边界切块并随机遮蔽块内位置，也不会专门强调最长接受前缀；DFlash 改为随机干净锚点加连续后缀 Mask，并对靠前位置赋予更高损失权重。"
+    }
+  ],
   "characteristics": {
-    "requiresTraining": null,
-    "drafterType": null,
-    "draftGeneration": null,
-    "candidateStructure": null,
-    "verificationStrategy": null,
-    "usesTargetFeatures": null,
-    "dynamicDraftLength": null,
-    "dynamicVerifyLength": null,
-    "lossless": null
+    "requiresTraining": true,
+    "drafterType": "block-diffusion",
+    "draftGeneration": "parallel",
+    "candidateStructure": "chain",
+    "verificationStrategy": "fixed-prefix",
+    "usesTargetFeatures": true,
+    "dynamicDraftLength": false,
+    "dynamicVerifyLength": false,
+    "lossless": true
   },
   "subproblemContributions": {
     "A": {
@@ -51,19 +80,153 @@
   },
   "training": {
     "summary": "用 Nemotron Post-Training Dataset V2 与 CodeAlpaca 的约 80 万条提示，由各 Target 重新生成训练响应；每个序列随机采样锚点并遮蔽后续 B−1 个位置，以块间隔离、块内双向的 Sparse Attention 一次训练多个块。",
-    "data": null,
-    "objective": null
+    "data": "约 80 万条 Prompt，来源为 NVIDIA Nemotron Post-Training Dataset V2 与 CodeAlpaca。论文不直接使用原始 Response，而是由每个对应 Target 模型重新生成训练响应，以缩小 Drafter 训练分布与 Target 实际输出分布之间的偏差。默认最大序列长度为 3072，Qwen3-Coder 为 4096；每条序列随机采样 512 个 Anchor Position。",
+    "objective": "对每个 Mask Block 的 B−1 个预测位置使用交叉熵，并设置指数衰减位置权重 w_k=exp(−(k−1)/γ)，优先优化会决定整段接受前缀的靠前 Token。Block Size 16、10、8 分别使用 γ=7、5、4。Target 模型、共享 Token Embedding 与 LM Head 全部冻结，仅训练 Drafter Transformer 和 Target Context Projection；使用 AdamW 训练 6 个 Epoch，学习率 6e−4、Gradient Clipping 1.0、Cosine Schedule 与 0.04 Warmup Ratio。"
   },
   "evaluation": {
-    "targetModels": [],
-    "benchmarks": [],
-    "baselines": [],
-    "metrics": [],
-    "hardware": [],
-    "frameworks": []
+    "targetModels": [
+      "Qwen3-4B",
+      "Qwen3-8B",
+      "Qwen3-Coder-30B-A3B-Instruct",
+      "LLaMA-3.1-8B-Instruct",
+      "Qwen3.5-4B",
+      "Qwen3.5-9B",
+      "Qwen3.5-35B-A3B",
+      "Qwen3.5-27B",
+      "Qwen3-Coder-Next",
+      "GPT-OSS-20B",
+      "GPT-OSS-120B"
+    ],
+    "benchmarks": [
+      "GSM8K",
+      "MATH-500",
+      "AIME25",
+      "GPQA",
+      "HumanEval",
+      "MBPP",
+      "LiveCodeBench",
+      "MT-Bench",
+      "Alpaca",
+      "HotpotQA",
+      "Qasper",
+      "GovReport"
+    ],
+    "baselines": [
+      "Autoregressive Decoding",
+      "EAGLE-3",
+      "Native MTP"
+    ],
+    "metrics": [
+      "Average Acceptance Length",
+      "End-to-end Decoding Speedup",
+      "Serving Throughput",
+      "Draft Latency"
+    ],
+    "hardware": [
+      "NVIDIA H200",
+      "NVIDIA B200"
+    ],
+    "frameworks": [
+      "Transformers",
+      "SGLang",
+      "vLLM"
+    ]
   },
-  "mainResults": [],
-  "limitations": [],
+  "mainResults": [
+    {
+      "condition": "Qwen3-4B，Temperature=0，GSM8K、MATH-500、AIME25、HumanEval、MBPP、LiveCodeBench 与 MT-Bench 宏平均",
+      "metric": "End-to-end Decoding Speedup",
+      "result": "4.91×",
+      "comparison": "EAGLE-3 在 16 节点和 60 节点配置下分别为 1.81× 与 2.08×；DFlash 相对 EAGLE-3 (16) 的平均速度约为 2.7 倍。",
+      "source": "Table 1"
+    },
+    {
+      "condition": "Qwen3-4B，Temperature=0，七个基准宏平均",
+      "metric": "Average Acceptance Length",
+      "result": "6.54",
+      "comparison": "EAGLE-3 在 16 节点和 60 节点配置下分别为 3.05 与 3.48；DFlash 在更低 Verify 预算下仍取得更长接受前缀。",
+      "source": "Table 1"
+    },
+    {
+      "condition": "Qwen3-8B，Temperature=0，七个基准宏平均",
+      "metric": "End-to-end Decoding Speedup",
+      "result": "4.86×",
+      "comparison": "EAGLE-3 在 16 节点和 60 节点配置下分别为 1.76× 与 2.02×；DFlash 相对 EAGLE-3 (16) 的平均速度约为 2.8 倍。",
+      "source": "Table 1"
+    },
+    {
+      "condition": "Qwen3-8B，Temperature=0，七个基准宏平均",
+      "metric": "Average Acceptance Length",
+      "result": "6.49",
+      "comparison": "EAGLE-3 在 16 节点和 60 节点配置下分别为 2.96 与 3.40。",
+      "source": "Table 1"
+    },
+    {
+      "condition": "Qwen3-8B Thinking Mode，Temperature=0",
+      "metric": "Reasoning-model Speedup / Acceptance Length",
+      "result": "GPQA 4.17× / 5.17；MATH-500 4.64× / 5.82；AIME25 4.51× / 5.74",
+      "comparison": "相对无投机解码 Baseline 均保持约 4.2×–4.6× 加速，说明长推理轨迹下并行 Draft 的收益仍然成立。",
+      "source": "Table 2"
+    },
+    {
+      "condition": "Qwen3-8B，Math500，SGLang + FlashAttention-4，单张 B200",
+      "metric": "Serving Throughput",
+      "result": "Concurrency=1 时 1175 tokens/s、5.1×；Concurrency=32 时 16076 tokens/s、2.8×；Average Acceptance Length 为 8.01",
+      "comparison": "对应 Autoregressive Baseline 分别为 230 与 5694 tokens/s；并发增大后仍有吞吐收益，但相对加速比下降。",
+      "source": "Table 3"
+    },
+    {
+      "condition": "Qwen3.5-27B Drafter 从 4K Base 通过 1.6K 条 LongAlign-10K 样本微调后，在 16K Context 上测试",
+      "metric": "Long-context Average Acceptance Length",
+      "result": "HotpotQA 由 3.61 提升到 6.05；Qasper 由 3.57 提升到 6.00；GovReport 由 2.67 提升到 3.81",
+      "comparison": "少量长上下文适配显著逆转 Base Drafter 随 Context Length 增长的接受长度退化。",
+      "source": "Table 4"
+    },
+    {
+      "condition": "Qwen3-4B，5 层 Drafter，Block Size 8，比较每层 KV Injection 与仅输入端 Feature Fusion",
+      "metric": "KV Injection Ablation",
+      "result": "GSM8K 为 4.2 / 3.3× 对 3.5 / 2.9×；HumanEval 为 4.0 / 3.2× 对 3.5 / 2.9×；MT-Bench 为 3.0 / 2.2× 对 2.6 / 2.0×（Acceptance Length / Speedup）",
+      "comparison": "在三个任务上，逐层 KV Injection 均优于只在输入端融合 Target Feature。",
+      "source": "Table 9"
+    }
+  ],
+  "limitations": [
+    {
+      "type": "algorithmic",
+      "description": "一次 Block-Diffusion 前向输出的是各未来位置的并行分布，并在同一轮内直接采样一条候选链；后部位置不会基于已经实际采样出的前部 Token 再做条件化，因此仍可能出现后缀一致性下降和多模态组合冲突。",
+      "sourceType": "analysis"
+    },
+    {
+      "type": "system",
+      "description": "论文使用固定 Block Size 和固定最长前缀 Verify。较大的候选块在大 Batch 或 Compute-bound 场景会增加无效验证成本；论文明确将根据系统状态自适应调整 Block Size 留作未来工作。",
+      "sourceType": "paper"
+    },
+    {
+      "type": "generalization",
+      "description": "默认在约 4K Context 上训练的 Drafter 在更长上下文中接受长度明显下降。论文通过 1.6K 条长上下文样本微调恢复性能，但这仍意味着长 Context 部署需要额外适配，而不是直接零样本泛化。",
+      "sourceType": "paper"
+    },
+    {
+      "type": "training-cost",
+      "description": "增加 Drafter 层数能够提高接受长度，但也会增加 Draft Latency；论文中 8 层模型的接受长度高于 5 层模型，平均速度却更低。提取更多 Target Hidden Features 还会使离线特征缓存与训练存储开销近似线性增加。",
+      "sourceType": "paper"
+    },
+    {
+      "type": "evaluation",
+      "description": "主实验没有直接比较 DiffuSpec、SpecDiff-2、TiDAR 等其他扩散式投机解码方法，论文给出的原因是当时缺少可用的开源实现，因此“扩散 Drafter 中的最优性”证据弱于其对 EAGLE-3 的比较。",
+      "sourceType": "paper"
+    },
+    {
+      "type": "deployment",
+      "description": "方法要求 Target 暴露多层 Hidden State，并在 Drafter 每层维护额外 Target KV Entry；这比只接受 Token Logits 的通用投机解码接口更侵入，需要推理引擎对 Hidden-State Extraction、双模型 KV Cache 和 Verify 后缓存裁剪进行专门集成。",
+      "sourceType": "analysis"
+    },
+    {
+      "type": "evidence",
+      "description": "最高 6× 左右加速主要出现在低并发、数学或代码等较可预测任务；在开放式对话和高并发下，加速明显降低。例如 Qwen3-8B Math500 在 SGLang 上从 Concurrency=1 的 5.1× 降至 Concurrency=32 的 2.8×，说明单点峰值不能直接代表所有 Serving 负载。",
+      "sourceType": "observed-data"
+    }
+  ],
   "relations": {
     "extends": [],
     "comparesAgainst": [],
@@ -88,15 +251,78 @@
     "specdiff-2"
   ],
   "reproducibility": {
-    "codeUrl": null,
-    "modelUrl": null,
-    "projectPage": null,
-    "officialImplementation": null,
-    "status": "not-checked",
-    "notes": []
+    "codeUrl": "https://github.com/z-lab/dflash",
+    "modelUrl": "https://hf.co/collections/z-lab/dflash",
+    "projectPage": "https://dflash.z-lab.ai",
+    "officialImplementation": true,
+    "status": "not-reproduced",
+    "notes": [
+      "论文首页提供官方 Code、Models 与 Project Page，代码仓库和预训练 Drafter 均由作者团队维护。",
+      "官方实现覆盖训练、Transformers 推理及 Serving 集成；论文还报告了 SGLang 与 vLLM 的端到端结果。",
+      "本站尚未记录一组严格复现论文 Table 1–3 的完整环境、命令与数值，因此状态标为 not-reproduced。"
+    ]
   },
-  "evidence": [],
-  "notes": [],
+  "evidence": [
+    {
+      "claim": "DFlash 用轻量 Block-Diffusion Drafter 在一次前向中并行生成候选块，并通过标准投机验证保持 Target 输出分布不变。",
+      "location": "Abstract and Section 1, Pages 1–2; Section 3.1, Page 3",
+      "type": "method"
+    },
+    {
+      "claim": "Target 的 5 层 Hidden State 被拼接、投影并归一化为 Context Feature，再作为额外 KV Entry 注入每个 Drafter 层。",
+      "location": "Section 4.1 and Figure 2, Page 4; Appendix A.3, Page 12",
+      "type": "method"
+    },
+    {
+      "claim": "主要 Qwen 配置使用 5 层 Drafter、Block Size 16，并从 Target 的第二层到倒数第三层之间均匀选取 5 层特征。",
+      "location": "Section 5, Page 6",
+      "type": "configuration"
+    },
+    {
+      "claim": "训练使用约 80 万条 Nemotron Post-Training Dataset V2 与 CodeAlpaca Prompt，并由对应 Target 重新生成 Response。",
+      "location": "Section 5, Page 6",
+      "type": "training"
+    },
+    {
+      "claim": "随机 Anchor、块内双向且块间隔离的 Sparse Attention、位置衰减交叉熵以及冻结共享 Embedding/LM Head 构成核心训练流程。",
+      "location": "Section 4.2 and Figure 4, Page 5; Appendix A.1 and A.5, Pages 12–13",
+      "type": "training"
+    },
+    {
+      "claim": "Qwen3-4B 与 Qwen3-8B 在 Temperature=0 时分别达到 4.91×/6.54 和 4.86×/6.49 的平均 Speedup/Acceptance Length。",
+      "location": "Table 1, Page 6",
+      "type": "result"
+    },
+    {
+      "claim": "Thinking Mode 下，Qwen3-4B 与 Qwen3-8B 在 GPQA、MATH-500、AIME25 上保持约 3.6×–4.6× 加速。",
+      "location": "Section 5.2 and Table 2, Page 7",
+      "type": "result"
+    },
+    {
+      "claim": "SGLang Serving 实验在单张 B200 上测试 Concurrency 1–32，并报告 Qwen3-8B Math500 最高 5.1× 加速。",
+      "location": "Section 5.3 and Table 3, Page 7",
+      "type": "system"
+    },
+    {
+      "claim": "用 1.6K 条 LongAlign-10K 样本微调后，Qwen3.5-27B Drafter 在最长 32K Context 上显著恢复接受长度。",
+      "location": "Section 5.4 and Table 4, Pages 7–8",
+      "type": "result"
+    },
+    {
+      "claim": "消融结果表明 5 层在速度与质量间最优、更多 Target Feature 提高接受长度、Block Size 16 可向较小测试块泛化、KV Injection 优于 Input Fusion。",
+      "location": "Sections 5.5.2–5.5.5 and Tables 6–9, Pages 8–9",
+      "type": "ablation"
+    }
+  ],
+  "notes": [
+    "论文中的 Average Acceptance Length τ 包含 Target 在每轮 Verify 后生成的 Bonus Token；因此 τ=1 表示 Draft Token 全部未被接受，但该轮仍由 Target 推进了一个 Token。",
+    "论文的 Block Size B 包含一个干净的 Target Decode/Bonus Token 和其后的 B−1 个 Mask 位置；主要 Block Size 16 对应一次并行预测 15 个新 Draft Token。",
+    "DFlash 虽使用 Block Diffusion 命名，但 Draft 阶段不是多轮迭代去噪，而是把推测过程压缩为一次前向；其本质更接近由 Target Feature 强条件化的单步 Mask Block Predictor。",
+    "更深并不必然更快：Table 6 中 8 层模型接受长度最高，但 5 层模型平均 Speedup 更优，说明 Drafter Capacity 必须和 Draft Latency 一起评估。",
+    "Block Size 16 训练出的模型可较好地缩短到 Block Size 8 推理，反向从 8 扩到 16 的泛化较差；这为后续动态 Draft Length 提供了基础，但论文本身没有实现调度器。",
+    "Appendix A.3 估算 Qwen3.5-35B-A3B 配置的额外 Target Feature Projection 参数约为 42 MB，相比约 70 GB Target 很小；但长期 KV、引擎接口和 Batch Verify 成本仍需在真实 Serving 中单独核算。",
+    "DFlash 主要优化 Drafter 的速度与质量，和 DDTree/TAPS 的候选树组织、DSpark 的半自回归依赖建模与动态 Verify 调度基本正交。"
+  ],
   "provenance": {
     "legacyWorkbookRow": 10,
     "workbookInstitutions": "中国科学院计算技术研究所、其他合作单位"

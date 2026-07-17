@@ -34,7 +34,8 @@
         "<button class=\"button button-secondary\" id=\"reset-papers\" type=\"button\">显示全部论文</button>");
     if (window.SDAtlasCitationGraph) {
       window.SDAtlasCitationGraph.render(document.getElementById("citation-graph"), papers, {
-        title: "当前论文列表的论文关系"
+        title: "当前论文列表的引用脉络",
+        allPapers: data.papers
       });
     }
     var reset = document.getElementById("reset-papers");

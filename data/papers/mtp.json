@@ -35,21 +35,50 @@
   "institutionSource": "https://arxiv.org/pdf/2404.19737",
   "methodOverview": "在共享主干上设置多个相互独立的预测 Head，同时预测接下来的若干 Token。多 Token Training 目标既能强化中间表示，也让模型具备用于自投机解码的并行未来预测能力。",
   "problemStatement": {
-    "background": null,
-    "priorLimitation": null,
-    "goal": null
+    "background": "主流自回归 LLM 采用 teacher forcing 的 next-token prediction 训练：每个位置只监督下一个 Token，推理时却必须基于模型自身生成结果逐 Token 展开。该训练方式容易优先拟合局部、低难度模式，并使推理保持严格串行。",
+    "priorLimitation": "标准 next-token 目标对决定后续走向的关键 choice point 监督不足，样本效率和长程依赖学习能力有限；既有多 Token 工作多集中于序列到序列预训练或事后微调加速，缺少在十亿级自回归 LLM 上进行等参数、等计算预算的大规模预训练验证。朴素实现还会同时物化 n 份词表 Logits，使显存从 O(V+d) 膨胀到 O(nV+d)。",
+    "goal": "把多个未来位置直接纳入 LLM 预训练目标，在不增加训练时间和峰值显存的前提下提高生成、代码与算法推理能力；同时复用附加 Heads 构造无需独立 Drafter 的自投机解码路径。"
   },
-  "methodComponents": [],
+  "methodComponents": [
+    {
+      "name": "共享主干与独立未来预测 Heads",
+      "stage": "Model architecture",
+      "purpose": "让同一上下文表示同时承载多个未来位置的预测信息，并避免为每个预测距离复制完整模型。",
+      "mechanism": "共享 Transformer 主干 f_s 根据历史 x_{1:t} 产生表示 z_t；n 个独立 Transformer 输出 Head f_{h_i} 分别预测 x_{t+i}，所有 Heads 共用同一 unembedding 矩阵 f_u。第一个 Head 仍是标准 next-token Head，其余 Heads 作为未来位置辅助预测器。",
+      "differenceFromPrior": "不同于仅监督 x_{t+1} 的标准语言模型，也不同于复制 n 份 residual stream 的早期多目标结构；MTP 用单一共享主干和轻量独立 Heads 完成等参数预算下的多步监督。"
+    },
+    {
+      "name": "多 Token 联合预训练目标",
+      "stage": "Pretraining objective",
+      "purpose": "把训练信号从局部 next-token 模式扩展到多个未来位置，强化对长程后果和关键决策点的表示。",
+      "mechanism": "在每个语料位置同时最小化 n 个未来 Token 的交叉熵之和：L_n = -Σ_t Σ_{i=1}^n log P_θ(x_{t+i}|x_{1:t})。所有目标共同更新共享主干，各 Head 学习对应预测距离的条件分布。",
+      "differenceFromPrior": "附加 Heads 不是在训练完成的 next-token 模型上事后拟合，而是在预训练阶段与主干联合优化，因此既改变主干表示，也显著提高远期 Head 的候选准确率。"
+    },
+    {
+      "name": "显存无额外开销的 Head 级反向调度",
+      "stage": "Training execution",
+      "purpose": "避免多 Head 的全词表 Logits 与梯度同时驻留，保持与 next-token 训练相近的峰值显存和训练时间。",
+      "mechanism": "主干前向后，依次执行每个 Head 的前向和反向，将梯度累计到共享主干；当前 Head 的 Logits 和梯度在进入下一个 Head 前释放，最后再对主干执行累计梯度反向。峰值显存由 O(nV+d) 降至 O(V+d)。",
+      "differenceFromPrior": "朴素并行实现会同时物化 n 份词表张量；该执行顺序只长期保存 d 维主干梯度，论文实验表明不会增加训练时长。"
+    },
+    {
+      "name": "基于附加 Heads 的自投机解码",
+      "stage": "Inference",
+      "purpose": "在不加载独立小模型的情况下，将多个串行 Target 前向压缩为一次候选生成和一次块验证。",
+      "mechanism": "一次共享主干前向后，各未来 Head 并行给出连续位置的 top-1 Token，组成固定长度线性候选块；随后采用 greedy blockwise self-speculative decoding，由 next-token Head 并行验证并提交最长匹配前缀。各位置 top-k 结果也可接入 Medusa 式 Tree Attention。",
+      "differenceFromPrior": "与外置 Drafter 不同，候选直接来自 Target 自身的附加 Heads；与只为加速而后训练预测头的方法相比，Heads 已在预训练阶段参与表示学习，候选质量更高。"
+    }
+  ],
   "characteristics": {
-    "requiresTraining": null,
-    "drafterType": null,
-    "draftGeneration": null,
-    "candidateStructure": null,
-    "verificationStrategy": null,
-    "usesTargetFeatures": null,
-    "dynamicDraftLength": null,
-    "dynamicVerifyLength": null,
-    "lossless": null
+    "requiresTraining": true,
+    "drafterType": "multi-head self-speculative",
+    "draftGeneration": "parallel",
+    "candidateStructure": "chain",
+    "verificationStrategy": "fixed-prefix",
+    "usesTargetFeatures": true,
+    "dynamicDraftLength": false,
+    "dynamicVerifyLength": false,
+    "lossless": true
   },
   "subproblemContributions": {
     "A": {
@@ -67,26 +96,165 @@
   },
   "training": {
     "summary": "在每个语料位置，对 n 个未来 Token 的独立条件分布求交叉熵之和，并让所有目标共同反向更新共享主干，使训练信号不再只偏向局部 next-token 模式。",
-    "data": null,
-    "objective": null
+    "data": "大规模代码预训练覆盖 0.3B–13B 模型：规模实验至少使用 91B Tokens，7B 代码模型进一步训练至约 200B、500B 和 1T Tokens；Byte-level 7B 模型使用约 314B Bytes（约 116B Token 等价量）。自然语言 7B 模型使用约 200B 和 500B Tokens。另在 CodeContests、九个摘要数据集、儿童故事/图书混合语料及合成多项式算术任务上进行微调或受控实验。论文未公开大规模预训练语料的完整来源与配比。",
+    "objective": "核心目标为 L_n = -Σ_t Σ_{i=1}^n log P_θ(x_{t+i}|x_{1:t})，即对 n 个预测距离的交叉熵等权求和并联合更新共享主干。实现上逐 Head 前向/反向并累计主干梯度，将峰值显存从 O(nV+d) 降至 O(V+d)。训练统一采用 Adam（β1=0.9，β2=0.95）、0.1 解耦权重衰减、线性 Warmup 与余弦衰减；除 CodeContests 微调外梯度范数裁剪为 1.0。"
   },
   "evaluation": {
-    "targetModels": [],
-    "benchmarks": [],
-    "baselines": [],
-    "metrics": [],
-    "hardware": [],
-    "frameworks": []
+    "targetModels": [
+      "从头训练的 Decoder-only Transformer：0.3B、0.6B、1.3B、3B、6.7B（7B）和 13B",
+      "7B Token-level 代码模型：n=1/2/4/6/8，训练规模约 200B、500B 和 1T Tokens",
+      "7B Byte-level 代码模型：n=1/8/16/32，训练约 314B Bytes",
+      "7B 自然语言模型：n=1/2/4，训练约 200B 和 500B Tokens",
+      "1M–1B 小型 Transformer，用于归纳能力和合成算法推理实验"
+    ],
+    "benchmarks": [
+      "MBPP",
+      "HumanEval",
+      "APPS/Intro",
+      "CodeContests",
+      "ARC Challenge",
+      "COPA",
+      "HellaSwag",
+      "Natural Questions",
+      "PIQA",
+      "SIQA",
+      "TriviaQA",
+      "GSM8K",
+      "BigPatent",
+      "CNN/DailyMail",
+      "Multi-News",
+      "OrangeSum",
+      "pn-summary",
+      "SAMSum",
+      "ThaiSum",
+      "WikiSummary",
+      "XSum",
+      "儿童故事归纳测试",
+      "F7[X]/(X^5) 多项式算术任务",
+      "Wikipedia、Books 与 Held-out Code 自投机解码测试集"
+    ],
+    "baselines": [
+      "等参数、等训练 Token 与等计算预算的标准 next-token prediction 模型（n=1）",
+      "CodeContests 中从 next-token 预训练模型直接微调的基线",
+      "合成任务中的更大 next-token 模型，用于比较扩大模型规模与更换训练目标的收益"
+    ],
+    "metrics": [
+      "pass@1 / pass@10 / pass@100 / pass@1000",
+      "任务准确率与 induction success",
+      "ROUGE-1 / ROUGE-2 / ROUGE-3 / ROUGE-L / ROUGE-Lsum 的 Precision、Recall 与 F1",
+      "相对自回归解码 Speedup",
+      "Tokens per forward",
+      "训练峰值显存与训练时间",
+      "In-domain / Out-of-domain 算法推理准确率"
+    ],
+    "hardware": [
+      "NVIDIA A100-80GB",
+      "NVIDIA H100",
+      "全文全部实验合计约 500K GPU-hours"
+    ],
+    "frameworks": [
+      "xFormers（heterogeneous-batch greedy self-speculative decoding）"
+    ]
   },
-  "mainResults": [],
-  "limitations": [],
+  "mainResults": [
+    {
+      "condition": "13B 代码模型，等参数与等训练预算",
+      "metric": "HumanEval / MBPP solved problems",
+      "result": "HumanEval 多解决约 12% 的问题，MBPP 多解决约 17% 的问题。",
+      "comparison": "相对标准 next-token prediction 基线。",
+      "source": "Abstract; Section 3.1; Figure 3"
+    },
+    {
+      "condition": "7B、约 200B Token 代码预训练，n=4",
+      "metric": "MBPP 与 HumanEval pass@1 / pass@10 / pass@100",
+      "result": "MBPP 为 33.8 / 55.9 / 76.9，基线为 30.0 / 53.8 / 73.7；HumanEval 为 24.0 / 40.1 / 66.1，基线为 22.8 / 36.4 / 62.0。",
+      "comparison": "绝对提升分别为 MBPP +3.8 / +2.1 / +3.2 个百分点，HumanEval +1.2 / +3.7 / +4.1 个百分点。",
+      "source": "Section 3.4; Table 1"
+    },
+    {
+      "condition": "7B Byte-level 模型，约 313B Bytes，n=8",
+      "metric": "MBPP 与 HumanEval pass@1",
+      "result": "MBPP 从 19.3 提升至 32.3，HumanEval 从 18.1 提升至 21.8。",
+      "comparison": "相对 next-byte 基线分别多解决约 67% 和 20% 的问题。",
+      "source": "Section 3.3; Table 1"
+    },
+    {
+      "condition": "7B、4-token 模型，greedy 自投机解码，最大 Batch Size 42",
+      "metric": "相对解码 Speedup / Tokens per forward",
+      "result": "Code 达到 3.05× / 3.50，Wikipedia 达到 2.74× / 3.12，Books 达到 2.67× / 3.09。",
+      "comparison": "相对同 Batch Size 的标准自回归解码；Speedup 在测试 Batch 范围内基本稳定。",
+      "source": "Section 3.2; Appendix A, Figure S10 and Table S2"
+    },
+    {
+      "condition": "7B Byte-level 模型，n=8，Batch Size 16",
+      "metric": "自投机解码 Speedup / Tokens per forward",
+      "result": "使用 8 个 Heads 时达到 6.39× Speedup，并平均每次前向推进 7.04 Bytes。",
+      "comparison": "相对单 Head 自回归 Byte-level 解码。",
+      "source": "Section 3.2–3.3; Appendix A, Table S3"
+    },
+    {
+      "condition": "7B 代码模型，约 1T Tokens、约 4 Epochs，n=4",
+      "metric": "MBPP pass@1 / HumanEval pass@100",
+      "result": "仍分别保持 +2.4 和 +3.2 个百分点的提升。",
+      "comparison": "相对相同数据与训练轮数的 next-token 模型；多数其他指标接近，优势较 200B Token 时缩小。",
+      "source": "Section 3.5; Table 1"
+    },
+    {
+      "condition": "7B 自然语言模型，200B / 500B Tokens",
+      "metric": "九个摘要数据集平均 ROUGE-L F1",
+      "result": "200B 时 n=2 / n=4 相对基线提升 +0.51 / +0.46；500B 时提升 +0.28 / +0.31。",
+      "comparison": "多 Token 训练在生成式摘要上稳定优于 next-token 基线，但随数据增加差距缩小。",
+      "source": "Section 3.7; Figure 6; Appendix H, Tables S8–S10"
+    },
+    {
+      "condition": "受控归纳与多项式算术实验",
+      "metric": "Induction success 与 In/Out-of-domain accuracy",
+      "result": "2-token 目标显著促进 30M 及以下模型形成归纳能力；多 Token 训练在不同算术难度上均提高准确率，尤其改善分布外泛化。",
+      "comparison": "在多项式任务中，从 next-token 改为 multi-token 的收益大于把模型从 30M 扩大到 100M。",
+      "source": "Sections 4.1–4.2; Figures 7–8 and S16"
+    }
+  ],
+  "limitations": [
+    {
+      "type": "规模敏感",
+      "description": "收益不是小模型上的普遍规律：300M 和 600M 代码模型在多项 pass@k 指标上可能低于 next-token 基线，优势主要在 3B 以上逐渐出现。",
+      "sourceType": "paper"
+    },
+    {
+      "type": "任务与数据量敏感",
+      "description": "7B 自然语言模型在选择题和似然型基准上没有稳定提升，4-token 模型还会回退；GSM8K 上 n=2 在 200B Tokens 时领先，但到 500B Tokens 后顺序反转，n=4 全程较差。",
+      "sourceType": "paper"
+    },
+    {
+      "type": "预测窗口需要手工选择",
+      "description": "最优 n 随任务、语料分布和 Tokenization 改变：Token-level 代码的 MBPP/HumanEval 倾向 n=4，APPS/Intro 倾向 n=6，Byte-level 倾向 n=8。论文未给出自动选择机制，并将其列为未来工作。",
+      "sourceType": "paper"
+    },
+    {
+      "type": "块内依赖未显式建模",
+      "description": "各未来 Head 都从同一历史表示独立预测，后续位置不条件于本轮已经采样的前序 Draft Token；因此线性块本质上是位置边缘预测的拼接，可能出现跨位置不一致。论文只指出可兼容 Medusa Tree Attention，没有新增依赖建模或选树算法。",
+      "sourceType": "analysis"
+    },
+    {
+      "type": "推理解码范围有限",
+      "description": "端到端加速实验采用 greedy blockwise self-speculative decoding，主要证明确定性解码下与 Target greedy 输出一致；论文没有系统评测随机采样式 rejection sampling、动态 Draft/Verify 长度或生产级 Serving 吞吐。",
+      "sourceType": "analysis"
+    },
+    {
+      "type": "复现成本与资产缺失",
+      "description": "全文实验约消耗 500K A100-80GB/H100 GPU-hours；论文及官方 PMLR、arXiv 页面未提供官方代码、模型权重或项目页，大规模预训练语料来源也未完整披露，完整复现门槛很高。",
+      "sourceType": "analysis"
+    }
+  ],
   "relations": {
     "extends": [],
     "comparesAgainst": [],
     "related": [
       "medusa"
     ],
-    "compatibleWith": []
+    "compatibleWith": [
+      "medusa"
+    ]
   },
   "citations": [
     "medusa"
@@ -95,12 +263,67 @@
     "codeUrl": null,
     "modelUrl": null,
     "projectPage": null,
-    "officialImplementation": null,
-    "status": "not-checked",
-    "notes": []
+    "officialImplementation": false,
+    "status": "not-reproduced",
+    "notes": [
+      "论文、PMLR 页面和 arXiv 页面均未提供官方实现、模型权重或独立项目页。",
+      "论文公开了模型结构、训练规模、优化器配置、主要超参数、评测协议及自投机解码表格，但未公开完整预训练数据构成和训练代码。",
+      "推理部分明确使用 xFormers 实现 heterogeneous-batch greedy self-speculative decoding，可据此进行非官方复现。",
+      "全文报告的总实验计算量约为 500K GPU-hours，硬件为 A100-80GB 与 H100。"
+    ]
   },
-  "evidence": [],
-  "notes": [],
+  "evidence": [
+    {
+      "claim": "MTP 使用共享 Transformer 主干、n 个独立 Transformer 输出 Head 与共享 unembedding 矩阵，同时预测多个未来位置。",
+      "location": "p. 2, Section 2, Figure 1",
+      "type": "method"
+    },
+    {
+      "claim": "逐 Head 前向与反向、累计主干梯度，可把峰值显存从 O(nV+d) 降至 O(V+d)，且不增加运行时间。",
+      "location": "pp. 2–3, Section 2, Figure 2",
+      "type": "method"
+    },
+    {
+      "claim": "附加 Heads 可用于无需独立 Drafter 的 blockwise self-speculative decoding，并可兼容 Medusa 式 Tree Attention。",
+      "location": "pp. 2–3, Section 2, Inference",
+      "type": "method"
+    },
+    {
+      "claim": "多 Token 训练的收益随模型规模扩大而增强，13B 模型在 HumanEval 和 MBPP 上分别多解决约 12% 和 17% 的问题。",
+      "location": "p. 1 Abstract; p. 3 Section 3.1 and Figure 3",
+      "type": "result"
+    },
+    {
+      "claim": "7B、200B Token 与 Byte-level 代码模型的详细 pass@k 结果，以及 n 随任务变化的最优设置。",
+      "location": "p. 4, Table 1, Sections 3.3–3.5",
+      "type": "result"
+    },
+    {
+      "claim": "4-token 模型在 Code/Wikipedia/Books 上实现约 3.05×/2.74×/2.67× 自投机加速；8-byte 模型用 8 Heads 达到 6.39×。",
+      "location": "Appendix A, Figure S10 and Tables S2–S3 (PDF pp. 13–14)",
+      "type": "result"
+    },
+    {
+      "claim": "自然语言选择题基准没有稳定收益，4-token 模型回退；摘要生成则获得小幅稳定 ROUGE 提升。",
+      "location": "pp. 5–6, Section 3.7; Appendix G–I",
+      "type": "limitation"
+    },
+    {
+      "claim": "多 Token 目标促进小模型形成 induction capability，并在合成多项式任务上改善分布外算法推理。",
+      "location": "pp. 6–7, Sections 4.1–4.2, Figures 7–8",
+      "type": "result"
+    },
+    {
+      "claim": "作者将自动选择 n、联合优化词表大小及 embedding-space 辅助目标列为未来工作；全文实验约消耗 500K GPU-hours。",
+      "location": "p. 9, Conclusion, Future Work and Environmental Impact",
+      "type": "limitation"
+    }
+  ],
+  "notes": [
+    "Q：MTP 的核心贡献到底是投机解码，还是新的训练目标？\nA：核心是多 Token 预训练目标。自投机解码是该结构带来的附加能力；即使推理时丢弃未来 Heads，只保留 next-token Head，主干仍可能因多步监督而获得更好的生成与推理能力。",
+    "Q：多个 Head 是不是像自回归 Drafter 一样，后一个预测会看到前一个 Draft Token？\nA：不是。各 Head 都只读取同一历史上下文的主干表示，并分别预测第 i 个未来位置；论文中的线性候选块是这些独立位置预测的 top-1 拼接，因此块内没有显式因果依赖。",
+    "Q：为什么它能称为 lossless 自投机解码？\nA：论文实际采用 greedy blockwise 验证：Target 的 next-token Head 重新计算候选位置，只提交与 Target greedy 选择连续一致的最长前缀，因此结果与普通 greedy 解码一致；这不等于论文已经完整验证所有随机采样配置。"
+  ],
   "provenance": {
     "legacyWorkbookRow": 2,
     "workbookInstitutions": "Meta FAIR"

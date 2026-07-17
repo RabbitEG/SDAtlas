@@ -46,21 +46,64 @@
   "institutionSource": "https://arxiv.org/pdf/2605.29707",
   "methodOverview": "并行 Backbone 先给出整个 Block 的边缘分布，随后一个廉价的因果 Head 根据已经选中的 Prefix 逐步修正后续 Logit，相当于用一次并行预测打底，再用很小的串行模块恢复 Token 间依赖。",
   "problemStatement": {
-    "background": null,
-    "priorLimitation": null,
-    "goal": null
+    "background": "投机解码的端到端收益取决于 Draft 质量与 Draft 成本的平衡：自回归 Drafter 能显式利用块内 Prefix 依赖，但生成 γ 个候选需要逐 Token 执行 Drafter；并行 Drafter 可一次前向生成整个候选块，却缺少对已经实际选中 Token 的条件化。",
+    "priorLimitation": "自回归 Drafter 需要重复执行 Transformer Rollout 和全词表 LM Head，串行开销随候选长度增长；DFlash 等块并行 Drafter 虽显著降低 Draft 延迟，但各位置主要基于共享上下文独立预测，容易发生多模态混合与 Suffix Decay，后部候选接受率下降。",
+    "goal": "把昂贵的表示建模保留在一次并行 Backbone 前向中，只用轻量串行模块恢复块内因果依赖，在接近并行 Drafter 延迟的同时获得更高接受长度和端到端速度。"
   },
-  "methodComponents": [],
+  "methodComponents": [
+    {
+      "name": "Parallel Draft Backbone",
+      "stage": "Parallel Draft",
+      "purpose": "一次性完成候选块的大部分表示计算，并为后续轻量因果修正提供 Base Hidden State 与 Base Logits。",
+      "mechanism": "采用 5 层 DFlash 式并行 Backbone，以 Target 上一轮产生的 Anchor Token 和 Mask Block 为输入，一次非自回归前向生成整个 16-Token Block 的 Hidden State；冻结的 Target LM Head 对所有位置并行计算 Base Logits。",
+      "differenceFromPrior": "区别于 EAGLE-3 等自回归 Drafter，不为每个候选 Token 重复执行 Draft Transformer；相较原始 DFlash，Backbone 输出不再直接作为最终候选分布，而是交给 Domino Head 做 Prefix 条件修正。"
+    },
+    {
+      "name": "GRU Causal Encoder",
+      "stage": "Sequential Causal Correction",
+      "purpose": "以很低的串行成本汇总当前候选块内已经采样的 Prefix Token。",
+      "mechanism": "对第 i 个候选位置，1024 维 GRU 顺序读取此前 Draft Token 的 Embedding，形成 Prefix 相关状态 S_{i−1}；该状态把已选语义路径传给后续位置，但不重新执行完整 Transformer。",
+      "differenceFromPrior": "并行 Drafter 的后部位置通常只看到共享块上下文，无法依据已经实际采样出的前部 Token 改写预测；标准自回归 Drafter 虽能条件化 Prefix，却需要高成本的逐步模型前向。"
+    },
+    {
+      "name": "Low-Rank Logit Correction Head",
+      "stage": "Sequential Causal Correction",
+      "purpose": "把 Prefix 状态转化为对并行 Base Logits 的廉价残差修正。",
+      "mechanism": "将位置 Hidden State H_i 与 Causal State S_{i−1} 拼接，经 256 维低秩瓶颈计算 ΔL_i=W₂·SiLU(W₁[H_i;S_{i−1}])，最终以 L_i=L_i^base+ΔL_i 采样候选 Token。",
+      "differenceFromPrior": "修正在 Logit Space 完成，避免每次因果更新后重新运行完整 LM Head；若在 Hidden Space 修正，则会把昂贵的全词表输出投影重新引入串行路径。"
+    },
+    {
+      "name": "Teacher-Forced Causal Encoding",
+      "stage": "Training",
+      "purpose": "让因果分支专门学习投机验证真正会使用的已接受 Prefix 区间。",
+      "mechanism": "训练时向 GRU 输入 Ground-Truth Prefix Token Embedding，而不是早期训练阶段噪声较大的自生成 Prefix。因为第 i 个候选只有在此前 Token 均被 Target 接受时才会影响接受长度，这一监督与 Accepted-Prefix Regime 对齐。",
+      "differenceFromPrior": "EAGLE-3 式 Training-Time Test 会把自生成结果回灌到后续步骤；Domino 认为错误 Prefix 到正确下一 Token 的映射不属于真实数据分布，且在首个拒绝后不会被实际使用。"
+    },
+    {
+      "name": "Base-Anchored Curriculum",
+      "stage": "Training",
+      "purpose": "防止拿到干净 Prefix 的修正分支走捷径，导致并行 Backbone 的 Base Distribution 退化。",
+      "mechanism": "联合优化 Base Logits 与最终修正 Logits，采用 L=(1−λ_t)L_final+λ_tL_base，并将 λ_t 在训练期间从 1 线性退火到 0；两个交叉熵损失均使用 w_k=exp(−k/γ) 的位置权重。",
+      "differenceFromPrior": "若从训练开始只优化最终 Logits，因果 Head 可能承担过多预测任务并使 Backbone Loss 崩塌；课程策略先稳固并行底座，再逐步把优化重心移向残差修正。"
+    },
+    {
+      "name": "Fused Domino Runtime",
+      "stage": "Runtime Optimization",
+      "purpose": "压低轻量串行 Head 的 Kernel Launch 与 Python 调度开销。",
+      "mechanism": "使用融合 Triton Kernel 实现 Domino Head 的修正循环，并通过 CUDA Graphs 固化执行路径；论文设置下 Head 延迟由 2.64 ms 降至 1.20 ms。",
+      "differenceFromPrior": "仅有轻量网络并不自动等于低实际延迟；未经融合的细粒度串行算子会被启动开销吞掉，因此需要专门的 Kernel 与执行图优化。"
+    }
+  ],
   "characteristics": {
-    "requiresTraining": null,
-    "drafterType": null,
-    "draftGeneration": null,
-    "candidateStructure": null,
-    "verificationStrategy": null,
-    "usesTargetFeatures": null,
-    "dynamicDraftLength": null,
-    "dynamicVerifyLength": null,
-    "lossless": null
+    "requiresTraining": true,
+    "drafterType": "semi-autoregressive",
+    "draftGeneration": "semi-autoregressive",
+    "candidateStructure": "chain",
+    "verificationStrategy": "fixed-prefix",
+    "usesTargetFeatures": true,
+    "dynamicDraftLength": false,
+    "dynamicVerifyLength": false,
+    "lossless": true
   },
   "subproblemContributions": {
     "A": {
@@ -78,22 +121,150 @@
   },
   "training": {
     "summary": "因果 Encoder 使用 Ground-Truth Prefix 的 Teacher Forcing，针对只有此前 Token 已被接受时才有意义的修正区间；同时令 L=(1−λₜ)L_final+λₜL_base 并将 λₜ 从 1 线性退火到 0，先稳固并行 Base Distribution、再学习最终残差，防止修正头走捷径导致 Backbone 崩塌。",
-    "data": null,
-    "objective": null
+    "data": "使用 mlabonne/open-perfectblend 的 142 万条 Instruction Prompt，覆盖 Chat、Math、Code 和通用指令跟随；不直接使用原始 Response，而由对应冻结 Target 模型重新生成。输入最大长度 3072，Draft Block Size 为 16。",
+    "objective": "联合优化位置加权的最终分布交叉熵 L_final 与并行 Base Distribution 交叉熵 L_base：L=(1−λ_t)L_final+λ_tL_base，λ_t 在训练期间由 1 线性退火至 0；两项损失均使用 w_k=exp(−k/γ) 强调会门控整段接受 Prefix 的前部位置。Target 全程冻结；Draft 模块训练 3 个 Epoch，采用 AdamW、6×10⁻⁴ 学习率、零 Weight Decay、1.0 Gradient Clip、Cosine Schedule、0.04 Warmup Ratio、BF16 与 FSDP。"
   },
   "evaluation": {
-    "targetModels": [],
-    "benchmarks": [],
-    "baselines": [],
-    "metrics": [],
-    "hardware": [],
-    "frameworks": []
+    "targetModels": [
+      "Qwen3-4B",
+      "Qwen3-8B"
+    ],
+    "benchmarks": [
+      "GSM8K",
+      "MATH-500",
+      "AIME25",
+      "HumanEval",
+      "MBPP",
+      "LiveCodeBench",
+      "MT-Bench",
+      "Alpaca"
+    ],
+    "baselines": [
+      "Autoregressive Decoding",
+      "EAGLE-3",
+      "DFlash",
+      "DART",
+      "FR-Spec"
+    ],
+    "metrics": [
+      "Average Acceptance Length",
+      "End-to-end Decoding Speedup",
+      "Serving Throughput",
+      "Per-step Latency"
+    ],
+    "hardware": [
+      "NVIDIA A100-SXM4-80GB"
+    ],
+    "frameworks": [
+      "Transformers",
+      "SGLang",
+      "Triton",
+      "CUDA Graphs"
+    ]
   },
-  "mainResults": [],
-  "limitations": [],
+  "mainResults": [
+    {
+      "condition": "Qwen3-4B，Temperature=0，八个基准宏平均，16-Token Draft Block",
+      "metric": "End-to-end Decoding Speedup",
+      "result": "5.47×",
+      "comparison": "DFlash 为 4.70×，Domino 相对提升约 16.4%。",
+      "source": "Table 1"
+    },
+    {
+      "condition": "Qwen3-4B，Temperature=0，八个基准宏平均，16-Token Draft Block",
+      "metric": "Average Acceptance Length",
+      "result": "7.08",
+      "comparison": "DFlash 为 6.11，Domino 相对提升约 15.9%。",
+      "source": "Table 1"
+    },
+    {
+      "condition": "Qwen3-8B，Temperature=0，八个基准宏平均，16-Token Draft Block",
+      "metric": "End-to-end Decoding Speedup",
+      "result": "5.49×",
+      "comparison": "DFlash 为 4.66×，Domino 相对提升约 17.8%。",
+      "source": "Table 1"
+    },
+    {
+      "condition": "Qwen3-8B，Temperature=0，八个基准宏平均，16-Token Draft Block",
+      "metric": "Average Acceptance Length",
+      "result": "7.17",
+      "comparison": "DFlash 为 6.06，Domino 相对提升约 18.3%。",
+      "source": "Table 1"
+    },
+    {
+      "condition": "Qwen3-4B，Temperature=1，八个基准宏平均",
+      "metric": "End-to-end Decoding Speedup",
+      "result": "4.61×",
+      "comparison": "DFlash 为 4.03×；对应 Average Acceptance Length 从 5.33 提升至 6.00。",
+      "source": "Table 1"
+    },
+    {
+      "condition": "Qwen3-8B，Temperature=1，八个基准宏平均",
+      "metric": "End-to-end Decoding Speedup",
+      "result": "4.46×",
+      "comparison": "DFlash 为 3.96×；对应 Average Acceptance Length 从 5.18 提升至 5.91。",
+      "source": "Table 1"
+    },
+    {
+      "condition": "Qwen3-8B，GSM8K，SGLang，Concurrency=2",
+      "metric": "Serving Throughput",
+      "result": "942 tokens/s",
+      "comparison": "DFlash 为 672 tokens/s，Autoregressive Baseline 为 184 tokens/s；Domino 达到 5.1× Baseline Throughput。",
+      "source": "Table 2"
+    },
+    {
+      "condition": "Qwen3-8B，ShareGPT 同数据训练，Temperature=0，固定 16-Token Draft Budget",
+      "metric": "Domino Head Ablation",
+      "result": "Average Acceptance Length 由 3.49 提升至 4.19，Average Speedup 由 2.84× 提升至 3.31×。",
+      "comparison": "关闭或开启同一模型的 Causal Correction Branch，隔离了 Domino Head 本身的收益。",
+      "source": "Table 4; Table 6"
+    },
+    {
+      "condition": "Qwen3-8B，ShareGPT 同数据训练，Training Strategy Ablation",
+      "metric": "Average Acceptance Length",
+      "result": "TTT 为 3.80，Teacher Forcing 为 3.96，Teacher Forcing + Base-Anchored Curriculum 为 4.19。",
+      "comparison": "Teacher Forcing 提供更有效的因果监督，Curriculum 进一步避免并行 Backbone 崩塌。",
+      "source": "Figure 4"
+    },
+    {
+      "condition": "A100、Context Length=1024、16-Token Draft Budget 的 Figure 1 延迟设置",
+      "metric": "Domino Head Latency",
+      "result": "2.64 ms 降至 1.20 ms",
+      "comparison": "融合 Triton Kernel 与 CUDA Graphs 后，减少 Kernel Launch 和 Python-Level Overhead。",
+      "source": "Section 4.3; Figure 1"
+    }
+  ],
+  "limitations": [
+    {
+      "type": "training-cost",
+      "description": "论文目标是推理加速，不是降低 Drafter Training 或 Fine-tuning 成本；Domino 仍需针对相应 Target 训练附加 Draft 模块。",
+      "sourceType": "paper"
+    },
+    {
+      "type": "deployment",
+      "description": "当前实现主要适配 SGLang，与其他 Serving Framework 的兼容性尚未系统评估。",
+      "sourceType": "paper"
+    },
+    {
+      "type": "generalization",
+      "description": "实际速度会随内存带宽、计算能力和 Kernel 效率而变化，部署到不同硬件平台时可能需要额外的针对性优化。",
+      "sourceType": "paper"
+    },
+    {
+      "type": "algorithmic",
+      "description": "Domino 仍使用固定长度的单条候选链和固定 Prefix Verify，没有利用候选树，也不根据请求难度、候选置信度或 Serving 负载动态调整 Draft/Verify 长度。",
+      "sourceType": "analysis"
+    }
+  ],
   "relations": {
-    "extends": [],
-    "comparesAgainst": [],
+    "extends": [
+      "dflash"
+    ],
+    "comparesAgainst": [
+      "eagle-3",
+      "dflash",
+      "dart"
+    ],
     "related": [
       "medusa",
       "eagle",
@@ -119,15 +290,76 @@
     "dart"
   ],
   "reproducibility": {
-    "codeUrl": null,
-    "modelUrl": null,
+    "codeUrl": "https://github.com/jianuo-huang/Domino",
+    "modelUrl": "https://huggingface.co/collections/Huang2020/domino",
     "projectPage": null,
-    "officialImplementation": null,
-    "status": "not-checked",
-    "notes": []
+    "officialImplementation": true,
+    "status": "not-reproduced",
+    "notes": [
+      "论文首页提供官方 GitHub 代码仓库和 Hugging Face 模型集合。",
+      "Appendix A.1 给出训练 Epoch、GPU、Batch Size、Optimizer、Learning Rate、Warmup、精度和 FSDP 配置。",
+      "主实验直接使用公开的 EAGLE-3、DART 与 DFlash Checkpoint；论文另以 ShareGPT 同数据训练进行结构受控对比。"
+    ]
   },
-  "evidence": [],
-  "notes": [],
+  "evidence": [
+    {
+      "claim": "自回归 Drafter 的 Prefix 条件建模质量较强，但串行 Draft 执行昂贵；并行 Drafter 延迟低，却削弱块内因果依赖。",
+      "location": "Abstract; Section 1, Pages 1–2",
+      "type": "method"
+    },
+    {
+      "claim": "Domino 以并行 Backbone 一次生成整块 Hidden State 和 Base Logits，再用 GRU 与低秩 Logit Residual 顺序修正。",
+      "location": "Section 4.1 and Figure 3, Pages 4–5",
+      "type": "method"
+    },
+    {
+      "claim": "默认配置使用 5 层并行 Backbone、16-Token Block、1024 维 GRU 和 256 维低秩修正空间。",
+      "location": "Section 5.1, Page 6",
+      "type": "configuration"
+    },
+    {
+      "claim": "Teacher Forcing 对 Ground-Truth Prefix 编码，Base-Anchored Curriculum 将 λ_t 从 1 线性退火到 0。",
+      "location": "Section 4.2, Pages 5–6",
+      "type": "training"
+    },
+    {
+      "claim": "融合 Triton Kernel 与 CUDA Graphs 将 Domino Head 延迟从 2.64 ms 降至 1.20 ms。",
+      "location": "Section 4.3, Page 6",
+      "type": "system"
+    },
+    {
+      "claim": "训练使用 142 万条 Open-PerfectBlend Prompt，由对应 Target 重生成 Response；完整配置为 3 Epoch、8 张 A100-SXM4-80GB、Global Batch Size 16。",
+      "location": "Section 5.1, Page 6; Appendix A.1, Pages 10–11",
+      "type": "training"
+    },
+    {
+      "claim": "Temperature=0 时，Domino 在 Qwen3-4B 和 Qwen3-8B 上的八基准平均速度分别为 5.47× 和 5.49×。",
+      "location": "Table 1, Page 7",
+      "type": "result"
+    },
+    {
+      "claim": "在 SGLang 高并发实验中，Domino 在 Qwen3-4B 与 Qwen3-8B 的 GSM8K、MBPP 上整体高于 EAGLE-3 和 DFlash。",
+      "location": "Table 2, Page 7",
+      "type": "system"
+    },
+    {
+      "claim": "Teacher Forcing 与 Base-Anchored Curriculum 将平均接受长度从 TTT 的 3.80 依次提高到 3.96 和 4.19。",
+      "location": "Figure 4, Page 8",
+      "type": "ablation"
+    },
+    {
+      "claim": "论文明确列出 Training Cost、其他 Serving Framework 兼容性和跨硬件速度差异三类限制。",
+      "location": "Section 7, Page 9",
+      "type": "limitation"
+    }
+  ],
+  "notes": [
+    "标题中的“Decoupling”不是把 Draft 完全变成无串行过程：候选 Token 仍左到右采样，但串行路径只保留 GRU 与低秩 Logit Correction，不再逐 Token 重跑 Transformer 和完整 LM Head。",
+    "Domino 选择在 Logit Space 做残差修正是关键工程取舍；Hidden-Space Correction 会要求每一步重新执行完整 Target LM Head，直接破坏低开销目标。",
+    "Figure 1 的统一 16-Token Budget 对比中，Domino 相比 DFlash 仅增加 56M 参数（+5.3%）和约 2.8% 的整轮 Draft-Verify 延迟，却将接受长度提高 16.6%、端到端速度提高 12.3%。",
+    "Table 1 的主结果使用公开 Baseline Checkpoint，可能混入 Training Data 差异；Table 3 的 ShareGPT 同数据实验才是更干净的架构对照。",
+    "Domino 主要解决 Draft 质量与串行成本的矛盾，不处理候选树选择、动态 Verify Budget 或 Batch-Aware Scheduling。"
+  ],
   "provenance": {
     "legacyWorkbookRow": 12,
     "workbookInstitutions": "未知（arXiv作者团队）"

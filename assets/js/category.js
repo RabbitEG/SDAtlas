@@ -63,7 +63,8 @@
     var container = document.getElementById("citation-graph");
     if (!container || !window.SDAtlasCitationGraph) return;
     window.SDAtlasCitationGraph.render(container, result, {
-      title: item ? item.name + "的论文关系" : "论文关系"
+      title: item ? item.name + "论文的引用脉络" : "论文引用脉络",
+      allPapers: data.papers
     });
   }
 
