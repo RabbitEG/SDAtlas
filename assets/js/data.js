@@ -4499,7 +4499,24 @@ window.SD_ATLAS_DATA = {
         "compatibleWith 中列出 DFlare 属于结构层面的正交兼容判断：DFlare 优化并行 Backbone 的 Target 条件注入，DSpark 优化其后部 Prefix 建模和 Verify 调度；论文没有直接实验验证两者组合。",
         "公开 DeepSpec 已足以检查算法、训练目标和 Table 1 Checkpoint，但生产部分仍依赖未公开模型、真实流量与定制 Kernel，复现状态因此记为 not-reproduced，而不是 fully-reproducible。"
       ],
-      "qaNotes": [],
+      "qaNotes": [
+        {
+          "question": "Prefix Scheduler 省下的只是 Verify 开销，而没有减少 Drafter 那次前向的开销吗？",
+          "answer": "是。\n\nDSpark 会先让并行 Backbone 完整生成 γ 个候选，再由 Scheduler 选择其中前 ℓ 个送给 Target Verify。\n\n因此它实现的是：\n\n完整 Draft，选择性 Verify。\n\n它减少的是 Target 需要处理的 Verify Token 数量，尤其能缓解高并发下的 Batch 容量占用；但后面未被 Verify 的 γ−ℓ 个候选，其 Draft 计算已经发生，无法回收。"
+        },
+        {
+          "question": "为什么不能提前预测 ℓ，只生成需要的候选长度？",
+          "answer": "可以做，但不能直接使用现在的 Confidence Scheduler。\n\n当前第 k 个位置的置信度依赖：\n\n* Backbone 已经算出的 Hidden State h_k；\n* 实际采样出的前一个 Draft Token x_{k−1}。\n\n也就是说，准确判断“这条具体候选 Prefix 能活多远”时，完整并行前向基本已经结束了。\n\n若把预测提前，只能根据 Context、Anchor 和历史信息估计整体难度，信息更少，容易把长度预测错。此外，动态长度还会破坏固定 Shape、CUDA Graph 和并行执行效率。\n\n核心矛盾是：\n\n越早决策，越能省 Draft 计算，但信息越少；越晚决策，判断越准，但计算已经做完。\n\n较现实的方向是先预测粗粒度长度档位，例如 γ∈{4,8,16}，而不是逐 Token 动态停止。"
+        },
+        {
+          "question": "SPS 只建模为 Verify Batch Token 数 (B) 的函数，会不会过于粗糙？实际速度不是还受上下文长度、其他负载、显存、温度和通信等因素影响吗？",
+          "answer": "理论上会受影响，但在固定生产部署中，这个近似通常合理。\n\n模型、设备、并行策略、Kernel 和资源分配在上线前基本固定，无关负载也通常被隔离；上下文长度等变量则通过 Decode Load Balance 尽量拉平。此时，调度器真正会大幅改变、且直接影响一轮 Verify 成本的主要变量，就是总 Verify Token 数：\n\nB=Σᵣ(1+ℓᵣ)\n\n因此，离线 Profiling 得到的 SPS(B) 并不是完整性能模型，而是受控环境下的主导变量代理。它不要求精确预测每次延迟，只要能正确刻画“继续增加 Verify Token 后，吞吐大致如何变化”，就足以辅助选择 Verify 长度。\n\n适用边界也很明确：若存在超长上下文严重失衡、动态模型共置、频繁降频或通信拥塞，就需要把 SPS 扩展成包含 Context Bucket 和运行时状态的多维或在线模型。"
+        },
+        {
+          "question": "为什么生产调度要用两轮前的置信度来预测当前轮容量 (K)？当前轮或上一轮的信息不能直接用吗？",
+          "answer": "根本原因是 ZOS 要提前准备下一轮，不能等置信度出来后再停下来调度。\n\n普通同步实现可以直接使用当前轮置信度：\n\n当前轮 Draft\n→ 得到当前 Confidence\n→ 计算 K\n→ 组织 Verify Batch\n→ 执行 Verify\n\n但这样 GPU 必须等待容量搜索和 Batch 重组，会产生调度气泡。\n\nZOS 希望第 t 轮结束后，第 t+1 轮立刻启动。因此在第 t 轮执行期间，Kₜ₊₁ 就必须已经确定并完成准备。可第 t 轮的置信度通常要到该轮接近结束时才完整可用，已经来不及参与准备；所以它使用更早、已经稳定可用的信息：\n\ncₜ₋₂ → Kₜ\n\n可以理解为：\n\n第 t−2 轮 Confidence 已就绪\n        ↓\n第 t−1 轮执行期间，异步计算并准备 Kₜ\n        ↓\n第 t 轮直接启动\n\n所以“两轮滞后”主要来自当前生产流水线的提前准备窗口，并非算法数学上必然要求两轮：\n\n用当前轮信息：可以，但会同步停顿；\n用上一轮信息：理论上可能，但在该实现中来得太晚，无法完全隐藏调度；\n用三轮前信息：也能运行，但信息更旧，没必要。\n\n生产方案通常让两轮前的信息只决定总容量 K，再用当前置信度选择本轮具体保留的 Top-K 候选。代价是负载或候选难度突然变化时，容量调整会存在两轮滞后。"
+        }
+      ],
       "provenance": {
         "legacyWorkbookRow": 13,
         "workbookInstitutions": "未知（arXiv作者团队）"
